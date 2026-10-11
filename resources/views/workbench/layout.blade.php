@@ -22,6 +22,7 @@
                 <a href="{{ route('workbench.market-types.index') }}" class="{{ request()->routeIs('workbench.market-types.*') ? 'active' : '' }}"><span class="nav-icon">◈</span> Market types</a>
                 <a href="{{ route('workbench.market-pairs.index') }}" class="{{ request()->routeIs('workbench.market-pairs.*') ? 'active' : '' }}"><span class="nav-icon">⇄</span> Market pairs</a>
                 <a href="{{ route('workbench.timeframes.index') }}" class="{{ request()->routeIs('workbench.timeframes.*') ? 'active' : '' }}"><span class="nav-icon">◷</span> Timeframes</a>
+                <a href="{{ route('workbench.market-prices.index') }}" class="{{ request()->routeIs('workbench.market-prices.*') ? 'active' : '' }}"><span class="nav-icon">⌁</span> Market prices</a>
                 <a href="{{ route('workbench.tests.create') }}" class="{{ request()->routeIs('workbench.tests.*') ? 'active' : '' }}"><span class="nav-icon">▷</span> Run a test</a>
             </nav>
             <div class="sidebar-footer"><span class="pulse-dot"></span> Engine ready</div>

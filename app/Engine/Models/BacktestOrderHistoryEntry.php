@@ -18,6 +18,16 @@ class BacktestOrderHistoryEntry implements JsonSerializable
      */
     public ?array $closestToTakeProfit = null;
 
+    /**
+     * @var array{price: float, date: string, source: string}|null
+     */
+    public ?array $adverseExtreme = null;
+
+    /**
+     * @var array{price: float, date: string, source: string}|null
+     */
+    public ?array $favorableExtreme = null;
+
     public ?string $closeDate = null;
 
     public ?string $closeReason = null;
@@ -55,6 +65,8 @@ class BacktestOrderHistoryEntry implements JsonSerializable
      *     close_price: ?float,
      *     closest_to_stop_loss: ?array{price: float, date: string, source: string, distance: float},
      *     closest_to_take_profit: ?array{price: float, date: string, source: string, distance: float},
+     *     adverse_extreme: ?array{price: float, date: string, source: string},
+     *     favorable_extreme: ?array{price: float, date: string, source: string},
      *     risk_amount: float,
      *     position_size: float,
      *     capital_at_open: float,
@@ -77,6 +89,8 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             'close_price' => $this->closePrice,
             'closest_to_stop_loss' => $this->closestToStopLoss,
             'closest_to_take_profit' => $this->closestToTakeProfit,
+            'adverse_extreme' => $this->adverseExtreme,
+            'favorable_extreme' => $this->favorableExtreme,
             'risk_amount' => $this->riskAmount,
             'position_size' => $this->positionSize,
             'capital_at_open' => $this->capitalAtOpen,

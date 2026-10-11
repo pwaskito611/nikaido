@@ -58,6 +58,7 @@ class RunSpecificPairBacktestAction
                 $order = $orderHistory->at($openOrderIndex);
                 $this->updateClosestToStopLoss($order, $candle);
                 $this->updateClosestToTakeProfit($order, $candle);
+                $this->updateExcursionExtremes($order, $candle);
 
                 $closeReason = $this->getPriceExitReason($order, $candle);
 
@@ -201,6 +202,53 @@ class RunSpecificPairBacktestAction
                     'distance' => $distance,
                 ];
             }
+        }
+    }
+
+    private function updateExcursionExtremes(BacktestOrderHistoryEntry $order, MarketPrice $candle): void
+    {
+        $isLong = $order->signal === StrategySignal::Long->value;
+        $adverseQuote = $isLong ? $candle->bid_low : $candle->ask_high;
+        $favorableQuote = $isLong ? $candle->bid_high : $candle->ask_low;
+        $adverseFallback = $isLong ? $candle->low : $candle->high;
+        $favorableFallback = $isLong ? $candle->high : $candle->low;
+        $adverse = is_numeric($adverseQuote) ? $adverseQuote : $adverseFallback;
+        $favorable = is_numeric($favorableQuote) ? $favorableQuote : $favorableFallback;
+        if (! is_numeric($adverse) || ! is_numeric($favorable)) {
+            return;
+        }
+
+        $adverse = (float) $adverse;
+        $favorable = (float) $favorable;
+        $timestamp = $candle->price_date->format('Y-m-d H:i:s');
+        $adverseSource = is_numeric($adverseQuote)
+            ? ($isLong ? 'bid_low' : 'ask_high')
+            : ($isLong ? 'low' : 'high');
+        $favorableSource = is_numeric($favorableQuote)
+            ? ($isLong ? 'bid_high' : 'ask_low')
+            : ($isLong ? 'high' : 'low');
+        $previousAdverse = $order->adverseExtreme;
+        $isMoreAdverse = $previousAdverse === null || ($isLong
+            ? $adverse < $previousAdverse['price']
+            : $adverse > $previousAdverse['price']);
+        if ($isMoreAdverse) {
+            $order->adverseExtreme = [
+                'price' => $adverse,
+                'date' => $timestamp,
+                'source' => $adverseSource,
+            ];
+        }
+
+        $previousFavorable = $order->favorableExtreme;
+        $isMoreFavorable = $previousFavorable === null || ($isLong
+            ? $favorable > $previousFavorable['price']
+            : $favorable < $previousFavorable['price']);
+        if ($isMoreFavorable) {
+            $order->favorableExtreme = [
+                'price' => $favorable,
+                'date' => $timestamp,
+                'source' => $favorableSource,
+            ];
         }
     }
 

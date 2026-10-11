@@ -23,6 +23,7 @@ class WorkbenchFeatureTest extends TestCase
             ->assertSee('Market types')
             ->assertSee('Market pairs')
             ->assertSee('Timeframes')
+            ->assertSee('Market prices')
             ->assertSee('Run a test');
     }
 
@@ -181,6 +182,133 @@ class WorkbenchFeatureTest extends TestCase
         $this->assertDatabaseHas('market_pair', ['id' => $pair->id]);
     }
 
+    public function test_market_price_can_be_created_viewed_updated_deleted_and_filtered(): void
+    {
+        $marketType = $this->createMarketType();
+        $pair = $this->createMarketPair($marketType);
+        $otherPair = MarketPair::create([
+            'market_type_id' => $marketType->id,
+            'base' => 'GBP',
+            'quote' => 'USD',
+        ]);
+        $timeframe = TimeframeType::create(['name' => '1h']);
+        $otherTimeframe = TimeframeType::create(['name' => '4h']);
+
+        $createResponse = $this->post('/workbench/market-prices', [
+            'pair_id' => $pair->id,
+            'timeframe_type_id' => $timeframe->id,
+            'price_date' => '2026-10-09T09:00',
+            'open' => '1.100000',
+            'high' => '1.120000',
+            'low' => '1.090000',
+            'close' => '1.110000',
+            'bid_open' => '1.099000',
+            'bid_high' => '1.119000',
+            'bid_low' => '1.089000',
+            'bid_close' => '1.109000',
+            'ask_open' => '1.101000',
+            'ask_high' => '1.121000',
+            'ask_low' => '1.091000',
+            'ask_close' => '1.111000',
+            'price_at_8' => '1.105000',
+        ]);
+
+        $price = MarketPrice::query()
+            ->where('pair_id', $pair->id)
+            ->where('timeframe_type_id', $timeframe->id)
+            ->firstOrFail();
+        $createResponse->assertRedirect("/workbench/market-prices/{$price->id}");
+        $this->assertDatabaseHas('market_price', [
+            'id' => $price->id,
+            'pair_id' => $pair->id,
+            'timeframe_type_id' => $timeframe->id,
+            'price_date' => '2026-10-09 09:00:00',
+        ]);
+
+        foreach (range(0, 24) as $minute) {
+            MarketPrice::create([
+                'pair_id' => $pair->id,
+                'timeframe_type_id' => $timeframe->id,
+                'price_date' => sprintf('2026-10-09 10:%02d:00', $minute),
+                'close' => '1.250000',
+                ...$this->quoteValues('1.250000', '1.250000', '1.250000', '1.250000'),
+            ]);
+        }
+        MarketPrice::create([
+            'pair_id' => $otherPair->id,
+            'timeframe_type_id' => $timeframe->id,
+            'price_date' => '2026-10-09 10:00:00',
+            'close' => '1.200000',
+            ...$this->quoteValues('1.200000', '1.200000', '1.200000', '1.200000'),
+        ]);
+        MarketPrice::create([
+            'pair_id' => $pair->id,
+            'timeframe_type_id' => $otherTimeframe->id,
+            'price_date' => '2026-10-09 11:00:00',
+            'close' => '1.300000',
+            ...$this->quoteValues('1.300000', '1.300000', '1.300000', '1.300000'),
+        ]);
+
+        $this->from('/workbench/market-prices/create')
+            ->post('/workbench/market-prices', [
+                'pair_id' => $pair->id,
+                'timeframe_type_id' => $timeframe->id,
+                'price_date' => '2026-10-09T09:00',
+                'close' => '1.110000',
+                ...$this->quoteValues('1.100000', '1.120000', '1.090000', '1.109000'),
+            ])
+            ->assertRedirect('/workbench/market-prices/create')
+            ->assertSessionHasErrors('price_date');
+
+        $this->get('/workbench/market-prices')
+            ->assertOk()
+            ->assertSee('Market prices')
+            ->assertSee('1h')
+            ->assertSee('4h');
+        $this->get("/workbench/market-prices?pair_id={$pair->id}&timeframe_type_id={$timeframe->id}")
+            ->assertOk()
+            ->assertSee('page=2')
+            ->assertDontSee('1.110000')
+            ->assertDontSee('1.200000')
+            ->assertDontSee('1.300000');
+        $this->get("/workbench/market-prices?pair_id={$pair->id}&timeframe_type_id={$timeframe->id}&page=2")
+            ->assertOk()
+            ->assertSee('1.110000')
+            ->assertDontSee('1.200000')
+            ->assertDontSee('1.300000');
+
+        $this->get("/workbench/market-prices/{$price->id}")
+            ->assertOk()
+            ->assertSee('Bid / Ask OHLC')
+            ->assertSee('1.119000');
+        $this->get("/workbench/market-prices/{$price->id}/edit")
+            ->assertOk()
+            ->assertSee('name="bid_open"', false);
+
+        $this->put("/workbench/market-prices/{$price->id}", [
+            'pair_id' => $pair->id,
+            'timeframe_type_id' => $timeframe->id,
+            'price_date' => '2026-10-09T09:00',
+            'open' => '1.100000',
+            'high' => '1.120000',
+            'low' => '1.090000',
+            'close' => '1.115000',
+            'bid_open' => '1.099000',
+            'bid_high' => '1.119000',
+            'bid_low' => '1.089000',
+            'bid_close' => '1.114000',
+            'ask_open' => '1.101000',
+            'ask_high' => '1.121000',
+            'ask_low' => '1.091000',
+            'ask_close' => '1.116000',
+        ])->assertRedirect("/workbench/market-prices/{$price->id}");
+        $this->assertDatabaseHas('market_price', ['id' => $price->id, 'close' => '1.115000']);
+
+        $this->delete("/workbench/market-prices/{$price->id}")
+            ->assertRedirect('/workbench/market-prices');
+        $this->assertDatabaseMissing('market_price', ['id' => $price->id]);
+    }
+
     public function test_test_setup_redirects_to_backtest_results_after_running_engine(): void
     {
         $pair = $this->createMarketPair($this->createMarketType());
@@ -291,6 +419,21 @@ class WorkbenchFeatureTest extends TestCase
             ->assertOk()
             ->assertSee('Cluster 2 analysis')
             ->assertSee('0 ORDERS');
+
+        $this->get('/workbench/tests/results?stress_mode=combined&adverse_stress=0.5&favorable_stress=0.25')
+            ->assertOk()
+            ->assertSee('Fluctuation Stress Test')
+            ->assertSee('STRESS SCENARIO')
+            ->assertSee('FULL BASELINE');
+
+        $this->get('/workbench/tests/results?monte_carlo=1&simulation_count=20&trades_per_simulation=2&method=bootstrap&mc_initial_capital=10000&risk_model=fixed_monetary_pl&drawdown_threshold=10&random_seed=42')
+            ->assertOk()
+            ->assertSee('Monte Carlo Simulation')
+            ->assertSee('20 simulations')
+            ->assertSee('FINAL EQUITY')
+            ->assertSee('MAX DRAWDOWN DISTRIBUTION');
+
+        $this->assertSame('stop_loss', session('backtestResult')['order_history'][0]['close_reason']);
     }
 
     public function test_result_page_redirects_to_test_setup_when_there_is_no_result(): void

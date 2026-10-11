@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Workbench\Controllers\MarketPairController;
+use App\Workbench\Controllers\MarketPriceController;
 use App\Workbench\Controllers\MarketTypeController;
 use App\Workbench\Controllers\TimeframeTypeController;
 use App\Workbench\Controllers\WorkbenchController;
@@ -15,6 +16,8 @@ Route::prefix('workbench')->name('workbench.')->group(function (): void {
         ->parameters(['market-types' => 'marketType']);
     Route::resource('market-pairs', MarketPairController::class)
         ->parameters(['market-pairs' => 'marketPair']);
+    Route::resource('market-prices', MarketPriceController::class)
+        ->parameters(['market-prices' => 'marketPrice']);
     Route::resource('timeframes', TimeframeTypeController::class)
         ->parameters(['timeframes' => 'timeframe']);
 

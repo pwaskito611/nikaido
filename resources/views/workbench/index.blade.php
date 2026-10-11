@@ -26,9 +26,9 @@
 
     <section class="section-heading">
         <div><span class="eyebrow">GET STARTED</span><h2>Choose your next step</h2></div>
-        <span class="section-note">Three tools. One workflow.</span>
+        <span class="section-note">Five steps. One workflow.</span>
     </section>
-    <section class="dashboard-cards dashboard-cards-four">
+    <section class="dashboard-cards">
         <a class="dashboard-card" href="{{ route('workbench.market-types.index') }}">
             <span class="card-index">01 / UNIVERSE</span><span class="card-symbol">◈</span>
             <h3>Market types</h3><p>Kelompokkan instrumen berdasarkan kelas aset atau pasar.</p>
@@ -44,8 +44,13 @@
             <h3>Timeframes</h3><p>Atur interval candle yang tersedia untuk pengujian.</p>
             <span class="card-link">Manage timeframes <b>↗</b></span>
         </a>
+        <a class="dashboard-card" href="{{ route('workbench.market-prices.index') }}">
+            <span class="card-index">04 / HISTORICAL DATA</span><span class="card-symbol">⌁</span>
+            <h3>Market prices</h3><p>Kelola dan filter data candle berdasarkan pair dan timeframe.</p>
+            <span class="card-link">Manage market prices <b>↗</b></span>
+        </a>
         <a class="dashboard-card card-featured" href="{{ route('workbench.tests.create') }}">
-            <span class="card-index">04 / RESEARCH</span><span class="card-symbol">▷</span>
+            <span class="card-index">05 / RESEARCH</span><span class="card-symbol">▷</span>
             <h3>Run a test</h3><p>Pilih pair, periode, dan jadwal strategi untuk memulai.</p>
             <span class="card-link">Open test setup <b>↗</b></span>
         </a>

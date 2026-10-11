@@ -7,6 +7,43 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Monte Carlo simulation
+
+The Workbench results page can run trade-sequence Monte Carlo simulations from the
+closed trades already stored in the backtest result. It does not rerun the strategy
+or modify the source order history. The input P/L is the backtest's `profit_loss`;
+this repository does not currently calculate separate commissions or fees.
+
+Choose `shuffle` to sample every historical trade exactly once in a randomized
+order, or `bootstrap` to sample with replacement. Bootstrap may use a configured
+number of trades per simulation and treats trades as independent observations; it
+does not preserve temporal or market-regime dependencies. Shuffle changes order
+only and does not change the historical P/L distribution.
+
+Simulation configuration defaults to 1,000 simulations, all historical trades per
+simulation, shuffle, the original backtest initial capital, fixed monetary P/L,
+and a 20% drawdown threshold. The optional seed can be set from 0 to 2,147,483,647;
+without a seed, a fresh random seed is generated. A configured trade count other
+than the historical count is accepted only for bootstrap. Requests are limited to
+10,000,000 simulated trade steps.
+
+Equity can use fixed monetary P/L or compounded return. The compounded return for
+each historical trade is derived from its stored `profit_loss / capital_at_open`;
+it is rejected when the denominator is missing or invalid. Equity reaching zero
+or below is floored at zero and the simulation stops processing remaining trades.
+Fixed monetary P/L preserves each nominal trade P/L; compounded-return simulations
+preserve each trade's derived return instead.
+Maximum drawdown is measured from the running equity peak and reported both as a
+percentage of peak equity and as a monetary amount. Drawdown probability uses a
+configurable percentage threshold. Percentiles use linear interpolation between
+the adjacent sorted simulation outcomes.
+
+The report includes final-equity and maximum-drawdown distributions, percentiles,
+loss and drawdown probabilities. A 95th-percentile drawdown is a simulation
+distribution statistic, not a guaranteed loss bound. Neither method models future
+changes in spread, slippage, liquidity, volatility, or market regime, guarantees
+future performance, or removes overfitting risk.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

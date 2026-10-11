@@ -2,6 +2,10 @@
 
 return [
 
+    'strategy' => [
+        'url' => env('STRATEGY_SERVICE_URL', 'http://localhost:8000'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

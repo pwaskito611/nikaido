@@ -12,6 +12,9 @@ class SpecificPairTestResultResource extends JsonResource
         return [
             'candle' => $this->resource['candle']->toArray(),
             'result' => $this->resource['result'],
+            'signal' => $this->resource['signal'],
+            'stop_loss' => $this->resource['stop_loss'],
+            'take_profit' => $this->resource['take_profit'],
         ];
     }
 }

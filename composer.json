@@ -27,7 +27,11 @@
             "Nikaido\\": "src/",
             "Database\\Factories\\": "database/factories/",
             "Database\\Seeders\\": "database/seeders/"
-        }
+        },
+        "classmap": [
+            "app/Strategy/Models/",
+            "app/Strategy/Repositories/"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

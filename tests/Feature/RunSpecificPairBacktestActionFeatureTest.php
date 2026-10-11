@@ -7,10 +7,10 @@ use App\Engine\Models\MarketPair;
 use App\Engine\Models\MarketPrice;
 use App\Engine\Models\MarketType;
 use App\Strategy\Config\SpecificPairTestConfig;
-use App\Strategy\Strategy;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Collection;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class RunSpecificPairBacktestActionFeatureTest extends TestCase
@@ -30,21 +30,13 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
         $activeCandle = $this->createCandle($pair, '2026-10-09 09:00:00');
         $this->createCandle($pair, '2026-10-09 17:01:00');
 
-        $strategy = new class extends Strategy
-        {
-            /** @var list<MarketPrice> */
-            public array $calledWith = [];
-
-            /**
-             * @param  Collection<int, MarketPrice>  $history
-             */
-            public function execute(MarketPrice $candle, Collection $history): bool
-            {
-                $this->calledWith[] = $candle;
-
-                return false;
-            }
-        };
+        Http::fake([
+            '*/api/strategy/' => Http::response([
+                'signal' => 'none',
+                'stop_loss' => null,
+                'take_profit' => null,
+            ], 200),
+        ]);
 
         $results = app(RunSpecificPairBacktestAction::class)->execute(
             new SpecificPairTestConfig(
@@ -55,17 +47,16 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
                 '09:00',
                 '17:00',
             ),
-            $strategy,
         );
 
-        $this->assertSame(1, $results->count());
-        $this->assertSame($activeCandle->id, $results->at(0)['candle']->id);
-        $this->assertSame([$activeCandle->id], array_map(
-            fn (MarketPrice $candle): int => $candle->id,
-            $strategy->calledWith,
-        ));
+        $this->assertSame(1, $results['results']->count());
+        $this->assertSame($activeCandle->id, $results['results']->at(0)['candle']->id);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+            && str_ends_with($request->url(), '/api/strategy/')
+            && $request->data() === []);
         $this->assertSame('2026-10-09 08:59:00', $passiveCandle->fresh()->price_date->format('Y-m-d H:i:s'));
-        $this->assertFalse($results->at(0)['result']);
+        $this->assertFalse($results['results']->at(0)['result']);
+        $this->assertTrue($results['order_history']->isEmpty());
     }
 
     private function createCandle(MarketPair $pair, string $timestamp): MarketPrice
@@ -76,6 +67,10 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
             'timeframe_type_id' => 1,
             'open' => '1.100000',
             'close' => '1.200000',
+            'bid' => '1.199000',
+            'ask' => '1.201000',
+            'high' => '1.205000',
+            'low' => '1.195000',
         ]);
     }
 }

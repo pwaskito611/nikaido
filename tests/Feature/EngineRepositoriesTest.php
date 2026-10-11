@@ -86,6 +86,14 @@ class EngineRepositoriesTest extends TestCase
             'timeframe_type_id' => 1,
             'open' => '1.234567',
             'close' => '1.234890',
+            'bid_open' => '1.234500',
+            'bid_high' => '1.234800',
+            'bid_low' => '1.234400',
+            'bid_close' => '1.234700',
+            'ask_open' => '1.234600',
+            'ask_high' => '1.234900',
+            'ask_low' => '1.234500',
+            'ask_close' => '1.234800',
         ]);
 
         $this->assertSame($record->id, $repository->find($record->id)?->id);

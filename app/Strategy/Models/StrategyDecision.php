@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Engine\Models;
+namespace App\Strategy\Models;
 
-use App\Engine\Enums\StrategySignal;
+use App\Strategy\Enums\StrategySignal;
 
 class StrategyDecision
 {

@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Engine\Repositories;
 
 use App\Engine\Models\MarketType;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class MarketTypeRepository
 {
@@ -13,6 +16,29 @@ class MarketTypeRepository
     public function find(int $id): ?MarketType
     {
         return $this->model->newQuery()->find($id);
+    }
+
+    public function findOrFail(int $id): MarketType
+    {
+        return $this->model->newQuery()
+            ->withCount('marketPairs')
+            ->findOrFail($id);
+    }
+
+    public function paginate(int $perPage = 15): LengthAwarePaginator
+    {
+        return $this->model->newQuery()
+            ->withCount('marketPairs')
+            ->orderBy('name')
+            ->paginate($perPage);
+    }
+
+    public function hasMarketPairs(int $id): bool
+    {
+        return $this->model->newQuery()
+            ->findOrFail($id)
+            ->marketPairs()
+            ->exists();
     }
 
     public function create(array $attributes): MarketType

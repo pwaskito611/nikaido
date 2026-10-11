@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Engine\Controllers;
 
 use App\Engine\Actions\RunSpecificPairBacktestAction;
@@ -21,6 +23,8 @@ class EngineController
             $backtest['results']->toArray(),
         )->additional([
             'order_history' => $backtest['order_history'],
+            'initial_capital' => $backtest['initial_capital'],
+            'ending_capital' => $backtest['ending_capital'],
         ]);
     }
 }

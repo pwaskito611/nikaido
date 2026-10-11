@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Engine\Repositories;
 
 use App\Engine\Models\MarketPair;
 use DateTimeInterface;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 
 class MarketPairRepository
 {
@@ -15,6 +18,41 @@ class MarketPairRepository
     public function find(int $id): ?MarketPair
     {
         return $this->model->newQuery()->find($id);
+    }
+
+    public function findOrFail(int $id): MarketPair
+    {
+        return $this->model->newQuery()
+            ->with(['marketType'])
+            ->withCount('prices')
+            ->findOrFail($id);
+    }
+
+    public function paginate(int $perPage = 15): LengthAwarePaginator
+    {
+        return $this->model->newQuery()
+            ->with(['marketType'])
+            ->withCount('prices')
+            ->orderBy('base')
+            ->orderBy('quote')
+            ->paginate($perPage);
+    }
+
+    public function all(): Collection
+    {
+        return $this->model->newQuery()
+            ->with('marketType')
+            ->orderBy('base')
+            ->orderBy('quote')
+            ->get();
+    }
+
+    public function hasPrices(int $id): bool
+    {
+        return $this->model->newQuery()
+            ->findOrFail($id)
+            ->prices()
+            ->exists();
     }
 
     public function create(array $attributes): MarketPair
@@ -40,16 +78,35 @@ class MarketPairRepository
         string $quote,
         DateTimeInterface $from,
         DateTimeInterface $to,
+        ?int $timeframeTypeId = null,
     ): MarketPair {
-        return $this->model->newQuery()
+        $pair = $this->model->newQuery()
             ->where('base', strtoupper($base))
             ->where('quote', strtoupper($quote))
-            ->with(['prices' => function (HasMany $query) use ($from, $to): void {
-                $query->whereBetween('price_date', [$from, $to])
-                    ->orderBy('price_date')
-                    ->orderBy('id');
-            }])
             ->orderBy('id')
             ->firstOrFail();
+
+        $warmupQuery = $pair->prices()
+            ->where('price_date', '<', $from)
+            ->orderByDesc('price_date')
+            ->orderByDesc('id')
+            ->limit(200);
+
+        $pricesQuery = $pair->prices()
+            ->whereBetween('price_date', [$from, $to])
+            ->orderBy('price_date')
+            ->orderBy('id');
+
+        if ($timeframeTypeId !== null) {
+            $warmupQuery->where('timeframe_type_id', $timeframeTypeId);
+            $pricesQuery->where('timeframe_type_id', $timeframeTypeId);
+        }
+
+        $warmupPrices = $warmupQuery->get()->reverse()->values();
+        $prices = $pricesQuery->get();
+
+        $pair->setRelation('prices', $warmupPrices->concat($prices));
+
+        return $pair;
     }
 }

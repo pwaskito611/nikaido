@@ -1,6 +1,8 @@
 <?php
 
-namespace App\Strategy\Config;
+declare(strict_types=1);
+
+namespace App\Engine\Config;
 
 use DateTimeImmutable;
 use InvalidArgumentException;
@@ -18,6 +20,9 @@ class SpecificPairTestConfig
         public readonly string|false $activeFrom,
         public readonly string|false $activeUntil,
         public readonly array $excludedDays = [],
+        public readonly ?int $timeframeTypeId = null,
+        public readonly float $initialCapital = 10000.0,
+        public readonly float $riskPerTradePercent = 1.0,
     ) {
         if (trim($base) === '' || trim($quote) === '') {
             throw new InvalidArgumentException('Base and quote currencies must not be empty.');
@@ -41,6 +46,18 @@ class SpecificPairTestConfig
             if (! is_int($day) || $day < 1 || $day > 7) {
                 throw new InvalidArgumentException('Excluded days must be ISO-8601 weekday numbers from 1 to 7.');
             }
+        }
+
+        if ($timeframeTypeId !== null && $timeframeTypeId < 1) {
+            throw new InvalidArgumentException('The timeframe type ID must be a positive integer.');
+        }
+
+        if (! is_finite($initialCapital) || $initialCapital <= 0) {
+            throw new InvalidArgumentException('Initial capital must be a positive finite number.');
+        }
+
+        if (! is_finite($riskPerTradePercent) || $riskPerTradePercent <= 0 || $riskPerTradePercent > 100) {
+            throw new InvalidArgumentException('Risk per trade must be greater than 0 and at most 100 percent.');
         }
     }
 

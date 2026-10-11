@@ -9,7 +9,6 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         api: [
             __DIR__.'/../app/Engine/routes.php',
-            __DIR__.'/../app/Strategy/routes.php',
         ],
         commands: __DIR__.'/../routes/console.php',
         health: '/up',

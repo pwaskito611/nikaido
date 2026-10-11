@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Engine\Enums;
+namespace App\Strategy\Enums;
 
 enum StrategySignal: string
 {

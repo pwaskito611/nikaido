@@ -1,8 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Engine\Requests;
 
-use App\Strategy\Config\SpecificPairTestConfig;
+use App\Engine\Config\SpecificPairTestConfig;
 use DateTimeImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;

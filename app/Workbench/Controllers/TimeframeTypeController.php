@@ -10,9 +10,8 @@ use App\Workbench\Actions\TimeframeTypes\DeleteTimeframeTypeAction;
 use App\Workbench\Actions\TimeframeTypes\ListTimeframeTypesAction;
 use App\Workbench\Actions\TimeframeTypes\UpdateTimeframeTypeAction;
 use App\Workbench\Actions\TimeframeTypes\ViewTimeframeTypeAction;
+use App\Workbench\Requests\TimeframeTypeRequest;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class TimeframeTypeController
@@ -27,13 +26,9 @@ class TimeframeTypeController
         return view('workbench.timeframes.form', ['timeframe' => new TimeframeType]);
     }
 
-    public function store(Request $request, CreateTimeframeTypeAction $action): RedirectResponse
+    public function store(TimeframeTypeRequest $request, CreateTimeframeTypeAction $action): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:50', 'unique:timeframe_type,name'],
-        ]);
-
-        $timeframe = $action->execute(trim($validated['name']));
+        $timeframe = $action->execute($request->validated('name'));
 
         return redirect()->route('workbench.timeframes.show', $timeframe)
             ->with('status', 'Timeframe berhasil dibuat.');
@@ -49,18 +44,9 @@ class TimeframeTypeController
         return view('workbench.timeframes.form', ['timeframe' => $action->execute($timeframe)]);
     }
 
-    public function update(Request $request, int $timeframe, UpdateTimeframeTypeAction $action): RedirectResponse
+    public function update(TimeframeTypeRequest $request, int $timeframe, UpdateTimeframeTypeAction $action): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:50',
-                Rule::unique('timeframe_type', 'name')->ignore($timeframe),
-            ],
-        ]);
-
-        $action->execute($timeframe, trim($validated['name']));
+        $action->execute($timeframe, $request->validated('name'));
 
         return redirect()->route('workbench.timeframes.show', $timeframe)
             ->with('status', 'Timeframe berhasil diperbarui.');

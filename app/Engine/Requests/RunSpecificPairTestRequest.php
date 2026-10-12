@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Engine\Requests;
 
+use App\Engine\Config\FixedSlippageConfig;
+use App\Engine\Config\PartialFillConfig;
 use App\Engine\Config\SpecificPairTestConfig;
 use DateTimeImmutable;
 use Illuminate\Foundation\Http\FormRequest;
@@ -27,6 +29,12 @@ class RunSpecificPairTestRequest extends FormRequest
             'active_until' => ['present', $this->activeTimeRule()],
             'excluded_days' => ['sometimes', 'array'],
             'excluded_days.*' => ['integer', 'between:1,7'],
+            'slippage_enabled' => ['sometimes', 'boolean'],
+            'slippage_pips' => ['required_if:slippage_enabled,1', 'nullable', 'numeric', 'gte:0'],
+            'slippage_pip_size' => ['nullable', 'numeric', 'gt:0'],
+            'partial_fill_enabled' => ['sometimes', 'boolean'],
+            'partial_fill_ratio' => ['required_if:partial_fill_enabled,1', 'nullable', 'numeric', 'gt:0', 'lte:1'],
+            'unfilled_order_policy' => ['sometimes', 'in:keep,cancel'],
         ];
     }
 
@@ -57,6 +65,16 @@ class RunSpecificPairTestRequest extends FormRequest
             activeFrom: $validated['active_from'],
             activeUntil: $validated['active_until'],
             excludedDays: array_map('intval', $validated['excluded_days'] ?? []),
+            slippage: new FixedSlippageConfig(
+                enabled: $this->boolean('slippage_enabled'),
+                pips: (float) ($validated['slippage_pips'] ?? 0),
+                pipSize: isset($validated['slippage_pip_size']) ? (float) $validated['slippage_pip_size'] : null,
+            ),
+            partialFill: new PartialFillConfig(
+                enabled: $this->boolean('partial_fill_enabled'),
+                ratio: (float) ($validated['partial_fill_ratio'] ?? 1),
+                unfilledOrderPolicy: $validated['unfilled_order_policy'] ?? 'keep',
+            ),
         );
     }
 

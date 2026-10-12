@@ -103,9 +103,9 @@ class MovingAverageCrossStrategy
         $fallbackStopLoss = $signal === StrategySignal::Long ? $candle->low : $candle->high;
         $stopLoss = is_numeric($quoteStopLoss) ? $quoteStopLoss : $fallbackStopLoss;
         $entryQuote = $signal === StrategySignal::Long ? $candle->ask_open : $candle->bid_open;
-        $entry = (float) $entryQuote;
+        $entry = is_numeric($entryQuote) ? $entryQuote : $candle->open;
 
-        if (! is_numeric($stopLoss)) {
+        if (! is_numeric($stopLoss) || ! is_numeric($entry)) {
             return new StrategyDecision(StrategySignal::None, null, null);
         }
 

@@ -5,27 +5,39 @@ declare(strict_types=1);
 namespace App\Engine\Actions;
 
 use App\Engine\Config\SpecificPairTestConfig;
+use App\Engine\Execution\FixedSlippage;
+use App\Engine\Execution\PartialFill;
 use App\Engine\Models\BacktestOrderHistoryEntry;
 use App\Engine\Models\MarketPrice;
 use App\Engine\Repositories\MarketPairRepository;
 use App\Strategy\Enums\StrategySignal;
+use App\Strategy\Models\StrategyDecision;
 use App\Strategy\Strategy;
 use Exact\Collection\Vec;
+use Illuminate\Database\Eloquent\Collection;
 use UnexpectedValueException;
 
 class RunSpecificPairBacktestAction
 {
+    private readonly FixedSlippage $fixedSlippage;
+
+    private readonly PartialFill $partialFill;
+
     public function __construct(
         private readonly MarketPairRepository $marketPairRepository,
         private readonly Strategy $strategy,
-    ) {}
+    ) {
+        $this->fixedSlippage = new FixedSlippage;
+        $this->partialFill = new PartialFill;
+    }
 
     /**
      * @return array{
      *     results: Vec<array{candle: MarketPrice, result: bool, signal: string, stop_loss: ?float, take_profit: ?float}>,
      *     order_history: Vec<BacktestOrderHistoryEntry>,
      *     initial_capital: float,
-     *     ending_capital: float
+     *     ending_capital: float,
+     *     execution_config: array<string, bool|float|string|null>
      * }
      */
     public function execute(SpecificPairTestConfig $config): array
@@ -36,15 +48,36 @@ class RunSpecificPairBacktestAction
             $config->from,
             $config->to,
             $config->timeframeTypeId,
+            $config->marketPairId,
         );
 
         $decisions = $this->strategy->execute($pair->prices);
+
+        return $this->simulate($pair->prices, $decisions, $config);
+    }
+
+    /**
+     * @param  Collection<int, MarketPrice>  $candles
+     * @param  Vec<StrategyDecision>  $decisions
+     * @return array{
+     *     results: Vec<array{candle: MarketPrice, result: bool, signal: string, stop_loss: ?float, take_profit: ?float}>,
+     *     order_history: Vec<BacktestOrderHistoryEntry>,
+     *     initial_capital: float,
+     *     ending_capital: float,
+     *     execution_config: array<string, bool|float|string|null>
+     * }
+     */
+    private function simulate(
+        Collection $candles,
+        Vec $decisions,
+        SpecificPairTestConfig $config,
+    ): array {
         $results = Vec::empty();
         $orderHistory = Vec::empty();
         $openOrderIndex = null;
         $currentCapital = $config->initialCapital;
 
-        foreach ($pair->prices as $index => $candle) {
+        foreach ($candles as $index => $candle) {
             if ($candle->price_date < $config->from) {
                 continue;
             }
@@ -56,31 +89,79 @@ class RunSpecificPairBacktestAction
 
             if ($openOrderIndex !== null) {
                 $order = $orderHistory->at($openOrderIndex);
+                if ($order->remainingEntryQuantity > 0 && $config->partialFill->enabled
+                    && $config->partialFill->unfilledOrderPolicy === 'keep') {
+                    $entry = $this->entryPrice($candle, StrategySignal::from($order->signal));
+                    $entryPrice = $this->applySlippage($entry['price'], $order->signal === StrategySignal::Long->value, $config);
+                    $fillQuantity = $this->partialFill->quantity(
+                        $order->requestedPositionSize,
+                        $order->remainingEntryQuantity,
+                        $config->partialFill->ratio,
+                    );
+                    $order->recordEntryFill(
+                        $fillQuantity,
+                        $entryPrice,
+                        $candle->price_date->format('Y-m-d H:i:s'),
+                        $entry['source'],
+                    );
+                }
+
                 $this->updateClosestToStopLoss($order, $candle);
                 $this->updateClosestToTakeProfit($order, $candle);
                 $this->updateExcursionExtremes($order, $candle);
 
-                $closeReason = $this->getPriceExitReason($order, $candle);
+                $closeReason = $order->pendingExitReason ?? (
+                    $order->remainingPositionSize > 0
+                        ? $this->getPriceExitReason($order, $candle)
+                        : null
+                );
 
                 if ($closeReason === null && $decision?->signal === StrategySignal::Close) {
                     $closeReason = 'close';
                 }
 
                 if ($closeReason !== null) {
-                    $order->closeDate = $candle->price_date->format('Y-m-d H:i:s');
-                    $order->closeReason = $closeReason;
-                    $order->closePrice = $this->closePrice($order, $candle, $closeReason);
-                    if ($order->closePrice === null) {
+                    $order->cancelledEntryQuantity += $order->remainingEntryQuantity;
+                    $order->remainingEntryQuantity = 0.0;
+                    $order->pendingExitReason ??= $closeReason;
+                    $order->pendingExitRequestedQuantity ??= $order->remainingPositionSize;
+                    [$referencePrice, $priceSource] = $this->closePrice($order, $candle, $closeReason);
+                    if ($referencePrice === null) {
                         throw new UnexpectedValueException('Cannot calculate trade profit or loss without a closing price.');
                     }
-                    $isLong = $order->signal === StrategySignal::Long->value;
-                    $priceMove = $isLong
-                        ? $order->closePrice - $order->entryPrice
-                        : $order->entryPrice - $order->closePrice;
-                    $order->profitLoss = $priceMove * $order->positionSize;
-                    $currentCapital += $order->profitLoss;
-                    $order->capitalAfterClose = $currentCapital;
-                    $openOrderIndex = null;
+                    $exitPrice = $this->applySlippage(
+                        $referencePrice,
+                        $order->signal !== StrategySignal::Long->value,
+                        $config,
+                    );
+                    $fillRatio = $config->partialFill->enabled ? $config->partialFill->ratio : 1.0;
+                    $fillQuantity = $this->partialFill->quantity(
+                        $order->pendingExitRequestedQuantity,
+                        $order->remainingPositionSize,
+                        $fillRatio,
+                    );
+                    $fillProfitLoss = $order->recordExitFill(
+                        $fillQuantity,
+                        $exitPrice,
+                        $candle->price_date->format('Y-m-d H:i:s'),
+                        $priceSource,
+                        $closeReason,
+                    );
+                    $currentCapital += $fillProfitLoss;
+                    $order->exitFills[array_key_last($order->exitFills)]['capital_after'] = $currentCapital;
+
+                    if ($order->remainingPositionSize <= 0.000000000001) {
+                        $order->remainingPositionSize = 0.0;
+                        $order->closeDate = $candle->price_date->format('Y-m-d H:i:s');
+                        $order->closeReason = $order->pendingExitReason;
+                        $order->profitLoss = $order->realizedProfitLoss;
+                        $order->capitalAfterClose = $currentCapital;
+                        $openOrderIndex = null;
+                    } elseif ($config->partialFill->unfilledOrderPolicy === 'cancel') {
+                        $order->cancelledExitQuantity += max(0.0, $order->pendingExitRequestedQuantity - $fillQuantity);
+                        $order->pendingExitReason = null;
+                        $order->pendingExitRequestedQuantity = null;
+                    }
                 }
             }
 
@@ -97,12 +178,17 @@ class RunSpecificPairBacktestAction
             if (! $hadOpenOrder && $openOrderIndex === null && $decision !== null
                 && in_array($decision->signal, [StrategySignal::Long, StrategySignal::Short], true)) {
                 $entry = $this->entryPrice($candle, $decision->signal);
+                $entryPrice = $this->applySlippage(
+                    $entry['price'],
+                    $decision->signal === StrategySignal::Long,
+                    $config,
+                );
 
                 if ($decision->stopLoss === null || $decision->takeProfit === null) {
                     throw new UnexpectedValueException('An entry signal must include stop-loss and take-profit values.');
                 }
 
-                $riskDistance = abs($entry['price'] - $decision->stopLoss);
+                $riskDistance = abs($entryPrice - $decision->stopLoss);
                 if ($riskDistance <= 0) {
                     throw new UnexpectedValueException('Cannot size an order when entry and stop-loss prices are equal.');
                 }
@@ -111,18 +197,37 @@ class RunSpecificPairBacktestAction
                     throw new UnexpectedValueException('Cannot open an order because available capital is no longer positive.');
                 }
 
-                $orderHistory = $orderHistory->append(new BacktestOrderHistoryEntry(
+                $requestedPositionSize = $riskAmount / $riskDistance;
+                $order = new BacktestOrderHistoryEntry(
                     id: $orderHistory->count() + 1,
                     signal: $decision->signal->value,
                     openDate: $candle->price_date->format('Y-m-d H:i:s'),
-                    entryPrice: $entry['price'],
+                    entryPrice: $entryPrice,
                     entryPriceSource: $entry['source'],
                     stopLoss: $decision->stopLoss,
                     takeProfit: $decision->takeProfit,
-                    riskAmount: $riskAmount,
-                    positionSize: $riskAmount / $riskDistance,
+                    requestedRiskAmount: $riskAmount,
+                    positionSize: 0.0,
+                    requestedPositionSize: $requestedPositionSize,
                     capitalAtOpen: $currentCapital,
-                ));
+                );
+                $fillRatio = $config->partialFill->enabled ? $config->partialFill->ratio : 1.0;
+                $fillQuantity = $this->partialFill->quantity(
+                    $requestedPositionSize,
+                    $requestedPositionSize,
+                    $fillRatio,
+                );
+                $order->recordEntryFill(
+                    $fillQuantity,
+                    $entryPrice,
+                    $candle->price_date->format('Y-m-d H:i:s'),
+                    $entry['source'],
+                );
+                if ($config->partialFill->enabled && $config->partialFill->unfilledOrderPolicy === 'cancel') {
+                    $order->cancelledEntryQuantity += $order->remainingEntryQuantity;
+                    $order->remainingEntryQuantity = 0.0;
+                }
+                $orderHistory = $orderHistory->append($order);
                 $openOrderIndex = $orderHistory->count() - 1;
             }
         }
@@ -132,6 +237,7 @@ class RunSpecificPairBacktestAction
             'order_history' => $orderHistory,
             'initial_capital' => $config->initialCapital,
             'ending_capital' => $currentCapital,
+            'execution_config' => $config->executionConfiguration(),
         ];
     }
 
@@ -278,27 +384,44 @@ class RunSpecificPairBacktestAction
         return null;
     }
 
-    private function closePrice(BacktestOrderHistoryEntry $order, MarketPrice $candle, string $reason): ?float
+    /**
+     * @return array{?float, string}
+     */
+    private function closePrice(BacktestOrderHistoryEntry $order, MarketPrice $candle, string $reason): array
     {
         if ($reason === 'stop_loss') {
             return $this->marketClosePrice($order, $candle);
         }
 
         if ($reason === 'take_profit') {
-            return $order->takeProfit;
+            return [$order->takeProfit, 'take_profit'];
         }
 
         return $this->marketClosePrice($order, $candle);
     }
 
-    private function marketClosePrice(BacktestOrderHistoryEntry $order, MarketPrice $candle): ?float
+    /**
+     * @return array{?float, string}
+     */
+    private function marketClosePrice(BacktestOrderHistoryEntry $order, MarketPrice $candle): array
     {
-        $quote = $order->signal === StrategySignal::Long->value
-            ? $candle->bid_close
-            : $candle->ask_close;
+        $isLong = $order->signal === StrategySignal::Long->value;
+        $quote = $isLong ? $candle->bid_close : $candle->ask_close;
+        $source = is_numeric($quote) ? ($isLong ? 'bid_close' : 'ask_close') : 'close';
         $close = is_numeric($quote) ? $quote : $candle->close;
 
-        return is_numeric($close) ? (float) $close : null;
+        return [is_numeric($close) ? (float) $close : null, $source];
+    }
+
+    private function applySlippage(float $referencePrice, bool $isBuy, SpecificPairTestConfig $config): float
+    {
+        if (! $config->slippage->enabled) {
+            return $referencePrice;
+        }
+
+        $pipSize = $config->slippage->pipSize ?? (strtoupper($config->quote) === 'JPY' ? 0.01 : 0.0001);
+
+        return $this->fixedSlippage->apply($referencePrice, $config->slippage->pips, $pipSize, $isBuy);
     }
 
     /**
@@ -311,6 +434,10 @@ class RunSpecificPairBacktestAction
 
         if (is_numeric($quote)) {
             return ['price' => (float) $quote, 'source' => $quoteName];
+        }
+
+        if (is_numeric($candle->open)) {
+            return ['price' => (float) $candle->open, 'source' => 'open'];
         }
 
         throw new UnexpectedValueException("Cannot open an order because the candle has no usable {$quoteName} price.");

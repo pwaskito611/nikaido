@@ -44,6 +44,99 @@ distribution statistic, not a guaranteed loss bound. Neither method models futur
 changes in spread, slippage, liquidity, volatility, or market regime, guarantees
 future performance, or removes overfitting risk.
 
+## Parallel market-type backtests
+
+The Workbench supports both the original synchronous specific-pair test and a
+parallel market-type test. The latter selects pairs with at least one candle in
+the requested timeframe and date range, stores a parent run plus one status/result
+row per pair, then dispatches one queue job per eligible pair. Each job invokes
+the same `RunConfiguredPairBacktestAction` used by the specific-pair workflow. Empty
+eligible sets complete immediately. Pair failures are recorded independently and
+do not stop other queued jobs; the run becomes `completed_with_failures` after
+all pair records reach a terminal state.
+
+Backtest execution, parallel-run coordination, queue jobs, result persistence,
+Fluctuation Stress Test, and Monte Carlo calculations live in the Engine module.
+Workbench remains the HTTP/form and presentation layer and delegates calculations
+to Engine actions.
+
+For local development on Linux, start the Laravel development server and one
+queue worker together:
+
+```sh
+php artisan nikaido:start
+```
+
+The server listens on `127.0.0.1:8000` by default. Override its address with
+`--host` and `--port`, for example `php artisan nikaido:start --port=8080`.
+Stop both managed processes with:
+
+```sh
+php artisan nikaido:stop
+```
+
+The commands track their own process IDs under
+`storage/framework/nikaido-processes` and write output to
+`storage/logs/nikaido-server.log` and `storage/logs/nikaido-worker.log`.
+They require Linux and PHP's POSIX extension. The worker consumes the
+application's configured default queue connection.
+
+The Market Exploration page displays historical OHLC candles for a selected pair,
+timeframe, and inclusive date range. Its naked candlestick chart has no indicators
+and supports horizontal scrolling and drag navigation.
+
+Workbench date, date-time, and time fields use Flatpickr with Indonesian display
+formatting. Submitted values retain the existing `Y-m-d`, `Y-m-dTH:i`, and `H:i`
+formats expected by the application.
+
+Parallel runs require an asynchronous Laravel queue connection; the `sync`
+driver is rejected so the request never executes all pairs inline. Database is
+the default connection. Run workers against the configured queue, for example:
+
+```sh
+php artisan queue:work database --queue=default --tries=3 --timeout=60
+```
+
+To increase parallelism, run multiple worker processes or configure the process
+count in the deployment's worker supervisor. Each process can claim a different
+pair job. The job uses three attempts, short backoff intervals, a 60-second
+timeout, and per-pair overlap protection. The queue connection's `retry_after`
+must remain greater than the worker timeout; adjust it if the job timeout is
+changed. Run progress and each saved pair result are available at the run page
+returned immediately after submission.
+
+Completed market-type runs provide pair detail pages and an overall result page.
+The overall page combines candle decisions and trades from successful pairs in
+time order and supports the same cluster, fluctuation stress, and Monte Carlo
+analysis as a specific-pair result. Its combined capital starts from one configured
+initial capital and adds realized P/L from all successful pairs; pair backtests
+are still executed independently using their configured per-pair risk sizing. Runs
+with failures include only successful pair results in the overall analysis.
+
+## Data import
+
+Workbench Data Import provides an on-demand external-provider pull and an API
+receiver that is off unless an incoming session is active. The selected pair and
+timeframe are passed to the configured provider connector along with a credential
+entered for that request; the credential is not saved. The connector is selected
+by the `ExternalMarketDataProvider` binding in `AppServiceProvider`, so a project
+can replace it with an adapter for another provider. Provider-specific symbol
+mapping, authentication, response parsing, available history, and timeframe
+support belong inside that adapter. The included example adapter returns general
+OHLC only, so bid/ask columns remain null instead of being synthesized. The
+backtest falls back to general OHLC when bid/ask is missing, including using
+general open for entry; this does not model a spread.
+
+Starting an incoming session scopes it to one pair and timeframe and generates a
+random bearer token. Only the token's SHA-256 hash is stored, and the raw token is
+shown once. Stop the session when the sender is done. Send a JSON POST to
+`/api/data-import/candles` with the token in the Authorization header and a
+`candles` list of `time`, `open`, `high`, `low`, and `close`. Timestamps use
+`Y-m-d H:i:s`; each request accepts up to 1,000 candles, and repeated timestamps
+update the existing pair/timeframe candle. Bid/ask fields remain null when not
+provided; send optional `bid_open/high/low/close` and `ask_open/high/low/close`
+fields on each candle when quote-specific values are available.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

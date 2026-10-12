@@ -4,9 +4,26 @@
 
 @section('content')
     <div class="page-heading">
-        <div><span class="eyebrow">RESEARCH / BACKTEST COMPLETE</span><h1>Test results</h1><p>{{ $backtest['pair'] }} <span class="result-separator">/</span> {{ $backtest['timeframe'] }} <span class="result-separator">/</span> {{ $backtest['from'] }} <span class="result-separator">→</span> {{ $backtest['to'] }}</p></div>
-        <span class="step-indicator"><b>02</b><span>RESULTS</span><i class="step-done"></i><a href="{{ route('workbench.tests.create') }}">NEW TEST ↗</a></span>
+        <div><span class="eyebrow">{{ $resultsEyebrow }}</span><h1>{{ $resultsTitle }}</h1><p>{{ $backtest['pair'] }} <span class="result-separator">/</span> {{ $backtest['timeframe'] }} <span class="result-separator">/</span> {{ $backtest['from'] }} <span class="result-separator">→</span> {{ $backtest['to'] }}</p></div>
+        <span class="step-indicator"><b>02</b><span>RESULTS</span><i class="step-done"></i><a href="{{ $returnUrl }}">BACK ↗</a></span>
     </div>
+    @if ($successfulPairCount !== null)
+        <p class="analysis-note">Aggregated {{ $successfulPairCount }} successful pair(s). A single initial capital is used for the combined P/L and analysis; each pair's original backtest was still executed independently with its configured risk sizing.</p>
+    @endif
+    @if (isset($backtest['execution_config']))
+        @php
+            $executionConfig = $backtest['execution_config'];
+        @endphp
+        <p class="analysis-note">
+            Execution assumptions:
+            slippage {{ $executionConfig['slippage_enabled'] ? number_format($executionConfig['slippage_pips'], 2).' pip(s)' : 'off' }}
+            @if ($executionConfig['slippage_enabled'])
+                (pip size {{ $executionConfig['slippage_pip_size'] === null ? 'FX convention: 0.0001; JPY quote: 0.01' : number_format($executionConfig['slippage_pip_size'], 8) }})
+            @endif
+            · partial fills {{ $executionConfig['partial_fill_enabled'] ? number_format($executionConfig['partial_fill_ratio'] * 100, 2).'% per attempt; '.$executionConfig['unfilled_order_policy'].' remainder' : 'off' }}.
+            Synthetic fills do not use candle volume or order-book liquidity.
+        </p>
+    @endif
     <div class="metric-grid">
         <div class="metric-card"><span class="eyebrow">CANDLES EVALUATED</span><strong>{{ count($backtest['results']) }}</strong><span class="metric-note">strategy decisions returned</span></div>
         <div class="metric-card"><span class="eyebrow">ORDERS OPENED</span><strong>{{ count($backtest['order_history']) }}</strong><span class="metric-note">in-memory order history</span></div>
@@ -40,7 +57,7 @@
     </section>
     <section class="data-panel results-panel">
         <div class="panel-top"><div><span class="eyebrow">DATA SCOPE</span><h2>Full history or cluster</h2></div></div>
-        <form method="GET" action="{{ route('workbench.tests.results') }}" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;padding:0 20px 20px">
+        <form method="GET" action="{{ $analysisAction }}" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;padding:0 20px 20px">
             <label>Clusters
                 <select name="clusters" onchange="this.form.submit()">
                     <option value="full" @selected($clusterCount === null)>Full history</option>
@@ -63,7 +80,7 @@
     </section>
     <section class="data-panel results-panel">
         <div class="panel-top"><div><span class="eyebrow">SYNTHETIC SENSITIVITY ANALYSIS</span><h2>Fluctuation Stress Test</h2></div><span class="record-count">FULL BASELINE</span></div>
-        <form method="GET" action="{{ route('workbench.tests.results') }}" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;padding:0 20px 20px">
+        <form method="GET" action="{{ $analysisAction }}" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;padding:0 20px 20px">
             @if ($clusterCount !== null)
                 <input type="hidden" name="clusters" value="{{ $clusterCount }}">
                 <input type="hidden" name="cluster" value="{{ $selectedCluster }}">
@@ -134,7 +151,7 @@
     </section>
     <section class="data-panel results-panel">
         <div class="panel-top"><div><span class="eyebrow">TRADE-SEQUENCE ANALYSIS</span><h2>Monte Carlo Simulation</h2></div><span class="record-count">HISTORICAL P/L INPUT</span></div>
-        <form method="GET" action="{{ route('workbench.tests.results') }}" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;padding:0 20px 20px">
+        <form method="GET" action="{{ $analysisAction }}" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;padding:0 20px 20px">
             <input type="hidden" name="monte_carlo" value="1">
             @if ($clusterCount !== null)
                 <input type="hidden" name="clusters" value="{{ $clusterCount }}">
@@ -226,10 +243,11 @@
         <div class="panel-top"><div><span class="eyebrow">ORDER LIFECYCLE</span><h2>Order history</h2></div><span class="record-count">{{ count($orders) }} ORDERS</span></div>
         <div class="table-scroll">
             <table class="wide-table">
-                <thead><tr><th>ORDER</th><th>OPENED</th><th>CLOSED</th><th>ENTRY</th><th>STOP LOSS</th><th>NEAREST TO SL</th><th>TAKE PROFIT</th><th>NEAREST TO TP</th><th>RISK (QUOTE)</th><th>SIZE (BASE UNITS)</th><th>P/L (QUOTE)</th><th>CAPITAL AFTER</th><th>EXIT</th><th>REASON</th></tr></thead>
+                <thead><tr>@if (isset($orders[0]['pair']))<th>PAIR</th>@endif<th>ORDER</th><th>OPENED</th><th>CLOSED</th><th>ENTRY</th><th>STOP LOSS</th><th>NEAREST TO SL</th><th>TAKE PROFIT</th><th>NEAREST TO TP</th><th>RISK (QUOTE)</th><th>SIZE (BASE UNITS)</th><th>P/L (QUOTE)</th><th>CAPITAL AFTER</th><th>EXIT</th><th>REASON</th></tr></thead>
                 <tbody>
                 @forelse ($orders as $order)
                     <tr>
+                        @if (isset($order['pair']))<td><span class="instrument-code">{{ $order['pair'] }}</span></td>@endif
                         <td><span class="signal-tag signal-{{ $order['signal'] }}">{{ strtoupper($order['signal']) }}</span><span class="table-meta">#{{ $order['id'] }}</span></td>
                         <td class="mono">{{ $order['open_date'] }}</td>
                         <td class="mono">{{ $order['close_date'] ?? 'OPEN' }}</td>
@@ -238,15 +256,31 @@
                         <td class="mono">@if ($order['closest_to_stop_loss']){{ number_format($order['closest_to_stop_loss']['price'], 6) }}<span class="table-meta">{{ strtoupper($order['closest_to_stop_loss']['source']) }} · {{ number_format($order['closest_to_stop_loss']['distance'], 6) }}</span>@else <span class="muted">—</span> @endif</td>
                         <td class="mono">{{ number_format($order['take_profit'], 6) }}</td>
                         <td class="mono">@if ($order['closest_to_take_profit']){{ number_format($order['closest_to_take_profit']['price'], 6) }}<span class="table-meta">{{ strtoupper($order['closest_to_take_profit']['source']) }} · {{ number_format($order['closest_to_take_profit']['distance'], 6) }}</span>@else <span class="muted">—</span> @endif</td>
-                        <td class="mono">{{ number_format($order['risk_amount'], 2) }}<span class="table-meta">{{ number_format($order['capital_at_open'], 2) }} capital</span></td>
-                        <td class="mono">{{ number_format($order['position_size'], 2) }}</td>
-                        <td class="mono">{{ $order['profit_loss'] !== null ? number_format($order['profit_loss'], 2) : '—' }}</td>
-                        <td class="mono">{{ $order['capital_after_close'] !== null ? number_format($order['capital_after_close'], 2) : '—' }}</td>
+                        <td class="mono">{{ number_format($order['risk_amount'], 2) }}<span class="table-meta">{{ number_format($order['capital_at_open'], 2) }} capital · {{ number_format($order['requested_risk_amount'] ?? $order['risk_amount'], 2) }} planned risk</span></td>
+                        <td class="mono">{{ number_format($order['position_size'], 2) }} / {{ number_format($order['requested_position_size'] ?? $order['position_size'], 2) }}<span class="table-meta">filled / requested · {{ number_format($order['remaining_position_size'] ?? 0, 2) }} open · {{ number_format($order['remaining_entry_quantity'] ?? 0, 2) }} entry pending</span></td>
+                        <td class="mono">
+                            @if ($order['profit_loss'] !== null)
+                                {{ number_format($order['profit_loss'], 2) }}
+                            @elseif (! empty($order['exit_fills']))
+                                {{ number_format($order['realized_profit_loss'], 2) }}<span class="table-meta">realized; position remains open</span>
+                            @else
+                                —
+                            @endif
+                        </td>
+                        <td class="mono">
+                            @if ($order['capital_after_close'] !== null)
+                                {{ number_format($order['capital_after_close'], 2) }}
+                            @elseif (! empty($order['exit_fills']))
+                                {{ number_format($order['exit_fills'][array_key_last($order['exit_fills'])]['capital_after'], 2) }}<span class="table-meta">after partial exit</span>
+                            @else
+                                —
+                            @endif
+                        </td>
                         <td class="mono">{{ $order['close_price'] !== null ? number_format($order['close_price'], 6) : '—' }}</td>
                         <td>@if ($order['close_reason'])<span class="reason-tag reason-{{ $order['close_reason'] }}">{{ str_replace('_', ' ', $order['close_reason']) }}</span>@else<span class="muted">Open</span>@endif</td>
                     </tr>
                 @empty
-                    <tr><td colspan="14" class="empty-table">Tidak ada order yang dibuka pada rentang pengujian ini.</td></tr>
+                    <tr><td colspan="{{ isset($orders[0]['pair']) ? 15 : 14 }}" class="empty-table">Tidak ada order yang dibuka pada rentang pengujian ini.</td></tr>
                 @endforelse
                 </tbody>
             </table>
@@ -256,10 +290,11 @@
         <div class="panel-top"><div><span class="eyebrow">STRATEGY OUTPUT</span><h2>Candle decisions</h2></div><span class="record-count">{{ $decisions->total() }} DECISIONS</span></div>
         <div class="table-scroll">
             <table>
-                <thead><tr><th>DATE</th><th>CANDLE CLOSE</th><th>SIGNAL</th><th>STOP LOSS</th><th>TAKE PROFIT</th></tr></thead>
+                <thead><tr>@if (isset($decisions->items()[0]['pair']))<th>PAIR</th>@endif<th>DATE</th><th>CANDLE CLOSE</th><th>SIGNAL</th><th>STOP LOSS</th><th>TAKE PROFIT</th></tr></thead>
                 <tbody>
                 @forelse ($decisions as $result)
                     <tr>
+                        @if (isset($result['pair']))<td><span class="instrument-code">{{ $result['pair'] }}</span></td>@endif
                         <td class="mono">{{ $result['candle']['price_date'] }}</td>
                         <td class="mono">{{ $result['candle']['close'] ?? '—' }}</td>
                         <td><span class="signal-tag signal-{{ $result['signal'] }}">{{ strtoupper($result['signal']) }}</span></td>
@@ -267,7 +302,7 @@
                         <td class="mono">{{ $result['take_profit'] !== null ? number_format($result['take_profit'], 6) : '—' }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="empty-table">Tidak ada candle dalam jadwal aktif yang dipilih.</td></tr>
+                    <tr><td colspan="{{ isset($decisions->items()[0]['pair']) ? 6 : 5 }}" class="empty-table">Tidak ada candle dalam jadwal aktif yang dipilih.</td></tr>
                 @endforelse
                 </tbody>
             </table>

@@ -13,7 +13,7 @@ class MovingAverageCrossStrategyTest extends TestCase
     {
         $candles = array_map(
             fn (float $close, int $index): MarketPrice => $this->candle($close, $index === 200 ? [
-                'ask_open' => 131.0,
+                'ask_open' => null,
                 'bid_low' => 129.0,
             ] : []),
             [...array_map(static fn (int $index): float => 120 - $index * 0.1, range(0, 199)), 130.0],
@@ -24,7 +24,7 @@ class MovingAverageCrossStrategyTest extends TestCase
 
         $this->assertSame(StrategySignal::Long, $decisions->at(200)->signal);
         $this->assertSame(129.0, $decisions->at(200)->stopLoss);
-        $this->assertSame(135.0, $decisions->at(200)->takeProfit);
+        $this->assertSame(132.0, $decisions->at(200)->takeProfit);
     }
 
     public function test_it_emits_short_after_bearish_ema_cross_below_sma_200_with_two_to_one_reward(): void

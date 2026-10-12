@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Workbench\Config;
+namespace App\Engine\Config;
 
 use InvalidArgumentException;
 

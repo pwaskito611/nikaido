@@ -11,9 +11,8 @@ use App\Workbench\Actions\MarketPairs\ListMarketPairsAction;
 use App\Workbench\Actions\MarketPairs\UpdateMarketPairAction;
 use App\Workbench\Actions\MarketPairs\ViewMarketPairAction;
 use App\Workbench\Actions\MarketTypes\ListMarketTypesAction;
+use App\Workbench\Requests\MarketPairRequest;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class MarketPairController
@@ -31,9 +30,9 @@ class MarketPairController
         ]);
     }
 
-    public function store(Request $request, CreateMarketPairAction $action): RedirectResponse
+    public function store(MarketPairRequest $request, CreateMarketPairAction $action): RedirectResponse
     {
-        $validated = $this->validateMarketPair($request);
+        $validated = $request->validated();
 
         $pair = $action->execute(
             (int) $validated['market_type_id'],
@@ -62,9 +61,9 @@ class MarketPairController
         ]);
     }
 
-    public function update(Request $request, int $marketPair, UpdateMarketPairAction $action): RedirectResponse
+    public function update(MarketPairRequest $request, int $marketPair, UpdateMarketPairAction $action): RedirectResponse
     {
-        $validated = $this->validateMarketPair($request, $marketPair);
+        $validated = $request->validated();
 
         $action->execute(
             $marketPair,
@@ -81,31 +80,5 @@ class MarketPairController
         $action->execute($marketPair);
 
         return redirect()->route('workbench.market-pairs.index')->with('status', 'Market pair berhasil dihapus.');
-    }
-
-    /**
-     * @return array{market_type_id: string, base: string, quote: string}
-     */
-    private function validateMarketPair(Request $request, ?int $ignoreId = null): array
-    {
-        $request->merge([
-            'base' => strtoupper(trim((string) $request->input('base'))),
-            'quote' => strtoupper(trim((string) $request->input('quote'))),
-        ]);
-
-        return $request->validate([
-            'market_type_id' => ['required', 'integer', 'exists:market_type,id'],
-            'base' => [
-                'required',
-                'string',
-                'max:10',
-                Rule::unique('market_pair', 'base')
-                    ->where(fn ($query) => $query
-                        ->where('market_type_id', $request->input('market_type_id'))
-                        ->where('quote', $request->input('quote')))
-                    ->ignore($ignoreId),
-            ],
-            'quote' => ['required', 'string', 'max:10'],
-        ]);
     }
 }

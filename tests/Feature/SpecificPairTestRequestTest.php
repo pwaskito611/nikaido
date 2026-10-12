@@ -46,12 +46,24 @@ class SpecificPairTestRequestTest extends TestCase
             'active_from' => '09:00',
             'active_until' => '17:00',
             'excluded_days' => [6, 7],
+            'slippage_enabled' => true,
+            'slippage_pips' => 1.5,
+            'slippage_pip_size' => 0.0002,
+            'partial_fill_enabled' => true,
+            'partial_fill_ratio' => 0.4,
+            'unfilled_order_policy' => 'cancel',
         ])
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.candle.id', $activeCandle->id)
             ->assertJsonPath('data.0.result', false)
             ->assertJsonPath('data.0.signal', 'none')
+            ->assertJsonPath('execution_config.slippage_enabled', true)
+            ->assertJsonPath('execution_config.slippage_pips', 1.5)
+            ->assertJsonPath('execution_config.slippage_pip_size', 0.0002)
+            ->assertJsonPath('execution_config.partial_fill_enabled', true)
+            ->assertJsonPath('execution_config.partial_fill_ratio', 0.4)
+            ->assertJsonPath('execution_config.unfilled_order_policy', 'cancel')
             ->assertJsonPath('order_history', []);
     }
 
@@ -67,6 +79,24 @@ class SpecificPairTestRequestTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('active_from');
+    }
+
+    public function test_it_validates_enabled_execution_simulation_settings(): void
+    {
+        $this->postJson('/api/engine/specific-pair-test', [
+            'base' => 'EUR',
+            'quote' => 'USD',
+            'from' => '2026-10-09 00:00:00',
+            'to' => '2026-10-09 23:59:59',
+            'active_from' => false,
+            'active_until' => false,
+            'slippage_enabled' => true,
+            'slippage_pips' => -1,
+            'partial_fill_enabled' => true,
+            'partial_fill_ratio' => 0,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['slippage_pips', 'partial_fill_ratio']);
     }
 
     public function test_it_accepts_false_for_both_active_time_boundaries(): void

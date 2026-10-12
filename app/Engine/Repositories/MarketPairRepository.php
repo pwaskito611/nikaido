@@ -8,6 +8,7 @@ use App\Engine\Models\MarketPair;
 use DateTimeInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\LazyCollection;
 
 class MarketPairRepository
 {
@@ -25,6 +26,13 @@ class MarketPairRepository
         return $this->model->newQuery()
             ->with(['marketType'])
             ->withCount('prices')
+            ->findOrFail($id);
+    }
+
+    public function lockForUpdate(int $id): MarketPair
+    {
+        return $this->model->newQuery()
+            ->lockForUpdate()
             ->findOrFail($id);
     }
 
@@ -79,10 +87,12 @@ class MarketPairRepository
         DateTimeInterface $from,
         DateTimeInterface $to,
         ?int $timeframeTypeId = null,
+        ?int $marketPairId = null,
     ): MarketPair {
         $pair = $this->model->newQuery()
             ->where('base', strtoupper($base))
             ->where('quote', strtoupper($quote))
+            ->when($marketPairId !== null, fn ($query) => $query->whereKey($marketPairId))
             ->orderBy('id')
             ->firstOrFail();
 
@@ -108,5 +118,25 @@ class MarketPairRepository
         $pair->setRelation('prices', $warmupPrices->concat($prices));
 
         return $pair;
+    }
+
+    /**
+     * @return LazyCollection<int, MarketPair>
+     */
+    public function eligibleForMarketTypeBacktest(
+        int $marketTypeId,
+        int $timeframeTypeId,
+        string $from,
+        string $to,
+    ): LazyCollection {
+        return $this->model->newQuery()
+            ->where('market_type_id', $marketTypeId)
+            ->whereHas('prices', static function ($query) use ($timeframeTypeId, $from, $to): void {
+                $query->where('timeframe_type_id', $timeframeTypeId)
+                    ->whereBetween('price_date', [$from, $to]);
+            })
+            ->select(['id', 'base', 'quote'])
+            ->orderBy('id')
+            ->lazyById(250);
     }
 }

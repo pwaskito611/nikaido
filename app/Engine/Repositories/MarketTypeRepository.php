@@ -6,6 +6,7 @@ namespace App\Engine\Repositories;
 
 use App\Engine\Models\MarketType;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 
 class MarketTypeRepository
 {
@@ -31,6 +32,16 @@ class MarketTypeRepository
             ->withCount('marketPairs')
             ->orderBy('name')
             ->paginate($perPage);
+    }
+
+    /**
+     * @return Collection<int, MarketType>
+     */
+    public function all(): Collection
+    {
+        return $this->model->newQuery()
+            ->orderBy('name')
+            ->get();
     }
 
     public function hasMarketPairs(int $id): bool

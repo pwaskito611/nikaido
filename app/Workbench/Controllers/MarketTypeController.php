@@ -10,9 +10,8 @@ use App\Workbench\Actions\MarketTypes\DeleteMarketTypeAction;
 use App\Workbench\Actions\MarketTypes\ListMarketTypesAction;
 use App\Workbench\Actions\MarketTypes\UpdateMarketTypeAction;
 use App\Workbench\Actions\MarketTypes\ViewMarketTypeAction;
+use App\Workbench\Requests\MarketTypeRequest;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class MarketTypeController
@@ -27,13 +26,9 @@ class MarketTypeController
         return view('workbench.market-types.form', ['marketType' => new MarketType]);
     }
 
-    public function store(Request $request, CreateMarketTypeAction $action): RedirectResponse
+    public function store(MarketTypeRequest $request, CreateMarketTypeAction $action): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:50', 'unique:market_type,name'],
-        ]);
-
-        $action->execute(trim($validated['name']));
+        $action->execute($request->validated('name'));
 
         return redirect()->route('workbench.market-types.index')->with('status', 'Market type berhasil dibuat.');
     }
@@ -52,18 +47,9 @@ class MarketTypeController
         ]);
     }
 
-    public function update(Request $request, int $marketType, UpdateMarketTypeAction $action): RedirectResponse
+    public function update(MarketTypeRequest $request, int $marketType, UpdateMarketTypeAction $action): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'max:50',
-                Rule::unique('market_type', 'name')->ignore($marketType),
-            ],
-        ]);
-
-        $action->execute($marketType, trim($validated['name']));
+        $action->execute($marketType, $request->validated('name'));
 
         return redirect()->route('workbench.market-types.index')->with('status', 'Market type berhasil diperbarui.');
     }

@@ -23,6 +23,8 @@
                 <a href="{{ route('workbench.market-pairs.index') }}" class="{{ request()->routeIs('workbench.market-pairs.*') ? 'active' : '' }}"><span class="nav-icon">⇄</span> Market pairs</a>
                 <a href="{{ route('workbench.timeframes.index') }}" class="{{ request()->routeIs('workbench.timeframes.*') ? 'active' : '' }}"><span class="nav-icon">◷</span> Timeframes</a>
                 <a href="{{ route('workbench.market-prices.index') }}" class="{{ request()->routeIs('workbench.market-prices.*') ? 'active' : '' }}"><span class="nav-icon">⌁</span> Market prices</a>
+                <a href="{{ route('workbench.data-import.index') }}" class="{{ request()->routeIs('workbench.data-import.*') ? 'active' : '' }}"><span class="nav-icon">⇩</span> Data import</a>
+                <a href="{{ route('workbench.market-exploration.index') }}" class="{{ request()->routeIs('workbench.market-exploration.*') ? 'active' : '' }}"><span class="nav-icon">⌖</span> Market exploration</a>
                 <a href="{{ route('workbench.tests.create') }}" class="{{ request()->routeIs('workbench.tests.*') ? 'active' : '' }}"><span class="nav-icon">▷</span> Run a test</a>
             </nav>
             <div class="sidebar-footer"><span class="pulse-dot"></span> Engine ready</div>

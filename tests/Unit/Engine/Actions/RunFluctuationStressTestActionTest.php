@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Workbench\Actions;
+namespace Tests\Unit\Engine\Actions;
 
-use App\Workbench\Actions\RunFluctuationStressTestAction;
+use App\Engine\Actions\RunFluctuationStressTestAction;
 use InvalidArgumentException;
 use Tests\TestCase;
 

@@ -20,11 +20,104 @@ class WorkbenchFeatureTest extends TestCase
 
         $this->get('/workbench')
             ->assertOk()
+            ->assertSee('SYSTEMATIC TRADING / RESEARCH WORKBENCH')
+            ->assertSee('From market data to evaluation')
+            ->assertSee('Data import')
             ->assertSee('Market types')
             ->assertSee('Market pairs')
             ->assertSee('Timeframes')
             ->assertSee('Market prices')
-            ->assertSee('Run a test');
+            ->assertSee('Market exploration')
+            ->assertSee('Run a test')
+            ->assertSee('fluctuation stress scenarios and Monte Carlo simulations')
+            ->assertSee('Strategy')
+            ->assertSee('Engine')
+            ->assertDontSee('LIVE DATASET')
+            ->assertDontSee('+12.84%');
+    }
+
+    public function test_market_exploration_shows_scrollable_naked_candles_for_the_selected_pair_timeframe_and_dates(): void
+    {
+        $pair = $this->createMarketPair($this->createMarketType());
+        $otherPair = MarketPair::create([
+            'market_type_id' => $pair->market_type_id,
+            'base' => 'GBP',
+            'quote' => 'USD',
+        ]);
+        $timeframe = TimeframeType::create(['name' => '1h']);
+        $otherTimeframe = TimeframeType::create(['name' => '4h']);
+        MarketPrice::create([
+            'pair_id' => $pair->id,
+            'price_date' => '2026-10-09 09:00:00',
+            'timeframe_type_id' => $timeframe->id,
+            'open' => '1.100000',
+            'high' => '1.130000',
+            'low' => '1.090000',
+            'close' => '1.120000',
+            ...$this->quoteValues('1.100000', '1.130000', '1.090000', '1.120000'),
+        ]);
+        MarketPrice::create([
+            'pair_id' => $pair->id,
+            'price_date' => '2026-10-10 23:59:59',
+            'timeframe_type_id' => $timeframe->id,
+            'open' => '1.120000',
+            'high' => '1.140000',
+            'low' => '1.110000',
+            'close' => '1.130000',
+            ...$this->quoteValues('1.120000', '1.140000', '1.110000', '1.130000'),
+        ]);
+        MarketPrice::create([
+            'pair_id' => $otherPair->id,
+            'price_date' => '2026-10-10 12:00:00',
+            'timeframe_type_id' => $timeframe->id,
+            'open' => '2.100000',
+            'high' => '2.130000',
+            'low' => '2.090000',
+            'close' => '2.120000',
+            ...$this->quoteValues('2.100000', '2.130000', '2.090000', '2.120000'),
+        ]);
+        MarketPrice::create([
+            'pair_id' => $pair->id,
+            'price_date' => '2026-10-10 12:00:00',
+            'timeframe_type_id' => $otherTimeframe->id,
+            'open' => '3.100000',
+            'high' => '3.130000',
+            'low' => '3.090000',
+            'close' => '3.120000',
+            ...$this->quoteValues('3.100000', '3.130000', '3.090000', '3.120000'),
+        ]);
+
+        $this->get('/workbench/market-exploration')
+            ->assertOk()
+            ->assertSee('Choose market and date range')
+            ->assertSee('data-flatpickr="date"', false)
+            ->assertDontSee('data-market-chart', false);
+
+        $this->get("/workbench/market-exploration?pair_id={$pair->id}&timeframe_type_id={$timeframe->id}&from=2026-10-10&to=2026-10-10")
+            ->assertOk()
+            ->assertSee('data-market-chart', false)
+            ->assertSee('data-chart-scroll', false)
+            ->assertSee('1 CANDLES')
+            ->assertSee('2026-10-10 23:59')
+            ->assertDontSee('2026-10-09 09:00')
+            ->assertDontSee('2.100000')
+            ->assertDontSee('3.100000');
+    }
+
+    public function test_market_exploration_validates_required_filters_and_date_order(): void
+    {
+        $pair = $this->createMarketPair($this->createMarketType());
+        $timeframe = TimeframeType::create(['name' => '1h']);
+
+        $this->from('/workbench/market-exploration')
+            ->get("/workbench/market-exploration?pair_id={$pair->id}")
+            ->assertRedirect('/workbench/market-exploration')
+            ->assertSessionHasErrors(['timeframe_type_id', 'from', 'to']);
+
+        $this->from('/workbench/market-exploration')
+            ->get("/workbench/market-exploration?pair_id={$pair->id}&timeframe_type_id={$timeframe->id}&from=2026-10-11&to=2026-10-10")
+            ->assertRedirect('/workbench/market-exploration')
+            ->assertSessionHasErrors('to');
     }
 
     public function test_timeframe_can_be_created_viewed_updated_and_deleted(): void
@@ -194,6 +287,10 @@ class WorkbenchFeatureTest extends TestCase
         $timeframe = TimeframeType::create(['name' => '1h']);
         $otherTimeframe = TimeframeType::create(['name' => '4h']);
 
+        $this->get('/workbench/market-prices/create')
+            ->assertOk()
+            ->assertSee('data-flatpickr="datetime"', false);
+
         $createResponse = $this->post('/workbench/market-prices', [
             'pair_id' => $pair->id,
             'timeframe_type_id' => $timeframe->id,
@@ -283,7 +380,8 @@ class WorkbenchFeatureTest extends TestCase
             ->assertSee('1.119000');
         $this->get("/workbench/market-prices/{$price->id}/edit")
             ->assertOk()
-            ->assertSee('name="bid_open"', false);
+            ->assertSee('name="bid_open"', false)
+            ->assertSee('data-flatpickr="datetime"', false);
 
         $this->put("/workbench/market-prices/{$price->id}", [
             'pair_id' => $pair->id,
@@ -314,6 +412,10 @@ class WorkbenchFeatureTest extends TestCase
         $pair = $this->createMarketPair($this->createMarketType());
         $timeframe = TimeframeType::create(['name' => '1h']);
         $otherTimeframe = TimeframeType::create(['name' => '4h']);
+        $this->get('/workbench/tests/create')
+            ->assertOk()
+            ->assertSee('data-flatpickr="datetime"', false)
+            ->assertSee('data-flatpickr="time"', false);
         $date = new \DateTimeImmutable('2026-10-08 00:00:00');
         foreach (range(0, 199) as $index) {
             $close = 1.102 - $index * 0.00001;
@@ -401,6 +503,7 @@ class WorkbenchFeatureTest extends TestCase
             ->assertOk()
             ->assertSee('EUR/USD')
             ->assertSee('1h')
+            ->assertSee('Execution assumptions')
             ->assertSee('Order history')
             ->assertSee('stop loss')
             ->assertSee('ENDING CAPITAL')
@@ -418,7 +521,7 @@ class WorkbenchFeatureTest extends TestCase
         $this->get('/workbench/tests/results?clusters=2&cluster=2')
             ->assertOk()
             ->assertSee('Cluster 2 analysis')
-            ->assertSee('0 ORDERS');
+            ->assertSee('1 ORDERS');
 
         $this->get('/workbench/tests/results?stress_mode=combined&adverse_stress=0.5&favorable_stress=0.25')
             ->assertOk()
@@ -498,6 +601,40 @@ class WorkbenchFeatureTest extends TestCase
             ])
             ->assertRedirect('/workbench/tests/create')
             ->assertSessionHasErrors(['initial_capital', 'risk_per_trade_percent']);
+    }
+
+    public function test_backtest_setup_exposes_optional_execution_configuration_and_validates_enabled_values(): void
+    {
+        $marketType = $this->createMarketType();
+        $this->createMarketPair($marketType);
+        TimeframeType::create(['name' => '1h']);
+
+        $this->get('/workbench/tests/create')
+            ->assertOk()
+            ->assertSee('Fixed slippage')
+            ->assertSee('Synthetic partial fills')
+            ->assertSee('not a liquidity simulation')
+            ->assertSee('slippage_enabled')
+            ->assertSee('partial_fill_enabled');
+
+        $this->from('/workbench/tests/create')
+            ->post('/workbench/tests', [
+                'test_type' => 'specific_pair',
+                'market_pair_id' => '1',
+                'timeframe_type_id' => '1',
+                'initial_capital' => '10000',
+                'risk_per_trade_percent' => '1',
+                'from' => '2026-10-09T00:00',
+                'to' => '2026-10-09T23:59',
+                'active_from' => '09:00',
+                'active_until' => '17:00',
+                'slippage_enabled' => '1',
+                'slippage_pips' => '1',
+                'partial_fill_enabled' => '1',
+                'partial_fill_ratio' => '0',
+            ])
+            ->assertRedirect('/workbench/tests/create')
+            ->assertSessionHasErrors('partial_fill_ratio');
     }
 
     private function createMarketType(): MarketType

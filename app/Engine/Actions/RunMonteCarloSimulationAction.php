@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace App\Workbench\Actions;
+namespace App\Engine\Actions;
 
-use App\Workbench\Config\MonteCarloSimulationConfig;
+use App\Engine\Config\MonteCarloSimulationConfig;
+use Gauss\Statistics\Statistics;
 use InvalidArgumentException;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
@@ -100,21 +101,21 @@ class RunMonteCarloSimulationAction
             ],
             'metrics' => [
                 'final_equity' => [
-                    'median' => $this->percentile($finalEquities, 0.5),
-                    'mean' => array_sum($finalEquities) / count($finalEquities),
-                    'p5' => $this->percentile($finalEquities, 0.05),
-                    'p25' => $this->percentile($finalEquities, 0.25),
-                    'p75' => $this->percentile($finalEquities, 0.75),
-                    'p95' => $this->percentile($finalEquities, 0.95),
+                    'median' => $this->quantile($finalEquities, 0.5),
+                    'mean' => (float) Statistics::mean($finalEquities, precision: false)->value(),
+                    'p5' => $this->quantile($finalEquities, 0.05),
+                    'p25' => $this->quantile($finalEquities, 0.25),
+                    'p75' => $this->quantile($finalEquities, 0.75),
+                    'p95' => $this->quantile($finalEquities, 0.95),
                 ],
                 'maximum_drawdown_percent' => [
-                    'median' => $this->percentile($drawdownsPercent, 0.5),
-                    'p95' => $this->percentile($drawdownsPercent, 0.95),
+                    'median' => $this->quantile($drawdownsPercent, 0.5),
+                    'p95' => $this->quantile($drawdownsPercent, 0.95),
                     'worst' => max($drawdownsPercent),
                 ],
                 'maximum_drawdown_amount' => [
-                    'median' => $this->percentile($drawdownsAmount, 0.5),
-                    'p95' => $this->percentile($drawdownsAmount, 0.95),
+                    'median' => $this->quantile($drawdownsAmount, 0.5),
+                    'p95' => $this->quantile($drawdownsAmount, 0.95),
                     'worst' => max($drawdownsAmount),
                 ],
                 'probability_of_loss' => $lossCount / $config->simulationCount * 100,
@@ -240,14 +241,9 @@ class RunMonteCarloSimulationAction
     /**
      * @param  non-empty-list<float>  $values
      */
-    private function percentile(array $values, float $quantile): float
+    private function quantile(array $values, float $quantile): float
     {
-        $position = (count($values) - 1) * $quantile;
-        $lowerIndex = (int) floor($position);
-        $upperIndex = (int) ceil($position);
-        $weight = $position - $lowerIndex;
-
-        return $values[$lowerIndex] * (1 - $weight) + $values[$upperIndex] * $weight;
+        return (float) Statistics::quantile($values, $quantile, precision: false)->value();
     }
 
     /**

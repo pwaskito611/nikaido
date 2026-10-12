@@ -15,6 +15,7 @@ class RunWorkbenchBacktestRequest extends FormRequest
         $to = $this->normalizeDateTime($this->input('to'));
 
         $this->merge([
+            'test_type' => $this->input('test_type', 'specific_pair'),
             'from' => $from,
             'to' => $to,
             'active_from' => $this->boolean('full_day') ? false : $this->input('active_from'),
@@ -30,7 +31,9 @@ class RunWorkbenchBacktestRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'market_pair_id' => ['required', 'integer', 'exists:market_pair,id'],
+            'test_type' => ['required', 'in:specific_pair,market_type'],
+            'market_pair_id' => ['required_if:test_type,specific_pair', 'nullable', 'integer', 'exists:market_pair,id'],
+            'market_type_id' => ['required_if:test_type,market_type', 'nullable', 'integer', 'exists:market_type,id'],
             'timeframe_type_id' => ['required', 'integer', 'exists:timeframe_type,id'],
             'initial_capital' => ['required', 'numeric', 'gt:0', 'decimal:0,2'],
             'risk_per_trade_percent' => ['required', 'numeric', 'gt:0', 'lte:100', 'decimal:0,2'],
@@ -41,6 +44,12 @@ class RunWorkbenchBacktestRequest extends FormRequest
             'full_day' => ['sometimes', 'boolean'],
             'excluded_days' => ['sometimes', 'array'],
             'excluded_days.*' => ['integer', 'between:1,7'],
+            'slippage_enabled' => ['sometimes', 'boolean'],
+            'slippage_pips' => ['required_if:slippage_enabled,1', 'nullable', 'numeric', 'gte:0'],
+            'slippage_pip_size' => ['nullable', 'numeric', 'gt:0'],
+            'partial_fill_enabled' => ['sometimes', 'boolean'],
+            'partial_fill_ratio' => ['required_if:partial_fill_enabled,1', 'nullable', 'numeric', 'gt:0', 'lte:1'],
+            'unfilled_order_policy' => ['sometimes', 'in:keep,cancel'],
         ];
     }
 

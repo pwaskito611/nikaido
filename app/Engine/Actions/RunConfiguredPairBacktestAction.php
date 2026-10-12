@@ -2,20 +2,21 @@
 
 declare(strict_types=1);
 
-namespace App\Workbench\Actions;
+namespace App\Engine\Actions;
 
-use App\Engine\Actions\RunSpecificPairBacktestAction;
+use App\Engine\Config\FixedSlippageConfig;
+use App\Engine\Config\PartialFillConfig;
 use App\Engine\Config\SpecificPairTestConfig;
 use App\Engine\Models\BacktestOrderHistoryEntry;
-use App\Workbench\Actions\MarketPairs\ViewMarketPairAction;
-use App\Workbench\Actions\TimeframeTypes\ViewTimeframeTypeAction;
+use App\Engine\Repositories\MarketPairRepository;
+use App\Engine\Repositories\TimeframeTypeRepository;
 use DateTimeImmutable;
 
-class RunWorkbenchBacktestAction
+class RunConfiguredPairBacktestAction
 {
     public function __construct(
-        private readonly ViewMarketPairAction $viewMarketPair,
-        private readonly ViewTimeframeTypeAction $viewTimeframeType,
+        private readonly MarketPairRepository $marketPairs,
+        private readonly TimeframeTypeRepository $timeframes,
         private readonly RunSpecificPairBacktestAction $runBacktest,
     ) {}
 
@@ -29,7 +30,13 @@ class RunWorkbenchBacktestAction
      *     to: string,
      *     active_from: string|false,
      *     active_until: string|false,
-     *     excluded_days?: list<int|string>
+     *     excluded_days?: list<int|string>,
+     *     slippage_enabled?: bool|string,
+     *     slippage_pips?: int|float|string|null,
+     *     slippage_pip_size?: int|float|string|null,
+     *     partial_fill_enabled?: bool|string,
+     *     partial_fill_ratio?: int|float|string|null,
+     *     unfilled_order_policy?: string
      * }  $validated
      * @return array{
      *     pair: string,
@@ -43,13 +50,14 @@ class RunWorkbenchBacktestAction
      *         stop_loss: ?float,
      *         take_profit: ?float
      *     }>,
-     *     order_history: list<array<string, mixed>>
+     *     order_history: list<array<string, mixed>>,
+     *     execution_config: array<string, bool|float|string|null>
      * }
      */
     public function execute(array $validated): array
     {
-        $pair = $this->viewMarketPair->execute((int) $validated['market_pair_id']);
-        $timeframe = $this->viewTimeframeType->execute((int) $validated['timeframe_type_id']);
+        $pair = $this->marketPairs->findOrFail((int) $validated['market_pair_id']);
+        $timeframe = $this->timeframes->findOrFail((int) $validated['timeframe_type_id']);
 
         $backtest = $this->runBacktest->execute(new SpecificPairTestConfig(
             base: $pair->base,
@@ -62,6 +70,17 @@ class RunWorkbenchBacktestAction
             timeframeTypeId: (int) $validated['timeframe_type_id'],
             initialCapital: (float) $validated['initial_capital'],
             riskPerTradePercent: (float) $validated['risk_per_trade_percent'],
+            marketPairId: $pair->id,
+            slippage: new FixedSlippageConfig(
+                enabled: filter_var($validated['slippage_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                pips: (float) ($validated['slippage_pips'] ?? 0),
+                pipSize: isset($validated['slippage_pip_size']) ? (float) $validated['slippage_pip_size'] : null,
+            ),
+            partialFill: new PartialFillConfig(
+                enabled: filter_var($validated['partial_fill_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                ratio: (float) ($validated['partial_fill_ratio'] ?? 1),
+                unfilledOrderPolicy: $validated['unfilled_order_policy'] ?? 'keep',
+            ),
         ));
 
         return [
@@ -82,6 +101,7 @@ class RunWorkbenchBacktestAction
             'order_history' => $backtest['order_history']
                 ->map(static fn (BacktestOrderHistoryEntry $order): array => $order->jsonSerialize())
                 ->toArray(),
+            'execution_config' => $backtest['execution_config'],
         ];
     }
 }

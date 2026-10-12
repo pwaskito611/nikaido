@@ -3,6 +3,8 @@
 namespace Tests\Unit\Engine\Actions;
 
 use App\Engine\Actions\RunSpecificPairBacktestAction;
+use App\Engine\Config\FixedSlippageConfig;
+use App\Engine\Config\PartialFillConfig;
 use App\Engine\Config\SpecificPairTestConfig;
 use App\Engine\Models\MarketPair;
 use App\Engine\Models\MarketPrice;
@@ -51,6 +53,7 @@ class RunSpecificPairBacktestActionTest extends TestCase
                 Mockery::on(
                     fn (DateTimeInterface $date): bool => $date == new DateTimeImmutable('2026-10-12 23:59:59')
                 ),
+                null,
                 null,
             )
             ->andReturn($pair);
@@ -175,7 +178,7 @@ class RunSpecificPairBacktestActionTest extends TestCase
     {
         $pair = new MarketPair;
         $pair->setRelation('prices', new EloquentCollection([
-            $this->candle('2026-10-09 09:00:00', ['ask_open' => 1.101]),
+            $this->candle('2026-10-09 09:00:00', ['ask_open' => null]),
             $this->candle('2026-10-09 10:00:00', [
                 'low' => 1.089,
                 'close' => 1.088,
@@ -206,6 +209,8 @@ class RunSpecificPairBacktestActionTest extends TestCase
         $order = $results['order_history']->at(0);
 
         $this->assertSame('stop_loss', $order->closeReason);
+        $this->assertSame(1.1, $order->entryPrice);
+        $this->assertSame('open', $order->entryPriceSource);
         $this->assertSame(1.088, $order->closePrice);
         $this->assertSame('low', $order->closestToStopLoss['source']);
     }
@@ -214,7 +219,7 @@ class RunSpecificPairBacktestActionTest extends TestCase
     {
         $pair = new MarketPair;
         $pair->setRelation('prices', new EloquentCollection([
-            $this->candle('2026-10-09 09:00:00', ['bid_open' => 1.099]),
+            $this->candle('2026-10-09 09:00:00', ['bid_open' => null]),
             $this->candle('2026-10-09 10:00:00', [
                 'high' => 1.111,
                 'close' => 1.112,
@@ -300,7 +305,7 @@ class RunSpecificPairBacktestActionTest extends TestCase
             'source' => 'ask_close',
             'distance' => 0.0005,
         ], $firstOrder->closestToTakeProfit);
-        $this->assertSame(100.0, $firstOrder->riskAmount);
+        $this->assertEqualsWithDelta(100.0, $firstOrder->riskAmount, 0.000001);
         $this->assertEqualsWithDelta(100 / 0.011, $firstOrder->positionSize, 0.000001);
         $this->assertEqualsWithDelta(172.7272727, $firstOrder->profitLoss, 0.000001);
         $this->assertEqualsWithDelta(10172.7272727, $firstOrder->capitalAfterClose, 0.000001);
@@ -313,6 +318,252 @@ class RunSpecificPairBacktestActionTest extends TestCase
             $results['ending_capital'],
             0.000001,
         );
+    }
+
+    public function test_it_applies_adverse_slippage_to_entry_and_exit_without_reapplying_spread(): void
+    {
+        $pair = new MarketPair;
+        $pair->setRelation('prices', new EloquentCollection([
+            $this->candle('2026-10-09 09:00:00', [
+                'ask_open' => 1.1,
+                'bid_open' => 1.1,
+            ]),
+            $this->candle('2026-10-09 10:00:00', [
+                'bid_low' => 0.99,
+                'bid_close' => 1.05,
+                'low' => 0.99,
+            ]),
+        ]));
+        $repository = Mockery::mock(MarketPairRepository::class);
+        $repository->shouldReceive('findWithPricesBetween')->once()->andReturn($pair);
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->once()->andReturn(Vec::fromArray([
+            new StrategyDecision(StrategySignal::Long, 1.0, 1.2),
+            new StrategyDecision(StrategySignal::None, null, null),
+        ]));
+        $config = new SpecificPairTestConfig(
+            'EUR',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-09 23:59:59'),
+            false,
+            false,
+            slippage: new FixedSlippageConfig(enabled: true, pips: 1),
+        );
+
+        $order = (new RunSpecificPairBacktestAction($repository, $strategy))
+            ->execute($config)['order_history']->at(0);
+
+        $this->assertEqualsWithDelta(1.1001, $order->entryPrice, 0.0000001);
+        $this->assertEqualsWithDelta(1.0499, $order->closePrice, 0.0000001);
+        $this->assertSame('ask_open', $order->entryPriceSource);
+        $this->assertSame('stop_loss', $order->closeReason);
+    }
+
+    public function test_it_reverses_slippage_sides_for_short_entry_and_exit(): void
+    {
+        $pair = new MarketPair;
+        $pair->setRelation('prices', new EloquentCollection([
+            $this->candle('2026-10-09 09:00:00', ['bid_open' => 1.1]),
+            $this->candle('2026-10-09 10:00:00', [
+                'ask_high' => 1.21,
+                'ask_close' => 1.15,
+                'high' => 1.21,
+            ]),
+        ]));
+        $repository = Mockery::mock(MarketPairRepository::class);
+        $repository->shouldReceive('findWithPricesBetween')->once()->andReturn($pair);
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->once()->andReturn(Vec::fromArray([
+            new StrategyDecision(StrategySignal::Short, 1.2, 1.0),
+            new StrategyDecision(StrategySignal::None, null, null),
+        ]));
+        $config = new SpecificPairTestConfig(
+            'EUR',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-09 23:59:59'),
+            false,
+            false,
+            slippage: new FixedSlippageConfig(enabled: true, pips: 1),
+        );
+
+        $order = (new RunSpecificPairBacktestAction($repository, $strategy))
+            ->execute($config)['order_history']->at(0);
+
+        $this->assertEqualsWithDelta(1.0999, $order->entryPrice, 0.0000001);
+        $this->assertEqualsWithDelta(1.1501, $order->closePrice, 0.0000001);
+        $this->assertSame('stop_loss', $order->closeReason);
+    }
+
+    public function test_it_retries_entry_and_exit_fills_and_calculates_weighted_prices_and_realized_pnl(): void
+    {
+        $pair = new MarketPair;
+        $pair->setRelation('prices', new EloquentCollection([
+            $this->candle('2026-10-09 09:00:00', ['ask_open' => 1.1]),
+            $this->candle('2026-10-09 10:00:00', [
+                'ask_open' => 1.12,
+                'high' => 1.15,
+                'low' => 1.11,
+                'bid_high' => 1.15,
+                'bid_low' => 1.11,
+            ]),
+            $this->candle('2026-10-09 11:00:00', [
+                'bid_close' => 1.01,
+                'bid_low' => 0.99,
+                'bid_high' => 1.15,
+            ]),
+            $this->candle('2026-10-09 12:00:00', [
+                'bid_close' => 1.02,
+                'bid_low' => 1.005,
+                'bid_high' => 1.15,
+            ]),
+        ]));
+        $repository = Mockery::mock(MarketPairRepository::class);
+        $repository->shouldReceive('findWithPricesBetween')->once()->andReturn($pair);
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->once()->andReturn(Vec::fromArray([
+            new StrategyDecision(StrategySignal::Long, 1.0, 1.2),
+            new StrategyDecision(StrategySignal::None, null, null),
+            new StrategyDecision(StrategySignal::None, null, null),
+            new StrategyDecision(StrategySignal::None, null, null),
+        ]));
+        $config = new SpecificPairTestConfig(
+            'EUR',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-09 23:59:59'),
+            false,
+            false,
+            partialFill: new PartialFillConfig(enabled: true, ratio: 0.5),
+        );
+
+        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $order = $results['order_history']->at(0);
+
+        $this->assertEqualsWithDelta(1000, $order->requestedPositionSize, 0.000001);
+        $this->assertEqualsWithDelta(1000, $order->positionSize, 0.000001);
+        $this->assertEqualsWithDelta(1.11, $order->entryPrice, 0.000001);
+        $this->assertEqualsWithDelta(110, $order->riskAmount, 0.000001);
+        $this->assertEqualsWithDelta(100, $order->requestedRiskAmount, 0.000001);
+        $this->assertEqualsWithDelta(1000, $order->closedPositionSize, 0.000001);
+        $this->assertEqualsWithDelta(1.015, $order->closePrice, 0.000001);
+        $this->assertEqualsWithDelta(-95, $order->profitLoss, 0.000001);
+        $this->assertEqualsWithDelta(9905, $results['ending_capital'], 0.000001);
+        $this->assertCount(2, $order->entryFills);
+        $this->assertCount(2, $order->exitFills);
+    }
+
+    public function test_cancel_policy_records_unfilled_entry_and_exit_quantities(): void
+    {
+        $pair = new MarketPair;
+        $pair->setRelation('prices', new EloquentCollection([
+            $this->candle('2026-10-09 09:00:00'),
+            $this->candle('2026-10-09 10:00:00', [
+                'bid_close' => 1.05,
+                'bid_low' => 0.99,
+            ]),
+        ]));
+        $repository = Mockery::mock(MarketPairRepository::class);
+        $repository->shouldReceive('findWithPricesBetween')->once()->andReturn($pair);
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->once()->andReturn(Vec::fromArray([
+            new StrategyDecision(StrategySignal::Long, 1.0, 1.2),
+            new StrategyDecision(StrategySignal::None, null, null),
+        ]));
+        $config = new SpecificPairTestConfig(
+            'EUR',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-09 23:59:59'),
+            false,
+            false,
+            partialFill: new PartialFillConfig(enabled: true, ratio: 0.5, unfilledOrderPolicy: 'cancel'),
+        );
+
+        $order = (new RunSpecificPairBacktestAction($repository, $strategy))
+            ->execute($config)['order_history']->at(0);
+
+        $this->assertEqualsWithDelta(500, $order->positionSize, 0.000001);
+        $this->assertEqualsWithDelta(500, $order->cancelledEntryQuantity, 0.000001);
+        $this->assertEqualsWithDelta(250, $order->closedPositionSize, 0.000001);
+        $this->assertEqualsWithDelta(250, $order->remainingPositionSize, 0.000001);
+        $this->assertEqualsWithDelta(250, $order->cancelledExitQuantity, 0.000001);
+        $this->assertNull($order->closeDate);
+    }
+
+    public function test_keep_policy_does_not_fill_entry_remainder_after_history_ends(): void
+    {
+        $pair = new MarketPair;
+        $pair->setRelation('prices', new EloquentCollection([
+            $this->candle('2026-10-09 09:00:00'),
+        ]));
+        $repository = Mockery::mock(MarketPairRepository::class);
+        $repository->shouldReceive('findWithPricesBetween')->once()->andReturn($pair);
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->once()->andReturn(Vec::fromArray([
+            new StrategyDecision(StrategySignal::Long, 1.0, 1.2),
+        ]));
+        $config = new SpecificPairTestConfig(
+            'EUR',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-09 23:59:59'),
+            false,
+            false,
+            partialFill: new PartialFillConfig(enabled: true, ratio: 0.5),
+        );
+
+        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $order = $results['order_history']->at(0);
+
+        $this->assertEqualsWithDelta(500, $order->positionSize, 0.000001);
+        $this->assertEqualsWithDelta(500, $order->remainingEntryQuantity, 0.000001);
+        $this->assertSame([], $order->exitFills);
+        $this->assertNull($order->closeDate);
+        $this->assertSame(10000.0, $results['ending_capital']);
+    }
+
+    public function test_keep_policy_books_only_filled_exit_quantity_when_history_ends(): void
+    {
+        $pair = new MarketPair;
+        $pair->setRelation('prices', new EloquentCollection([
+            $this->candle('2026-10-09 09:00:00'),
+            $this->candle('2026-10-09 10:00:00', [
+                'bid_close' => 1.05,
+                'bid_low' => 0.99,
+            ]),
+        ]));
+        $repository = Mockery::mock(MarketPairRepository::class);
+        $repository->shouldReceive('findWithPricesBetween')->once()->andReturn($pair);
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->once()->andReturn(Vec::fromArray([
+            new StrategyDecision(StrategySignal::Long, 1.0, 1.2),
+            new StrategyDecision(StrategySignal::None, null, null),
+        ]));
+        $config = new SpecificPairTestConfig(
+            'EUR',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-09 23:59:59'),
+            false,
+            false,
+            partialFill: new PartialFillConfig(enabled: true, ratio: 0.5),
+        );
+
+        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $order = $results['order_history']->at(0);
+
+        $this->assertSame([0.5, 0.5, 'keep'], [
+            $config->partialFill->ratio,
+            $order->exitFills[0]['quantity'] / $order->positionSize,
+            $config->partialFill->unfilledOrderPolicy,
+        ]);
+        $this->assertEqualsWithDelta(500, $order->closedPositionSize, 0.000001);
+        $this->assertEqualsWithDelta(500, $order->remainingPositionSize, 0.000001);
+        $this->assertEqualsWithDelta(-25, $order->realizedProfitLoss, 0.000001);
+        $this->assertNull($order->profitLoss);
+        $this->assertEqualsWithDelta(9975, $results['ending_capital'], 0.000001);
     }
 
     /**

@@ -25,6 +25,7 @@ class EngineController
             'order_history' => $backtest['order_history'],
             'initial_capital' => $backtest['initial_capital'],
             'ending_capital' => $backtest['ending_capital'],
+            'execution_config' => $backtest['execution_config'],
         ]);
     }
 }

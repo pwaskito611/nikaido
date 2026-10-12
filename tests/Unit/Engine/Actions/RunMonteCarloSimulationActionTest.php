@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Tests\Unit\Workbench\Actions;
+namespace Tests\Unit\Engine\Actions;
 
-use App\Workbench\Actions\RunMonteCarloSimulationAction;
-use App\Workbench\Config\MonteCarloSimulationConfig;
+use App\Engine\Actions\RunMonteCarloSimulationAction;
+use App\Engine\Config\MonteCarloSimulationConfig;
 use InvalidArgumentException;
 use Tests\TestCase;
 

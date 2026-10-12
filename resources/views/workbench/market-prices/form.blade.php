@@ -39,7 +39,7 @@
             </div>
         </div>
         <label class="field-label" for="price_date">Candle date and time <span>*</span></label>
-        <input class="text-input" id="price_date" name="price_date" type="datetime-local" value="{{ old('price_date', $marketPrice->price_date?->format('Y-m-d\TH:i')) }}" required>
+        <input class="text-input" id="price_date" name="price_date" type="text" data-flatpickr="datetime" value="{{ old('price_date', $marketPrice->price_date?->format('Y-m-d\TH:i')) }}" required>
 
         <h3 class="eyebrow" style="margin:24px 0 12px">GENERAL OHLC</h3>
         <div class="field-row">
@@ -47,21 +47,21 @@
                 <div><label class="field-label" for="{{ $field }}">{{ $label }}{{ $field === 'close' ? ' *' : '' }}</label><input class="text-input" id="{{ $field }}" name="{{ $field }}" type="number" min="0.000001" step="0.000001" value="{{ old($field, $marketPrice->{$field}) }}" @required($field === 'close')></div>
             @endforeach
         </div>
-        <h3 class="eyebrow" style="margin:24px 0 12px">BID OHLC *</h3>
+        <h3 class="eyebrow" style="margin:24px 0 12px">BID OHLC <span class="muted">(optional)</span></h3>
         <div class="field-row">
             @foreach (['bid_open' => 'Bid open', 'bid_high' => 'Bid high', 'bid_low' => 'Bid low', 'bid_close' => 'Bid close'] as $field => $label)
-                <div><label class="field-label" for="{{ $field }}">{{ $label }} <span>*</span></label><input class="text-input" id="{{ $field }}" name="{{ $field }}" type="number" min="0.000001" step="0.000001" value="{{ old($field, $marketPrice->{$field}) }}" required></div>
+                <div><label class="field-label" for="{{ $field }}">{{ $label }}</label><input class="text-input" id="{{ $field }}" name="{{ $field }}" type="number" min="0.000001" step="0.000001" value="{{ old($field, $marketPrice->{$field}) }}"></div>
             @endforeach
         </div>
-        <h3 class="eyebrow" style="margin:24px 0 12px">ASK OHLC *</h3>
+        <h3 class="eyebrow" style="margin:24px 0 12px">ASK OHLC <span class="muted">(optional)</span></h3>
         <div class="field-row">
             @foreach (['ask_open' => 'Ask open', 'ask_high' => 'Ask high', 'ask_low' => 'Ask low', 'ask_close' => 'Ask close'] as $field => $label)
-                <div><label class="field-label" for="{{ $field }}">{{ $label }} <span>*</span></label><input class="text-input" id="{{ $field }}" name="{{ $field }}" type="number" min="0.000001" step="0.000001" value="{{ old($field, $marketPrice->{$field}) }}" required></div>
+                <div><label class="field-label" for="{{ $field }}">{{ $label }}</label><input class="text-input" id="{{ $field }}" name="{{ $field }}" type="number" min="0.000001" step="0.000001" value="{{ old($field, $marketPrice->{$field}) }}"></div>
             @endforeach
         </div>
         <label class="field-label" for="price_at_8">Price at 8 <span class="muted">(optional)</span></label>
         <input class="text-input" id="price_at_8" name="price_at_8" type="number" min="0.000001" step="0.000001" value="{{ old('price_at_8', $marketPrice->price_at_8) }}">
-        <div class="field-hint">Pair, timeframe, dan timestamp harus unik. Harga memakai maksimal 6 angka desimal; OHLC umum (selain close) dan price at 8 boleh dikosongkan.</div>
+        <div class="field-hint">Pair, timeframe, dan timestamp harus unik. Harga memakai maksimal 6 angka desimal; OHLC bid/ask, OHLC umum (selain close), dan price at 8 boleh dikosongkan.</div>
         <div class="form-actions"><a class="button button-secondary" href="{{ route('workbench.market-prices.index') }}">Cancel</a><button class="button button-primary" type="submit" @disabled($marketPairs->isEmpty() || $timeframes->isEmpty())>{{ $marketPrice->exists ? 'Save changes' : 'Create market price' }} <span>→</span></button></div>
     </form>
 @endsection

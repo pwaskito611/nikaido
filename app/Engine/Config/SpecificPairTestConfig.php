@@ -23,6 +23,9 @@ class SpecificPairTestConfig
         public readonly ?int $timeframeTypeId = null,
         public readonly float $initialCapital = 10000.0,
         public readonly float $riskPerTradePercent = 1.0,
+        public readonly ?int $marketPairId = null,
+        public readonly FixedSlippageConfig $slippage = new FixedSlippageConfig,
+        public readonly PartialFillConfig $partialFill = new PartialFillConfig,
     ) {
         if (trim($base) === '' || trim($quote) === '') {
             throw new InvalidArgumentException('Base and quote currencies must not be empty.');
@@ -52,6 +55,10 @@ class SpecificPairTestConfig
             throw new InvalidArgumentException('The timeframe type ID must be a positive integer.');
         }
 
+        if ($marketPairId !== null && $marketPairId < 1) {
+            throw new InvalidArgumentException('The market pair ID must be a positive integer.');
+        }
+
         if (! is_finite($initialCapital) || $initialCapital <= 0) {
             throw new InvalidArgumentException('Initial capital must be a positive finite number.');
         }
@@ -59,6 +66,29 @@ class SpecificPairTestConfig
         if (! is_finite($riskPerTradePercent) || $riskPerTradePercent <= 0 || $riskPerTradePercent > 100) {
             throw new InvalidArgumentException('Risk per trade must be greater than 0 and at most 100 percent.');
         }
+
+    }
+
+    /**
+     * @return array{
+     *     slippage_enabled: bool,
+     *     slippage_pips: float,
+     *     slippage_pip_size: ?float,
+     *     partial_fill_enabled: bool,
+     *     partial_fill_ratio: float,
+     *     unfilled_order_policy: string
+     * }
+     */
+    public function executionConfiguration(): array
+    {
+        return [
+            'slippage_enabled' => $this->slippage->enabled,
+            'slippage_pips' => $this->slippage->pips,
+            'slippage_pip_size' => $this->slippage->pipSize,
+            'partial_fill_enabled' => $this->partialFill->enabled,
+            'partial_fill_ratio' => $this->partialFill->ratio,
+            'unfilled_order_policy' => $this->partialFill->unfilledOrderPolicy,
+        ];
     }
 
     private static function isValidTime(string $time): bool

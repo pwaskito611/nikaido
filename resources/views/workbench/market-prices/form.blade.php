@@ -4,12 +4,12 @@
 
 @section('content')
     <div class="page-heading">
-        <div><span class="eyebrow">HISTORICAL DATA / OHLC</span><h1>{{ $marketPrice->exists ? 'Edit market price' : 'New market price' }}</h1><p>Atur waktu candle dan harga OHLC bid/ask.</p></div>
+        <div><span class="eyebrow">HISTORICAL DATA / OHLC</span><h1>{{ $marketPrice->exists ? 'Edit market price' : 'New market price' }}</h1><p>Set the candle time and bid/ask OHLC prices.</p></div>
         <a class="button button-secondary" href="{{ route('workbench.market-prices.index') }}">← Back to list</a>
     </div>
     @if ($marketPairs->isEmpty() || $timeframes->isEmpty())
         <div class="notice notice-error">
-            Buat market pair dan timeframe terlebih dahulu sebelum menambahkan harga.
+            Create a market pair and timeframe before adding prices.
             @if ($marketPairs->isEmpty())<a href="{{ route('workbench.market-pairs.create') }}">Create market pair →</a>@endif
             @if ($timeframes->isEmpty())<a href="{{ route('workbench.timeframes.create') }}">Create timeframe →</a>@endif
         </div>
@@ -61,7 +61,7 @@
         </div>
         <label class="field-label" for="price_at_8">Price at 8 <span class="muted">(optional)</span></label>
         <input class="text-input" id="price_at_8" name="price_at_8" type="number" min="0.000001" step="0.000001" value="{{ old('price_at_8', $marketPrice->price_at_8) }}">
-        <div class="field-hint">Pair, timeframe, dan timestamp harus unik. Harga memakai maksimal 6 angka desimal; OHLC bid/ask, OHLC umum (selain close), dan price at 8 boleh dikosongkan.</div>
+        <div class="field-hint">The pair, timeframe, and timestamp must be unique. Prices support up to 6 decimal places. Bid/ask OHLC, general OHLC (except close), and price at 8 are optional.</div>
         <div class="form-actions"><a class="button button-secondary" href="{{ route('workbench.market-prices.index') }}">Cancel</a><button class="button button-primary" type="submit" @disabled($marketPairs->isEmpty() || $timeframes->isEmpty())>{{ $marketPrice->exists ? 'Save changes' : 'Create market price' }} <span>→</span></button></div>
     </form>
 @endsection

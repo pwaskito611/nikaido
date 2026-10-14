@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -40,7 +40,7 @@
                 @endif
                 @if ($errors->any())
                     <div class="notice notice-error">
-                        <strong>Periksa kembali input:</strong>
+                        <strong>Please review the following input:</strong>
                         <ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
                     </div>
                 @endif

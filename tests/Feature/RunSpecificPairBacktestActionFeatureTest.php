@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Engine\Actions\RunSpecificPairBacktestAction;
-use App\Engine\Config\SpecificPairTestConfig;
-use App\Engine\Models\MarketPair;
-use App\Engine\Models\MarketPrice;
-use App\Engine\Models\MarketType;
-use App\Engine\Models\TimeframeType;
+use App\Features\Engine\Actions\RunSpecificPairBacktestAction;
+use App\Features\Engine\Config\SpecificPairTestConfig;
+use App\Features\Engine\Models\MarketPair;
+use App\Features\Engine\Models\MarketPrice;
+use App\Features\Engine\Models\MarketType;
+use App\Features\Engine\Models\TimeframeType;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -40,11 +40,11 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
             ),
         );
 
-        $this->assertSame(1, $results['results']->count());
-        $this->assertSame($activeCandle->id, $results['results']->at(0)['candle']->id);
+        $this->assertCount(1, $results->decisions);
+        $this->assertSame($activeCandle->id, $results->decisions->first()->candle->id);
         $this->assertSame('2026-10-09 08:59:00', $passiveCandle->fresh()->price_date->format('Y-m-d H:i:s'));
-        $this->assertFalse($results['results']->at(0)['result']);
-        $this->assertTrue($results['order_history']->isEmpty());
+        $this->assertFalse($results->decisions->first()->entered);
+        $this->assertTrue($results->orders->isEmpty());
     }
 
     public function test_it_uses_the_exact_pair_id_when_symbols_repeat_across_market_types(): void
@@ -76,8 +76,8 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
             marketPairId: $selectedPair->id,
         ));
 
-        $this->assertSame(1, $results['results']->count());
-        $this->assertSame($selectedCandle->id, $results['results']->at(0)['candle']->id);
+        $this->assertCount(1, $results->decisions);
+        $this->assertSame($selectedCandle->id, $results->decisions->first()->candle->id);
     }
 
     private function createCandle(MarketPair $pair, string $timestamp): MarketPrice

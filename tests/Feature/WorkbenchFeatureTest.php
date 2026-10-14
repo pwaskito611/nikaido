@@ -2,10 +2,10 @@
 
 namespace Tests\Feature;
 
-use App\Engine\Models\MarketPair;
-use App\Engine\Models\MarketPrice;
-use App\Engine\Models\MarketType;
-use App\Engine\Models\TimeframeType;
+use App\Features\Engine\Models\MarketPair;
+use App\Features\Engine\Models\MarketPrice;
+use App\Features\Engine\Models\MarketType;
+use App\Features\Engine\Models\TimeframeType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -207,6 +207,8 @@ class WorkbenchFeatureTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'eur',
             'quote' => 'usd',
+            'quantity_unit' => 'lot',
+            'contract_size' => '100000.00000000',
         ]);
         $pair = MarketPair::query()->firstOrFail();
 
@@ -216,6 +218,8 @@ class WorkbenchFeatureTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'EUR',
             'quote' => 'USD',
+            'quantity_unit' => 'lot',
+            'contract_size' => '100000.00000000',
         ]);
 
         $this->get("/workbench/market-pairs/{$pair->id}")
@@ -232,6 +236,8 @@ class WorkbenchFeatureTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'GBP',
             'quote' => 'USD',
+            'quantity_unit' => 'lot',
+            'contract_size' => '1000.00000000',
         ])->assertRedirect("/workbench/market-pairs/{$pair->id}");
         $this->assertDatabaseHas('market_pair', ['id' => $pair->id, 'base' => 'GBP']);
 
@@ -250,9 +256,59 @@ class WorkbenchFeatureTest extends TestCase
                 'market_type_id' => $marketType->id,
                 'base' => 'eur',
                 'quote' => 'usd',
+                'quantity_unit' => 'units',
+                'contract_size' => '1.00000000',
             ])
             ->assertRedirect('/workbench/market-pairs/create')
             ->assertSessionHasErrors('base');
+    }
+
+    public function test_market_pair_units_use_direct_strategy_quantity_without_a_lot_multiplier(): void
+    {
+        $marketType = $this->createMarketType();
+
+        $this->post('/workbench/market-pairs', [
+            'market_type_id' => $marketType->id,
+            'base' => 'BTC',
+            'quote' => 'USD',
+            'quantity_unit' => 'units',
+        ])->assertRedirect();
+
+        $pair = MarketPair::query()->where('base', 'BTC')->firstOrFail();
+
+        $this->assertSame('units', $pair->quantity_unit);
+        $this->assertSame('1.00000000', $pair->contract_size);
+    }
+
+    public function test_market_pair_contract_quantity_requires_and_stores_futures_multiplier(): void
+    {
+        $marketType = $this->createMarketType();
+
+        $this->from('/workbench/market-pairs/create')
+            ->post('/workbench/market-pairs', [
+                'market_type_id' => $marketType->id,
+                'base' => 'ES',
+                'quote' => 'USD',
+                'quantity_unit' => 'contract',
+            ])
+            ->assertRedirect('/workbench/market-pairs/create')
+            ->assertSessionHasErrors('contract_size');
+
+        $this->post('/workbench/market-pairs', [
+            'market_type_id' => $marketType->id,
+            'base' => 'ES',
+            'quote' => 'USD',
+            'quantity_unit' => 'contract',
+            'contract_size' => '50.00000000',
+        ])->assertRedirect();
+
+        $pair = MarketPair::query()->where('base', 'ES')->firstOrFail();
+        $this->assertSame('contract', $pair->quantity_unit);
+        $this->assertSame('50.00000000', $pair->contract_size);
+        $this->get("/workbench/market-pairs/{$pair->id}")
+            ->assertOk()
+            ->assertSee('Contracts')
+            ->assertSee('50.00000000 quote-currency units per price point per contract');
     }
 
     public function test_market_pair_cannot_be_deleted_while_it_has_price_history(): void
@@ -479,9 +535,9 @@ class WorkbenchFeatureTest extends TestCase
             ->assertOk()
             ->assertSee('EUR/USD')
             ->assertSee('Initial capital')
-            ->assertSee('Risk per trade (%)')
-            ->assertSee('value="10000.00"', false)
-            ->assertSee('value="1.00"', false);
+            ->assertSee('Strategy supplies the requested quantity using each pair')
+            ->assertDontSee('name="trade_size"', false)
+            ->assertSee('value="10000.00"', false);
 
         $this->get('/workbench/tests/create')
             ->assertOk()
@@ -492,7 +548,6 @@ class WorkbenchFeatureTest extends TestCase
             'market_pair_id' => $pair->id,
             'timeframe_type_id' => $timeframe->id,
             'initial_capital' => '10000.00',
-            'risk_per_trade_percent' => '1.00',
             'from' => '2026-10-09T00:00',
             'to' => '2026-10-09T23:59',
             'active_from' => '09:00',
@@ -507,7 +562,7 @@ class WorkbenchFeatureTest extends TestCase
             ->assertSee('Order history')
             ->assertSee('stop loss')
             ->assertSee('ENDING CAPITAL')
-            ->assertSee('RISK PER TRADE')
+            ->assertSee('strategy quantity')
             ->assertSee('1.090500')
             ->assertSee('Candle decisions')
             ->assertSee('NEAREST TO TP')
@@ -523,11 +578,15 @@ class WorkbenchFeatureTest extends TestCase
             ->assertSee('Cluster 2 analysis')
             ->assertSee('1 ORDERS');
 
-        $this->get('/workbench/tests/results?stress_mode=combined&adverse_stress=0.5&favorable_stress=0.25')
+        $this->get('/workbench/tests/results?stress_x=0.5')
             ->assertOk()
             ->assertSee('Fluctuation Stress Test')
             ->assertSee('STRESS SCENARIO')
-            ->assertSee('FULL BASELINE');
+            ->assertSee('FULL BASELINE')
+            ->assertSee('Stress-test exit count')
+            ->assertSee('Additional stress factor')
+            ->assertSee('additional adverse move = x × excursion')
+            ->assertSee('Stress parameter x = 0.50');
 
         $this->get('/workbench/tests/results?monte_carlo=1&simulation_count=20&trades_per_simulation=2&method=bootstrap&mc_initial_capital=10000&risk_model=fixed_monetary_pl&drawdown_threshold=10&random_seed=42')
             ->assertOk()
@@ -566,7 +625,6 @@ class WorkbenchFeatureTest extends TestCase
             'from' => '2026-10-09',
             'to' => '2026-10-09',
             'initial_capital' => 10000.0,
-            'risk_per_trade_percent' => 1.0,
             'ending_capital' => 10000.0,
             'results' => $results,
             'order_history' => [],
@@ -586,21 +644,20 @@ class WorkbenchFeatureTest extends TestCase
             ->assertDontSee('2026-10-09 00:00:00');
     }
 
-    public function test_backtest_setup_requires_positive_capital_and_risk_up_to_one_hundred_percent(): void
+    public function test_backtest_setup_requires_positive_capital(): void
     {
         $this->from('/workbench/tests/create')
             ->post('/workbench/tests', [
                 'market_pair_id' => '1',
                 'timeframe_type_id' => '1',
                 'initial_capital' => '0',
-                'risk_per_trade_percent' => '100.01',
                 'from' => '2026-10-09T00:00',
                 'to' => '2026-10-09T23:59',
                 'active_from' => '09:00',
                 'active_until' => '17:00',
             ])
             ->assertRedirect('/workbench/tests/create')
-            ->assertSessionHasErrors(['initial_capital', 'risk_per_trade_percent']);
+            ->assertSessionHasErrors(['initial_capital']);
     }
 
     public function test_backtest_setup_exposes_optional_execution_configuration_and_validates_enabled_values(): void
@@ -623,7 +680,6 @@ class WorkbenchFeatureTest extends TestCase
                 'market_pair_id' => '1',
                 'timeframe_type_id' => '1',
                 'initial_capital' => '10000',
-                'risk_per_trade_percent' => '1',
                 'from' => '2026-10-09T00:00',
                 'to' => '2026-10-09T23:59',
                 'active_from' => '09:00',
@@ -648,6 +704,8 @@ class WorkbenchFeatureTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'EUR',
             'quote' => 'USD',
+            'quantity_unit' => 'lot',
+            'contract_size' => '100000.00000000',
         ]);
     }
 

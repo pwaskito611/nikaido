@@ -4,13 +4,13 @@
 
 @section('content')
     <div class="page-heading">
-        <div><span class="eyebrow">RESEARCH / BACKTEST CONFIGURATION</span><h1>Run a test</h1><p>Atur instrumen, rentang data, dan jam aktif strategi.</p></div>
+        <div><span class="eyebrow">RESEARCH / BACKTEST CONFIGURATION</span><h1>Run a test</h1><p>Configure the instrument, data range, and strategy schedule.</p></div>
         <span class="step-indicator"><b>01</b><span>CONFIGURE</span><i></i><span>02 RESULTS</span></span>
     </div>
     @if ($timeframes->isEmpty() || ($marketPairs->isEmpty() && $marketTypes->isEmpty()))
         <div class="empty-workspace">
-            <span class="empty-icon">⇄</span><h2>{{ $timeframes->isEmpty() ? 'Timeframe belum tersedia' : 'Market type belum tersedia' }}</h2>
-            <p>{{ $timeframes->isEmpty() ? 'Tambahkan timeframe untuk memilih interval candle yang akan diuji.' : 'Tambahkan market type dan pair sebelum menjalankan test.' }}</p>
+            <span class="empty-icon">⇄</span><h2>{{ $timeframes->isEmpty() ? 'No timeframes available' : 'No market types available' }}</h2>
+            <p>{{ $timeframes->isEmpty() ? 'Add a timeframe to choose the candle interval for testing.' : 'Add a market type and pair before running a test.' }}</p>
             <div class="heading-actions">
                 @if ($marketTypes->isEmpty())
                     <a class="button button-secondary" href="{{ route('workbench.market-types.create') }}">Create market type</a>
@@ -28,7 +28,7 @@
             <div class="panel-top"><div><span class="eyebrow">TEST PARAMETERS</span><h2>Backtest setup</h2></div><span class="card-index">ENGINE / SINGLE OR PARALLEL</span></div>
             <div class="form-section">
                 <span class="form-section-number">01</span><div class="form-section-body">
-                    <h3>Choose a test type</h3><p>Jalankan satu market pair atau semua pair eligible dalam market type secara paralel.</p>
+                    <h3>Choose a test type</h3><p>Run a single market pair or all eligible pairs in a market type in parallel.</p>
                     <label class="field-label" for="test_type">Test type <span>*</span></label>
                     <select class="text-input" id="test_type" name="test_type" required>
                         <option value="specific_pair" @selected(old('test_type', 'specific_pair') === 'specific_pair')>Specific pair test</option>
@@ -51,13 +51,32 @@
                                 <option value="{{ $marketType->id }}" @selected(old('market_type_id') == $marketType->id)>{{ $marketType->name }}</option>
                             @endforeach
                         </select>
-                        <small class="field-hint">Hanya pair dengan candle pada timeframe dan rentang waktu yang dipilih yang akan dijadwalkan.</small>
+                        <div id="capital-mode-field">
+                            <label class="field-label" for="capital_mode">Capital management <span>*</span></label>
+                            <select class="text-input" id="capital_mode" name="capital_mode">
+                                <option value="shared" @selected(old('capital_mode', 'shared') === 'shared')>Shared portfolio capital</option>
+                                <option value="separate" @selected(old('capital_mode') === 'separate')>Separate capital per pair</option>
+                            </select>
+                            <small class="field-hint">Shared mode coordinates risk chronologically across pairs. Separate mode gives every pair its own starting capital; the overall total uses the sum of those accounts.</small>
+                        </div>
+                        <small class="field-hint">Only pairs with candles in the selected timeframe and date range will be scheduled.</small>
+                        <label class="field-label pair-exclusion-heading">Exclude pairs <small>Optional</small></label>
+                        <small class="field-hint">Selected pairs will be excluded from this parallel test.</small>
+                        <div class="pair-exclusion-options" id="pair-exclusion-options">
+                            @foreach ($marketPairs as $marketPair)
+                                <label data-excluded-pair-option data-market-type-id="{{ $marketPair->market_type_id }}" hidden>
+                                    <input type="checkbox" name="excluded_pair_ids[]" value="{{ $marketPair->id }}" @checked(in_array((string) $marketPair->id, old('excluded_pair_ids', []), true)) disabled>
+                                    <span>{{ $marketPair->base }}/{{ $marketPair->quote }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                        <small class="field-hint" id="pair-exclusion-empty">Select a market type to see its pairs.</small>
                     </div>
                 </div>
             </div>
             <div class="form-section">
                 <span class="form-section-number">02</span><div class="form-section-body">
-                    <h3>Choose a timeframe</h3><p>Backtest hanya menggunakan candle dengan interval yang dipilih.</p>
+                    <h3>Choose a timeframe</h3><p>The backtest uses only candles at the selected interval.</p>
                     <label class="field-label" for="timeframe_type_id">Timeframe <span>*</span></label>
                     <select class="text-input" id="timeframe_type_id" name="timeframe_type_id" required>
                         <option value="">Select a timeframe</option>
@@ -69,24 +88,17 @@
             </div>
             <div class="form-section">
                 <span class="form-section-number">03</span><div class="form-section-body">
-                    <h3>Set capital and risk</h3><p>Risiko dihitung dari modal berjalan setiap kali posisi baru dibuka.</p>
-                    <div class="field-row capital-risk-fields">
-                        <div>
-                            <label class="field-label" for="initial_capital">Initial capital <span>*</span></label>
-                            <input class="text-input" id="initial_capital" name="initial_capital" type="number" min="0.01" step="0.01" value="{{ old('initial_capital', '10000.00') }}" required>
-                            <small class="field-hint">Dalam mata uang quote pair, misalnya USD untuk EUR/USD.</small>
-                        </div>
-                        <div>
-                            <label class="field-label" for="risk_per_trade_percent">Risk per trade (%) <span>*</span></label>
-                            <input class="text-input" id="risk_per_trade_percent" name="risk_per_trade_percent" type="number" min="0.01" max="100" step="0.01" value="{{ old('risk_per_trade_percent', '1.00') }}" required>
-                            <small class="field-hint">Persentase dari modal berjalan saat trade dibuka.</small>
-                        </div>
+                    <h3>Set starting capital</h3><p>Strategy supplies the requested quantity using each pair's configured unit. Shared portfolio mode may reduce that quantity to fit the available stop-loss risk budget.</p>
+                    <div>
+                        <label class="field-label" for="initial_capital">Initial capital <span>*</span></label>
+                        <input class="text-input" id="initial_capital" name="initial_capital" type="number" min="0.01" step="0.01" value="{{ old('initial_capital', '10000.00') }}" required>
+                        <small class="field-hint" id="initial-capital-hint">For a specific-pair test, enter the amount in the pair's quote currency, such as USD for EUR/USD.</small>
                     </div>
                 </div>
             </div>
             <div class="form-section">
                 <span class="form-section-number">04</span><div class="form-section-body">
-                    <h3>Set the historical window</h3><p>Gunakan waktu lokal aplikasi untuk rentang data yang diuji.</p>
+                    <h3>Set the historical window</h3><p>Use the application's local time for the test date range.</p>
                     <div class="field-row">
                         <div><label class="field-label" for="from">Start date &amp; time <span>*</span></label><input class="text-input" id="from" name="from" type="text" data-flatpickr="datetime" value="{{ old('from', now()->subDays(30)->format('Y-m-d\TH:i')) }}" required></div>
                         <div><label class="field-label" for="to">End date &amp; time <span>*</span></label><input class="text-input" id="to" name="to" type="text" data-flatpickr="datetime" value="{{ old('to', now()->format('Y-m-d\TH:i')) }}" required></div>
@@ -95,8 +107,8 @@
             </div>
             <div class="form-section">
                 <span class="form-section-number">05</span><div class="form-section-body">
-                    <h3>Configure active schedule</h3><p>Strategi hanya dipanggil dalam jadwal terpilih; posisi tetap dipantau sepanjang data tersedia.</p>
-                    <label class="check-row full-day-toggle"><input type="checkbox" id="full_day" name="full_day" value="1" @checked(old('full_day'))><span><strong>Run all day</strong><small>Abaikan batas jam aktif.</small></span></label>
+                    <h3>Configure active schedule</h3><p>The strategy is called only during the selected schedule; open positions are monitored whenever data is available.</p>
+                    <label class="check-row full-day-toggle"><input type="checkbox" id="full_day" name="full_day" value="1" @checked(old('full_day'))><span><strong>Run all day</strong><small>Ignore active-time boundaries.</small></span></label>
                     <div class="field-row time-fields">
                         <div><label class="field-label" for="active_from">Active from <span>*</span></label><input class="text-input" id="active_from" name="active_from" type="text" data-flatpickr="time" value="{{ old('active_from', '09:00') }}"></div>
                         <div><label class="field-label" for="active_until">Active until <span>*</span></label><input class="text-input" id="active_until" name="active_until" type="text" data-flatpickr="time" value="{{ old('active_until', '17:00') }}"></div>
@@ -150,7 +162,7 @@
                     </div>
                 </div>
             </div>
-            <div class="form-actions test-submit"><span>Pastikan data harga tersedia untuk pair dan periode yang dipilih.</span><button class="button button-primary" type="submit">Run backtest <span>→</span></button></div>
+            <div class="form-actions test-submit"><span>Make sure price data is available for the selected pair and date range.</span><button class="button button-primary" type="submit">Run backtest <span>→</span></button></div>
         </form>
     @endif
     <script>
@@ -159,6 +171,28 @@
         const marketTypeFields = document.getElementById('market-type-fields');
         const pairSelect = document.getElementById('market_pair_id');
         const marketTypeSelect = document.getElementById('market_type_id');
+        const capitalModeField = document.getElementById('capital-mode-field');
+        const capitalModeSelect = document.getElementById('capital_mode');
+        const initialCapitalHint = document.getElementById('initial-capital-hint');
+        const exclusionOptions = [...document.querySelectorAll('[data-excluded-pair-option]')];
+        const exclusionEmpty = document.getElementById('pair-exclusion-empty');
+        const updatePairExclusionOptions = () => {
+            const selectedMarketType = marketTypeSelect.value;
+            let visibleOptions = 0;
+            for (const option of exclusionOptions) {
+                const matchesMarketType = selectedMarketType !== '' && option.dataset.marketTypeId === selectedMarketType;
+                option.hidden = !matchesMarketType;
+                const checkbox = option.querySelector('input');
+                checkbox.disabled = !matchesMarketType || testType.value !== 'market_type';
+                if (matchesMarketType) {
+                    visibleOptions += 1;
+                }
+            }
+            exclusionEmpty.hidden = visibleOptions > 0;
+            exclusionEmpty.textContent = selectedMarketType === ''
+                ? 'Select a market type to see its pairs.'
+                : 'This market type has no pairs yet.';
+        };
         if (testType) {
             const updateTestTypeFields = () => {
                 const parallel = testType.value === 'market_type';
@@ -168,9 +202,20 @@
                 pairSelect.disabled = parallel;
                 marketTypeSelect.required = parallel;
                 marketTypeSelect.disabled = !parallel;
+                capitalModeField.hidden = !parallel;
+                capitalModeSelect.required = parallel;
+                capitalModeSelect.disabled = !parallel;
+                initialCapitalHint.textContent = !parallel
+                    ? "For a specific-pair test, enter the amount in the pair's quote currency, such as USD for EUR/USD."
+                    : capitalModeSelect.value === 'shared'
+                        ? 'This is one shared risk-capital budget. Pair risk and P/L values are combined as reported; no FX conversion is performed, so use a common account unit.'
+                        : 'Each successful pair starts with this amount. Overall capital is the sum across pairs; values are combined as reported with no FX conversion.';
+                updatePairExclusionOptions();
             };
             testType.addEventListener('change', updateTestTypeFields);
             updateTestTypeFields();
+            marketTypeSelect.addEventListener('change', updatePairExclusionOptions);
+            capitalModeSelect.addEventListener('change', updateTestTypeFields);
         }
         const slippageToggle = document.getElementById('slippage_enabled');
         const partialFillToggle = document.getElementById('partial_fill_enabled');

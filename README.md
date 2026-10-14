@@ -7,6 +7,21 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Application structure
+
+Application code is grouped under two top-level parents:
+
+- `app/Features/` contains user-facing capabilities. `Engine`, `Workbench`, and
+  `DataImport` own their use cases and the Laravel adapters they need, such as
+  controllers, requests, jobs, and routes.
+- `app/Platform/` contains shared or technical capabilities. `Strategy` provides
+  strategy logic used by Engine, `Console` contains Artisan commands, and
+  `Infrastructure` contains framework wiring and external-system adapters.
+
+Feature modules may depend on Platform capabilities; Platform code should not
+depend on a specific Feature. A module only needs the layers it actually uses.
+For example, Strategy does not need controllers or routes.
+
 ## Monte Carlo simulation
 
 The Workbench results page can run trade-sequence Monte Carlo simulations from the
@@ -60,6 +75,20 @@ Fluctuation Stress Test, and Monte Carlo calculations live in the Engine module.
 Workbench remains the HTTP/form and presentation layer and delegates calculations
 to Engine actions.
 
+Each entry strategy response supplies a positive quantity along with the signal
+and SL/TP levels. The moving-average example sizes positions to risk 1% of the
+current realized capital, updated after each candle as exits are filled. Strategies
+receive a mutable execution context containing that capital and the selected pair's
+quantity unit and multiplier. Each market pair defines how strategy quantity is
+interpreted: `units` (including shares or quantity) pass through directly;
+`contract` retains the number of contracts and uses the configured contract point
+value to scale P/L and stop risk; `lot` converts lots to underlying units using the
+configured units per lot. Realized P/L and stop risk use actual filled quantities.
+Futures point value is assumed to be denominated in the pair's quote currency; the
+engine does not convert settlement currencies or model margin. The pair editor
+defaults new pairs to `units`; pairs created before the unit setting was introduced
+are treated as lots to preserve their existing multiplier.
+
 For local development on Linux, start the Laravel development server and one
 queue worker together:
 
@@ -108,10 +137,17 @@ returned immediately after submission.
 Completed market-type runs provide pair detail pages and an overall result page.
 The overall page combines candle decisions and trades from successful pairs in
 time order and supports the same cluster, fluctuation stress, and Monte Carlo
-analysis as a specific-pair result. Its combined capital starts from one configured
-initial capital and adds realized P/L from all successful pairs; pair backtests
-are still executed independently using their configured per-pair risk sizing. Runs
-with failures include only successful pair results in the overall analysis.
+analysis as a specific-pair result. Runs offer two capital modes. Shared portfolio
+capital starts from one configured balance and synchronizes candidate trades
+chronologically after pair workers complete. Exits release reserved stop-loss risk
+and realize P/L before entries at the same time; simultaneous entries that exceed
+available risk capital have their quantities reduced proportionally. Strategy
+quantities otherwise remain unchanged. Separate capital per pair keeps each pair's
+backtest independent and reports aggregate capital as the sum across successful
+pairs, including average initial and ending capital per pair. Both modes combine
+P/L as reported and do not perform FX conversion, so results must use a common
+account unit. Runs with failures include only successful pair results in the
+overall analysis.
 
 ## Data import
 

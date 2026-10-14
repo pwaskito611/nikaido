@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="page-heading">
-        <div><span class="eyebrow">HISTORICAL DATA / OHLC</span><h1>Market prices</h1><p>Kelola candle OHLC dan kuotasi bid/ask untuk seluruh instrumen.</p></div>
+        <div><span class="eyebrow">HISTORICAL DATA / OHLC</span><h1>Market prices</h1><p>Manage OHLC candles and bid/ask quotes for all instruments.</p></div>
         <a class="button button-primary" href="{{ route('workbench.market-prices.create') }}"><span>＋</span> Add market price</a>
     </div>
     <div class="data-panel">
@@ -46,11 +46,11 @@
                         <td class="align-right actions">
                             <a href="{{ route('workbench.market-prices.show', $marketPrice) }}">View</a>
                             <a href="{{ route('workbench.market-prices.edit', $marketPrice) }}">Edit</a>
-                            <form method="POST" action="{{ route('workbench.market-prices.destroy', $marketPrice) }}" onsubmit="return confirm('Hapus data market price ini?')">@csrf @method('DELETE')<button class="link-danger" type="submit">Delete</button></form>
+                            <form method="POST" action="{{ route('workbench.market-prices.destroy', $marketPrice) }}" onsubmit="return confirm('Delete this market price?')">@csrf @method('DELETE')<button class="link-danger" type="submit">Delete</button></form>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="9" class="empty-state"><span>⌁</span><strong>Tidak ada market price</strong><p>Tambahkan candle baru atau ubah filter pair dan timeframe.</p><a href="{{ route('workbench.market-prices.create') }}">Add market price →</a></td></tr>
+                    <tr><td colspan="9" class="empty-state"><span>⌁</span><strong>No market prices found</strong><p>Add a candle or change the pair and timeframe filters.</p><a href="{{ route('workbench.market-prices.create') }}">Add market price →</a></td></tr>
                 @endforelse
                 </tbody>
             </table>

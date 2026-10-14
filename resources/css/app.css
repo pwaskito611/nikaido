@@ -199,6 +199,11 @@ tr:hover td { background: #fbfcf8; }
 .weekday-options input { position: absolute; opacity: 0; }
 .weekday-options span { display: block; min-width: 47px; padding: 7px 8px; border: 1px solid #e1e6de; border-radius: 4px; color: #778279; background: #fff; font-size: 9px; text-align: center; }
 .weekday-options input:checked + span { border-color: #b7d69e; color: #4d7040; background: #f1f8e9; }
+.pair-exclusion-heading { margin-top: 14px; }
+.pair-exclusion-heading small { color: #929d94; font-size: 9px; font-weight: 400; }
+.pair-exclusion-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; max-height: 180px; margin-top: 8px; overflow-y: auto; }
+.pair-exclusion-options label { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid #e1e6de; border-radius: 4px; color: #667267; background: #fff; font-size: 10px; cursor: pointer; }
+.pair-exclusion-options input { accent-color: #668c4a; }
 .test-submit { align-items: center; justify-content: space-between; margin: 0; padding: 16px 23px; border-top: 0; }
 .test-submit > span { color: #89948b; font-size: 9px; }
 .result-separator { padding: 0 4px; color: #9da99b; }

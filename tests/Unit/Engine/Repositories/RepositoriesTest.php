@@ -2,16 +2,15 @@
 
 namespace Tests\Unit\Engine\Repositories;
 
-use App\Engine\Models\CountryEconomicsData;
-use App\Engine\Models\EconomicsEvent;
-use App\Engine\Models\MarketPair;
-use App\Engine\Models\MarketPrice;
-use App\Engine\Models\MarketType;
-use App\Engine\Repositories\CountryEconomicsDataRepository;
-use App\Engine\Repositories\EconomicsEventRepository;
-use App\Engine\Repositories\MarketPairRepository;
-use App\Engine\Repositories\MarketPriceRepository;
-use App\Engine\Repositories\MarketTypeRepository;
+use App\Features\Engine\Models\MarketPair;
+use App\Features\Engine\Models\MarketPrice;
+use App\Features\Engine\Models\MarketType;
+use App\Features\Engine\Repositories\MarketPairRepository;
+use App\Features\Engine\Repositories\MarketPriceRepository;
+use App\Features\Engine\Repositories\MarketTypeRepository;
+use App\Features\Workbench\Domain\MarketPairs\MarketPairDefinition;
+use App\Features\Workbench\Domain\MarketPairs\MarketPairQuantityUnit;
+use Exact\Type\Option\Option;
 use Illuminate\Database\Eloquent\Builder;
 use Mockery;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -52,20 +51,42 @@ class RepositoriesTest extends TestCase
     #[DataProvider('repositories')]
     public function test_create_returns_the_created_record(string $repositoryClass, string $modelClass): void
     {
-        $attributes = ['name' => 'Test'];
+        $input = $repositoryClass === MarketPairRepository::class
+            ? MarketPairDefinition::create(1, 'EUR', 'USD', MarketPairQuantityUnit::Units, Option::none())
+            : ['name' => 'Test'];
+        $attributes = $input instanceof MarketPairDefinition
+            ? [
+                'market_type_id' => 1,
+                'base' => 'EUR',
+                'quote' => 'USD',
+                'quantity_unit' => 'units',
+                'contract_size' => '1',
+            ]
+            : $input;
         $record = Mockery::mock($modelClass);
         $builder = Mockery::mock(Builder::class);
         $builder->shouldReceive('create')->once()->with($attributes)->andReturn($record);
 
         $repository = $this->repository($repositoryClass, $modelClass, $builder);
 
-        $this->assertSame($record, $repository->create($attributes));
+        $this->assertSame($record, $repository->create($input));
     }
 
     #[DataProvider('repositories')]
     public function test_update_updates_and_returns_the_record(string $repositoryClass, string $modelClass): void
     {
-        $attributes = ['name' => 'Updated'];
+        $input = $repositoryClass === MarketPairRepository::class
+            ? MarketPairDefinition::create(1, 'GBP', 'USD', MarketPairQuantityUnit::Units, Option::none())
+            : ['name' => 'Updated'];
+        $attributes = $input instanceof MarketPairDefinition
+            ? [
+                'market_type_id' => 1,
+                'base' => 'GBP',
+                'quote' => 'USD',
+                'quantity_unit' => 'units',
+                'contract_size' => '1',
+            ]
+            : $input;
         $record = Mockery::mock($modelClass);
         $record->shouldReceive('update')->once()->with($attributes)->andReturnTrue();
 
@@ -74,7 +95,7 @@ class RepositoriesTest extends TestCase
 
         $repository = $this->repository($repositoryClass, $modelClass, $builder);
 
-        $this->assertSame($record, $repository->update(42, $attributes));
+        $this->assertSame($record, $repository->update(42, $input));
     }
 
     #[DataProvider('repositories')]
@@ -94,8 +115,6 @@ class RepositoriesTest extends TestCase
     public static function repositories(): array
     {
         return [
-            'country economics data' => [CountryEconomicsDataRepository::class, CountryEconomicsData::class],
-            'economics event' => [EconomicsEventRepository::class, EconomicsEvent::class],
             'market pair' => [MarketPairRepository::class, MarketPair::class],
             'market price' => [MarketPriceRepository::class, MarketPrice::class],
             'market type' => [MarketTypeRepository::class, MarketType::class],

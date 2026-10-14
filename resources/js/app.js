@@ -1,6 +1,5 @@
 import './bootstrap';
 import flatpickr from 'flatpickr';
-import { Indonesian } from 'flatpickr/dist/l10n/id.js';
 
 document.querySelectorAll('[data-flatpickr]').forEach((input) => {
     if (!(input instanceof HTMLInputElement)) {
@@ -19,7 +18,6 @@ document.querySelectorAll('[data-flatpickr]').forEach((input) => {
         dateFormat: isTime ? 'H:i' : isDateTime ? 'Y-m-d\\TH:i' : 'Y-m-d',
         disableMobile: true,
         enableTime: isDateTime || isTime,
-        locale: Indonesian,
         minuteIncrement: 1,
         noCalendar: isTime,
         time_24hr: true,

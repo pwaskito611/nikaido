@@ -11,5 +11,5 @@
         <div class="detail-card"><span class="eyebrow">TIMEFRAME ID</span><strong class="mono">TF-{{ str_pad((string) $timeframe->id, 4, '0', STR_PAD_LEFT) }}</strong></div>
         <div class="detail-card"><span class="eyebrow">PRICE RECORDS</span><strong>{{ $timeframe->market_prices_count }}</strong><span class="detail-caption">candles using this interval</span></div>
     </div>
-    <div class="inline-warning">Timeframe yang sudah dipakai oleh data harga tidak dapat dihapus.</div>
+    <div class="inline-warning">A timeframe cannot be deleted while it is used by price data.</div>
 @endsection

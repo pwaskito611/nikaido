@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Engine\Execution;
 
-use App\Engine\Execution\PartialFill;
+use App\Features\Engine\Execution\PartialFill;
 use PHPUnit\Framework\TestCase;
 
 class PartialFillTest extends TestCase

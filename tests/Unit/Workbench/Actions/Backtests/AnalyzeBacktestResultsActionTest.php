@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Workbench\Actions\Backtests;
 
-use App\Engine\Actions\RunFluctuationStressTestAction;
-use App\Engine\Actions\RunMonteCarloSimulationAction;
-use App\Engine\Config\MonteCarloSimulationConfig;
-use App\Workbench\Actions\Backtests\AnalyzeBacktestResultsAction;
+use App\Features\Engine\Config\MonteCarloSimulationConfig;
+use App\Features\Engine\Domain\FluctuationStressTestDomain;
+use App\Features\Engine\Domain\MonteCarloSimulationDomain;
+use App\Features\Workbench\Actions\Backtests\AnalyzeBacktestResultsAction;
+use App\Features\Workbench\Domain\Backtests\BacktestAnalysisDecision;
+use App\Features\Workbench\Domain\Backtests\BacktestAnalysisInput;
+use App\Features\Workbench\Domain\Backtests\BacktestAnalysisOptions;
+use App\Features\Workbench\Domain\Backtests\BacktestClusterAnalysisDomain;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -16,55 +20,57 @@ class AnalyzeBacktestResultsActionTest extends TestCase
     public function test_it_selects_decisions_and_orders_for_requested_cluster(): void
     {
         $action = new AnalyzeBacktestResultsAction(
-            new RunFluctuationStressTestAction,
-            new RunMonteCarloSimulationAction,
+            new FluctuationStressTestDomain,
+            new MonteCarloSimulationDomain,
+            new BacktestClusterAnalysisDomain,
         );
 
         $analysis = $action->execute(
-            $this->backtest(),
-            null,
-            0.5,
-            0.5,
-            null,
-            2,
-            2,
+            BacktestAnalysisInput::fromPersistedResult($this->backtest()),
+            BacktestAnalysisOptions::fromValidatedQuery([], 2, 2),
         );
 
-        $this->assertSame(2, $analysis->clusterCount);
-        $this->assertSame(2, $analysis->selectedCluster);
+        $this->assertSame(2, $analysis->clusterCount->getOrNull());
+        $this->assertSame(2, $analysis->selectedCluster->getOrNull());
         $this->assertSame([
             ['candle' => ['price_date' => '2026-10-12 10:02:00']],
             ['candle' => ['price_date' => '2026-10-12 10:03:00']],
-        ], $analysis->decisions);
-        $this->assertSame([], $analysis->orders);
-        $this->assertSame(10000.0, $analysis->clusterAnalysis['capital_start']);
-        $this->assertSame('24.00,12.00 616.00,12.00', $analysis->capitalChart['points']);
+        ], $analysis->decisions->map(
+            static fn (BacktestAnalysisDecision $decision): array => $decision->toPresentationArray(),
+        )->toArray());
+        $this->assertTrue($analysis->orders->isEmpty());
+        $this->assertSame(10000.0, $analysis->clusterAnalysis->capitalStart);
+        $this->assertSame('24.00,12.00 616.00,12.00', $analysis->capitalChart->points);
     }
 
     public function test_it_rejects_monte_carlo_when_no_closed_trade_is_available(): void
     {
         $action = new AnalyzeBacktestResultsAction(
-            new RunFluctuationStressTestAction,
-            new RunMonteCarloSimulationAction,
+            new FluctuationStressTestDomain,
+            new MonteCarloSimulationDomain,
+            new BacktestClusterAnalysisDomain,
         );
 
         $this->expectException(ValidationException::class);
         $action->execute(
-            $this->backtest(),
-            null,
-            0.5,
-            0.5,
-            new MonteCarloSimulationConfig(simulationCount: 10),
-            null,
-            1,
+            BacktestAnalysisInput::fromPersistedResult($this->backtest()),
+            BacktestAnalysisOptions::fromValidatedQuery([
+                'monte_carlo' => '1',
+                'simulation_count' => 10,
+                'method' => MonteCarloSimulationConfig::METHOD_SHUFFLE,
+                'mc_initial_capital' => 10000,
+                'risk_model' => MonteCarloSimulationConfig::RISK_MODEL_FIXED_MONETARY_PL,
+                'drawdown_threshold' => 20,
+            ], null, 1),
         );
     }
 
     public function test_it_includes_realized_partial_exit_fills_in_pnl_and_capital_movement(): void
     {
         $action = new AnalyzeBacktestResultsAction(
-            new RunFluctuationStressTestAction,
-            new RunMonteCarloSimulationAction,
+            new FluctuationStressTestDomain,
+            new MonteCarloSimulationDomain,
+            new BacktestClusterAnalysisDomain,
         );
         $backtest = $this->backtest();
         $backtest['order_history'] = [[
@@ -82,11 +88,14 @@ class AnalyzeBacktestResultsActionTest extends TestCase
             ]],
         ]];
 
-        $analysis = $action->execute($backtest, null, 0.5, 0.5, null, null, 1);
+        $analysis = $action->execute(
+            BacktestAnalysisInput::fromPersistedResult($backtest),
+            BacktestAnalysisOptions::fromValidatedQuery([], null, 1),
+        );
 
-        $this->assertSame(-5.0, $analysis->clusterAnalysis['net_profit_loss']);
-        $this->assertSame(9995.0, $analysis->clusterAnalysis['capital_end']);
-        $this->assertSame(9995.0, $analysis->capitalChart['end']);
+        $this->assertSame(-5.0, $analysis->clusterAnalysis->netProfitLoss);
+        $this->assertSame(9995.0, $analysis->clusterAnalysis->capitalEnd);
+        $this->assertSame(9995.0, $analysis->capitalChart->end);
     }
 
     /**

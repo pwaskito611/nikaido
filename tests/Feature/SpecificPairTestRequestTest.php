@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Engine\Models\MarketPair;
-use App\Engine\Models\MarketPrice;
-use App\Engine\Models\MarketType;
+use App\Features\Engine\Models\MarketPair;
+use App\Features\Engine\Models\MarketPrice;
+use App\Features\Engine\Models\MarketType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -19,6 +19,7 @@ class SpecificPairTestRequestTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'EUR',
             'quote' => 'USD',
+            'quantity_unit' => 'units',
         ]);
 
         MarketPrice::create([
@@ -58,6 +59,10 @@ class SpecificPairTestRequestTest extends TestCase
             ->assertJsonPath('data.0.candle.id', $activeCandle->id)
             ->assertJsonPath('data.0.result', false)
             ->assertJsonPath('data.0.signal', 'none')
+            ->assertJsonPath('data.0.quantity', null)
+            ->assertJsonPath('data.0.quantity_unit', 'units')
+            ->assertJsonPath('quantity_multiplier', 1)
+            ->assertJsonPath('units_per_lot', 1)
             ->assertJsonPath('execution_config.slippage_enabled', true)
             ->assertJsonPath('execution_config.slippage_pips', 1.5)
             ->assertJsonPath('execution_config.slippage_pip_size', 0.0002)
@@ -128,6 +133,7 @@ class SpecificPairTestRequestTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'EUR',
             'quote' => 'USD',
+            'quantity_unit' => 'units',
         ]);
 
         $date = new \DateTimeImmutable('2026-10-08 00:00:00');
@@ -198,7 +204,7 @@ class SpecificPairTestRequestTest extends TestCase
             ->assertJsonPath('order_history.0.closest_to_take_profit.price', 1.1)
             ->assertJsonPath('order_history.0.closest_to_take_profit.source', 'bid_high')
             ->assertJsonPath('initial_capital', 10000)
-            ->assertJsonPath('ending_capital', 9813.636363636362);
+            ->assertJsonPath('ending_capital', 9900);
     }
 
     /**

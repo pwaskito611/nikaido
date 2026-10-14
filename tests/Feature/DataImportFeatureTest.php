@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\DataImport\Models\DataImportSession;
-use App\Engine\Models\MarketPair;
-use App\Engine\Models\MarketPrice;
-use App\Engine\Models\MarketType;
-use App\Engine\Models\TimeframeType;
+use App\Features\DataImport\Models\DataImportSession;
+use App\Features\Engine\Models\MarketPair;
+use App\Features\Engine\Models\MarketPrice;
+use App\Features\Engine\Models\MarketType;
+use App\Features\Engine\Models\TimeframeType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;

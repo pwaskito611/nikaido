@@ -1,0 +1,174 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Features\Engine\Actions;
+
+use App\Features\Engine\Domain\RecordMarketTypeBacktestPairResultDomain;
+use App\Features\Engine\Jobs\RunMarketTypeBacktestPairJob;
+use App\Features\Engine\Models\MarketPair;
+use App\Features\Engine\Models\MarketTypeBacktestRun;
+use App\Features\Engine\Repositories\MarketPairRepository;
+use App\Features\Engine\Repositories\MarketTypeBacktestRunRepository;
+use App\Features\Engine\Repositories\MarketTypeRepository;
+use App\Features\Engine\Repositories\TimeframeTypeRepository;
+use DateTimeInterface;
+use Illuminate\Contracts\Bus\Dispatcher;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Throwable;
+
+class InitiateMarketTypeBacktestAction
+{
+    public function __construct(
+        private readonly Dispatcher $dispatcher,
+        private readonly MarketPairRepository $marketPairs,
+        private readonly MarketTypeRepository $marketTypes,
+        private readonly TimeframeTypeRepository $timeframes,
+        private readonly MarketTypeBacktestRunRepository $runs,
+        private readonly RecordMarketTypeBacktestPairResultDomain $recordResult,
+    ) {}
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    public function execute(array $validated): MarketTypeBacktestRun
+    {
+        $this->ensureAsynchronousQueue();
+
+        $marketType = $this->marketTypes->findOrFail((int) $validated['market_type_id']);
+        $timeframe = $this->timeframes->findOrFail((int) $validated['timeframe_type_id']);
+        $configuration = $this->configurationForRun($validated, $timeframe->name);
+        $excludedPairIds = array_map('intval', $validated['excluded_pair_ids'] ?? []);
+
+        $run = $this->createRunWithEligiblePairs(
+            $marketType->id,
+            $marketType->name,
+            $configuration,
+            $excludedPairIds,
+        );
+        $this->dispatchPairRuns($run->id);
+
+        return $this->runs->findOrFail($run->id);
+    }
+
+    private function ensureAsynchronousQueue(): void
+    {
+        $connection = config('queue.connections.'.config('queue.default'));
+        if (($connection['driver'] ?? null) === 'sync') {
+            throw ValidationException::withMessages([
+                'test_type' => 'Parallel tests require an asynchronous queue connection. Configure database, Redis, SQS, or another asynchronous driver.',
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function configurationForRun(array $validated, string $timeframeName): array
+    {
+        $configuration = $validated;
+        $configuration['timeframe_name'] = $timeframeName;
+        unset($configuration['market_type_id'], $configuration['test_type'], $configuration['excluded_pair_ids']);
+
+        return $configuration;
+    }
+
+    /**
+     * @param  array<string, mixed>  $configuration
+     * @param  list<int>  $excludedPairIds
+     */
+    private function createRunWithEligiblePairs(
+        int $marketTypeId,
+        string $marketTypeName,
+        array $configuration,
+        array $excludedPairIds,
+    ): MarketTypeBacktestRun {
+        return DB::transaction(function () use ($marketTypeId, $marketTypeName, $configuration, $excludedPairIds): MarketTypeBacktestRun {
+            $run = $this->runs->createRun([
+                'market_type_id' => $marketTypeId,
+                'market_type_name' => $marketTypeName,
+                'configuration' => $configuration,
+                'total_pairs' => 0,
+                'status' => 'pending',
+                'started_at' => now(),
+            ]);
+
+            $totalPairs = $this->createEligiblePairRuns($run->id, $marketTypeId, $configuration, $excludedPairIds);
+            $this->runs->updateRun($run->id, [
+                'total_pairs' => $totalPairs,
+                'status' => $totalPairs === 0 ? 'completed' : 'running',
+                'completed_at' => $totalPairs === 0 ? now() : null,
+            ]);
+
+            return $this->runs->findOrFail($run->id);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $configuration
+     * @param  list<int>  $excludedPairIds
+     */
+    private function createEligiblePairRuns(
+        int $runId,
+        int $marketTypeId,
+        array $configuration,
+        array $excludedPairIds,
+    ): int {
+        $totalPairs = 0;
+        $records = [];
+        $eligiblePairs = $this->marketPairs->eligibleForMarketTypeBacktest(
+            $marketTypeId,
+            (int) $configuration['timeframe_type_id'],
+            (string) $configuration['from'],
+            (string) $configuration['to'],
+            $excludedPairIds,
+        );
+        $batchTimestamp = now();
+
+        foreach ($eligiblePairs as $pair) {
+            $records[] = $this->pendingPairRunRecord($runId, $pair, $batchTimestamp);
+            $totalPairs++;
+
+            if (count($records) === 250) {
+                $this->runs->createPendingPairRuns($records);
+                $records = [];
+                $batchTimestamp = now();
+            }
+        }
+        $this->runs->createPendingPairRuns($records);
+
+        return $totalPairs;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function pendingPairRunRecord(
+        int $runId,
+        MarketPair $pair,
+        DateTimeInterface $timestamp,
+    ): array {
+        return [
+            'run_id' => $runId,
+            'pair_id' => $pair->id,
+            'pair_name' => $pair->base.'/'.$pair->quote,
+            'status' => 'pending',
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
+        ];
+    }
+
+    private function dispatchPairRuns(int $runId): void
+    {
+        foreach ($this->runs->pendingPairRunIds($runId) as $pairRunId) {
+            try {
+                $this->dispatcher->dispatch(new RunMarketTypeBacktestPairJob($pairRunId));
+            } catch (Throwable $exception) {
+                report($exception);
+                $this->recordResult->fail($pairRunId);
+            }
+        }
+    }
+}

@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="page-heading">
-        <div><span class="eyebrow">INSTRUMENTS / MARKET UNIVERSE</span><h1>Market pairs</h1><p>Instrumen dan pasangan harga yang digunakan oleh engine.</p></div>
+        <div><span class="eyebrow">INSTRUMENTS / MARKET UNIVERSE</span><h1>Market pairs</h1><p>Instruments and price pairs used by the engine.</p></div>
         <a class="button button-primary" href="{{ route('workbench.market-pairs.create') }}"><span>＋</span> Add market pair</a>
     </div>
     <div class="data-panel">
@@ -21,11 +21,11 @@
                         <td class="align-right actions">
                             <a href="{{ route('workbench.market-pairs.show', $marketPair) }}">View</a>
                             <a href="{{ route('workbench.market-pairs.edit', $marketPair) }}">Edit</a>
-                            <form method="POST" action="{{ route('workbench.market-pairs.destroy', $marketPair) }}" onsubmit="return confirm('Hapus market pair ini?')">@csrf @method('DELETE')<button class="link-danger" type="submit">Delete</button></form>
+                            <form method="POST" action="{{ route('workbench.market-pairs.destroy', $marketPair) }}" onsubmit="return confirm('Delete this market pair?')">@csrf @method('DELETE')<button class="link-danger" type="submit">Delete</button></form>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="4" class="empty-state"><span>⇄</span><strong>Belum ada market pair</strong><p>Tambahkan pair setelah membuat market type.</p><a href="{{ route('workbench.market-pairs.create') }}">Add market pair →</a></td></tr>
+                    <tr><td colspan="4" class="empty-state"><span>⇄</span><strong>No market pairs yet</strong><p>Add a pair after creating a market type.</p><a href="{{ route('workbench.market-pairs.create') }}">Add market pair →</a></td></tr>
                 @endforelse
                 </tbody>
             </table>

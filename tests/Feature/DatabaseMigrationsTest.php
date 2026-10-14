@@ -14,31 +14,6 @@ class DatabaseMigrationsTest extends TestCase
     public function test_domain_migrations_create_tables_with_expected_columns(): void
     {
         $expectedColumns = [
-            'country_economics_data' => [
-                'id',
-                'country_code',
-                'date',
-                'interest_rate',
-                'supply_m0',
-                'supply_m1',
-                'supply_m2',
-                'supply_m3',
-                'mom_inflation',
-                'gdp',
-                'gdp_growth_rate',
-                'balance_of_trade',
-                'current_account',
-                'current_account_to_gdp',
-                'capital_flows',
-                'government_budget',
-                'government_debt_to_gdp',
-            ],
-            'economics_events' => [
-                'id',
-                'country_code',
-                'point',
-                'description',
-            ],
             'market_type' => [
                 'id',
                 'name',
@@ -52,6 +27,8 @@ class DatabaseMigrationsTest extends TestCase
                 'market_type_id',
                 'base',
                 'quote',
+                'contract_size',
+                'quantity_unit',
             ],
             'market_price' => [
                 'id',
@@ -78,6 +55,12 @@ class DatabaseMigrationsTest extends TestCase
             $this->assertTrue(Schema::hasTable($table), "Missing table: {$table}");
             $this->assertSame($columns, Schema::getColumnListing($table), "Unexpected columns in {$table}");
         }
+
+        $this->assertFalse(Schema::hasTable('country_economics_data'));
+        $this->assertFalse(Schema::hasTable('economics_events'));
+        $this->assertTrue(Schema::hasTable('sessions'));
+        $this->assertFalse(Schema::hasTable('users'));
+        $this->assertFalse(Schema::hasTable('password_reset_tokens'));
     }
 
     public function test_domain_migrations_apply_required_unique_and_index_constraints(): void

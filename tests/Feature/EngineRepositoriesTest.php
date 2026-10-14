@@ -2,47 +2,19 @@
 
 namespace Tests\Feature;
 
-use App\Engine\Repositories\CountryEconomicsDataRepository;
-use App\Engine\Repositories\EconomicsEventRepository;
-use App\Engine\Repositories\MarketPairRepository;
-use App\Engine\Repositories\MarketPriceRepository;
-use App\Engine\Repositories\MarketTypeRepository;
+use App\Features\Engine\Repositories\MarketPairRepository;
+use App\Features\Engine\Repositories\MarketPriceRepository;
+use App\Features\Engine\Repositories\MarketTypeRepository;
+use App\Features\Workbench\Domain\MarketPairs\MarketPairDefinition;
+use App\Features\Workbench\Domain\MarketPairs\MarketPairQuantityUnit;
+use Exact\Collection\Vec;
+use Exact\Type\Option\Option;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class EngineRepositoriesTest extends TestCase
 {
     use RefreshDatabase;
-
-    public function test_country_economics_data_repository_performs_crud_operations(): void
-    {
-        $repository = app(CountryEconomicsDataRepository::class);
-        $record = $repository->create([
-            'country_code' => 'US',
-            'date' => '2026-10-10',
-            'gdp' => 29000,
-        ]);
-
-        $this->assertSame($record->id, $repository->find($record->id)?->id);
-        $this->assertSame(30000.0, $repository->update($record->id, ['gdp' => 30000])->gdp);
-        $this->assertTrue($repository->delete($record->id));
-        $this->assertNull($repository->find($record->id));
-    }
-
-    public function test_economics_event_repository_performs_crud_operations(): void
-    {
-        $repository = app(EconomicsEventRepository::class);
-        $record = $repository->create([
-            'country_code' => 'US',
-            'point' => 4.5,
-            'description' => 'Rate announcement',
-        ]);
-
-        $this->assertSame($record->id, $repository->find($record->id)?->id);
-        $this->assertSame('Updated event', $repository->update($record->id, ['description' => 'Updated event'])->description);
-        $this->assertTrue($repository->delete($record->id));
-        $this->assertNull($repository->find($record->id));
-    }
 
     public function test_market_type_repository_performs_crud_operations(): void
     {
@@ -59,14 +31,23 @@ class EngineRepositoriesTest extends TestCase
     {
         $marketType = app(MarketTypeRepository::class)->create(['name' => 'Forex']);
         $repository = app(MarketPairRepository::class);
-        $record = $repository->create([
-            'market_type_id' => $marketType->id,
-            'base' => 'EUR',
-            'quote' => 'USD',
-        ]);
+        $record = $repository->create(MarketPairDefinition::create(
+            $marketType->id,
+            'EUR',
+            'USD',
+            MarketPairQuantityUnit::Units,
+            Option::none(),
+        ));
 
         $this->assertSame($record->id, $repository->find($record->id)?->id);
-        $this->assertSame('GBP', $repository->update($record->id, ['base' => 'GBP'])->base);
+        $updated = $repository->update($record->id, MarketPairDefinition::create(
+            $marketType->id,
+            'GBP',
+            'USD',
+            MarketPairQuantityUnit::Units,
+            Option::none(),
+        ));
+        $this->assertSame('GBP', $updated->base);
         $this->assertTrue($repository->delete($record->id));
         $this->assertNull($repository->find($record->id));
     }
@@ -74,11 +55,13 @@ class EngineRepositoriesTest extends TestCase
     public function test_market_price_repository_performs_crud_operations(): void
     {
         $marketType = app(MarketTypeRepository::class)->create(['name' => 'Forex']);
-        $marketPair = app(MarketPairRepository::class)->create([
-            'market_type_id' => $marketType->id,
-            'base' => 'EUR',
-            'quote' => 'USD',
-        ]);
+        $marketPair = app(MarketPairRepository::class)->create(MarketPairDefinition::create(
+            $marketType->id,
+            'EUR',
+            'USD',
+            MarketPairQuantityUnit::Units,
+            Option::none(),
+        ));
         $repository = app(MarketPriceRepository::class);
         $record = $repository->create([
             'pair_id' => $marketPair->id,
@@ -97,6 +80,15 @@ class EngineRepositoriesTest extends TestCase
         ]);
 
         $this->assertSame($record->id, $repository->find($record->id)?->id);
+        $candles = $repository->candlesBetween(
+            $marketPair->id,
+            1,
+            '2026-10-10 00:00:00',
+            '2026-10-10 23:59:59',
+        );
+        $this->assertInstanceOf(Vec::class, $candles);
+        $this->assertCount(1, $candles);
+        $this->assertSame('2026-10-10 00:00:00', $candles->first()->price_date->format('Y-m-d H:i:s'));
         $this->assertSame('1.300000', $repository->update($record->id, ['close' => '1.300000'])->close);
         $this->assertTrue($repository->delete($record->id));
         $this->assertNull($repository->find($record->id));

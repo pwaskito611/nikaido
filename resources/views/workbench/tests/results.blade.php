@@ -8,7 +8,11 @@
         <span class="step-indicator"><b>02</b><span>RESULTS</span><i class="step-done"></i><a href="{{ $returnUrl }}">BACK ↗</a></span>
     </div>
     @if ($successfulPairCount !== null)
-        <p class="analysis-note">Aggregated {{ $successfulPairCount }} successful pair(s). A single initial capital is used for the combined P/L and analysis; each pair's original backtest was still executed independently with its configured risk sizing.</p>
+        @if (($backtest['capital_mode'] ?? 'separate') === 'shared')
+            <p class="analysis-note">Shared portfolio capital · {{ $successfulPairCount }} successful pair(s). Pair workers generate their results independently; a deterministic portfolio manager then synchronizes entries and exits chronologically. Exits release reserved stop-loss risk and realize P/L before same-time entries are allocated. If simultaneous entries exceed free risk capital, their quantities are reduced proportionally; strategy signals retain their requested quantities, while the order history shows the actual allocated quantity. P/L is combined as reported, without FX conversion, so all pair results must use the same account unit.</p>
+        @else
+            <p class="analysis-note">Separate capital per pair · {{ $successfulPairCount }} successful pair(s). Each pair is backtested independently with its own starting capital and does not share or reserve capital with other pairs. Overall initial and ending capital are sums across successful pairs; the average starting and ending capital per pair are shown below. Ending capital includes realized P/L only; floating P/L is not included. P/L is combined as reported, without FX conversion, so all pair results must use the same account unit.</p>
+        @endif
     @endif
     @if (isset($backtest['execution_config']))
         @php
@@ -26,11 +30,14 @@
     @endif
     <div class="metric-grid">
         <div class="metric-card"><span class="eyebrow">CANDLES EVALUATED</span><strong>{{ count($backtest['results']) }}</strong><span class="metric-note">strategy decisions returned</span></div>
-        <div class="metric-card"><span class="eyebrow">ORDERS OPENED</span><strong>{{ count($backtest['order_history']) }}</strong><span class="metric-note">in-memory order history</span></div>
+        <div class="metric-card"><span class="eyebrow">ORDERS OPENED</span><strong>{{ collect($backtest['order_history'])->reject(fn ($order) => ! empty($order['portfolio_entry_rejected']))->count() }}</strong><span class="metric-note">excludes entries rejected for insufficient portfolio risk capital</span></div>
         <div class="metric-card"><span class="eyebrow">CLOSED ORDERS</span><strong>{{ collect($backtest['order_history'])->whereNotNull('close_date')->count() }}</strong><span class="metric-note">closed by SL, TP, or strategy</span></div>
-        <div class="metric-card"><span class="eyebrow">INITIAL CAPITAL</span><strong>{{ number_format($backtest['initial_capital'], 2) }}</strong><span class="metric-note">{{ $backtest['pair'] }} quote currency</span></div>
+        <div class="metric-card"><span class="eyebrow">INITIAL CAPITAL</span><strong>{{ number_format($backtest['initial_capital'], 2) }}</strong><span class="metric-note">{{ $successfulPairCount === null ? $backtest['pair'].' quote currency' : (($backtest['capital_mode'] ?? 'separate') === 'shared' ? 'one shared portfolio balance' : 'sum across independent pair accounts') }}</span></div>
         <div class="metric-card"><span class="eyebrow">ENDING CAPITAL</span><strong>{{ number_format($backtest['ending_capital'], 2) }}</strong><span class="metric-note">realized trade P/L included</span></div>
-        <div class="metric-card"><span class="eyebrow">RISK PER TRADE</span><strong>{{ number_format($backtest['risk_per_trade_percent'], 2) }}%</strong><span class="metric-note">calculated from capital at open</span></div>
+        @if ($successfulPairCount !== null && ($backtest['capital_mode'] ?? 'separate') === 'separate')
+            <div class="metric-card"><span class="eyebrow">AVERAGE INITIAL CAPITAL / PAIR</span><strong>{{ number_format($backtest['average_initial_capital_per_pair'], 2) }}</strong><span class="metric-note">mean starting capital across successful pairs</span></div>
+            <div class="metric-card"><span class="eyebrow">AVERAGE ENDING CAPITAL / PAIR</span><strong>{{ number_format($backtest['average_ending_capital_per_pair'], 2) }}</strong><span class="metric-note">mean realized ending capital across successful pairs</span></div>
+        @endif
     </div>
     <section class="data-panel results-panel">
         <div class="panel-top"><div><span class="eyebrow">CAPITAL CURVE</span><h2>Capital movement</h2></div><span class="record-count">{{ $clusterCount === null ? 'FULL HISTORY' : 'CLUSTER '.$selectedCluster.' / '.$clusterCount }}</span></div>
@@ -85,27 +92,20 @@
                 <input type="hidden" name="clusters" value="{{ $clusterCount }}">
                 <input type="hidden" name="cluster" value="{{ $selectedCluster }}">
             @endif
-            <label>Stress mode
-                <select name="stress_mode" required>
-                    <option value="adverse" @selected(request('stress_mode', 'adverse') === 'adverse')>Adverse excursion</option>
-                    <option value="favorable" @selected(request('stress_mode') === 'favorable')>Favorable excursion</option>
-                    <option value="combined" @selected(request('stress_mode') === 'combined')>Combined excursion</option>
-                </select>
-            </label>
-            <label>Adverse stress (0–1)
-                <input name="adverse_stress" type="number" min="0" max="1" step="0.01" value="{{ request('adverse_stress', '0.50') }}" required>
-            </label>
-            <label>Favorable stress (0–1)
-                <input name="favorable_stress" type="number" min="0" max="1" step="0.01" value="{{ request('favorable_stress', '0.50') }}" required>
+            <label>Additional stress factor
+                <input name="stress_x" type="number" min="0" step="0.01" value="{{ request('stress_x', '0.50') }}" required>
             </label>
             <button class="button button-primary" type="submit">Run stress test</button>
         </form>
+        <p style="padding:0 20px 10px;color:#526258;font-size:12px">
+            Formula: <strong>additional adverse move = x × excursion</strong>. The excursion is the largest drawdown before a winning trade or largest run-up before a losing trade. This extra move is applied to the baseline exit, so x = 0 leaves the baseline result unchanged. For long positions the exit moves down; for short positions it moves up, capped at the stop-loss.
+        </p>
         <p style="padding:0 20px 18px;color:#718076;font-size:12px">
-            Each run uses the stored full backtest, independently of the selected cluster, and does not rerun the strategy. The selected mode determines which excursion(s) are transformed; stress values are fractions from 0 to 1. These are synthetic sensitivity scenarios, not reconstructed market history. Existing SL/TP exits remain unchanged. If both levels are reached in a scenario and their order cannot be known, stop-loss is chosen conservatively; new synthetic exits are priced at the corresponding SL/TP level and use baseline position sizes.
+            Each run uses the stored full backtest, independently of the selected cluster, and does not rerun the strategy. For profitable trades, the measured maximum drawdown before profit is used; for losing trades, the maximum run-up before loss is used. The additional adverse exit move is x × that excursion, applied to the baseline exit; x = 0 therefore reproduces the baseline P/L. A synthetic exit that reaches the stop-loss is capped at the stop-loss execution price. The P/L adjustment uses the position actually closed and its P/L multiplier, so the original slippage and partial fills already reflected in baseline execution are not applied a second time.
         </p>
         @if ($stressTest !== null)
             <p style="padding:0 20px 16px;color:#526258;font-size:12px">
-                {{ strtoupper(request('stress_mode')) }} · adverse {{ number_format($stressTest['adverse_stress'] * 100, 0) }}% · favorable {{ number_format($stressTest['favorable_stress'] * 100, 0) }}%
+                Stress parameter x = {{ number_format($stressTest['x'], 2) }} · additional adverse move {{ number_format($stressTest['x'] * 100, 0) }}% of excursion
             </p>
             @php
                 $stressRows = [
@@ -118,6 +118,22 @@
                     'stop_loss_frequency' => 'Stop-loss frequency (%)',
                     'take_profit_count' => 'Take-profit count',
                     'take_profit_frequency' => 'Take-profit frequency (%)',
+                    'stress_test_count' => 'Stress-test exit count',
+                    'stress_test_frequency' => 'Stress-test exit frequency (%)',
+                    'profitable_stress_exit_count' => 'Profitable stress exits',
+                    'profitable_stress_exit_frequency' => 'Profitable stress exits (% of stress exits)',
+                    'losing_stress_exit_count' => 'Losing stress exits',
+                    'losing_stress_exit_frequency' => 'Losing stress exits (% of stress exits)',
+                    'breakeven_stress_exit_count' => 'Breakeven stress exits',
+                    'breakeven_stress_exit_frequency' => 'Breakeven stress exits (% of stress exits)',
+                    'profitable_trade_count' => 'Profitable trades',
+                    'profitable_trade_frequency' => 'Win rate (% of closed trades)',
+                    'losing_trade_count' => 'Losing trades',
+                    'losing_trade_frequency' => 'Loss rate (% of closed trades)',
+                    'breakeven_trade_count' => 'Breakeven trades',
+                    'breakeven_trade_frequency' => 'Breakeven rate (% of closed trades)',
+                    'other_exit_count' => 'Other exit count',
+                    'other_exit_frequency' => 'Other exit frequency (%)',
                 ];
             @endphp
             <div class="table-scroll">
@@ -133,7 +149,7 @@
                                 : null;
                             $formatMetric = static fn ($value): string => $metric === 'profit_factor' && $value === null
                                 ? '∞'
-                                : (in_array($metric, ['trade_count', 'stop_loss_count', 'take_profit_count'], true)
+                                : (in_array($metric, ['trade_count', 'stop_loss_count', 'take_profit_count', 'stress_test_count', 'other_exit_count', 'profitable_stress_exit_count', 'losing_stress_exit_count', 'breakeven_stress_exit_count', 'profitable_trade_count', 'losing_trade_count', 'breakeven_trade_count'], true)
                                     ? number_format((float) $value, 0)
                                     : number_format((float) $value, 2));
                         @endphp
@@ -250,14 +266,14 @@
                         @if (isset($order['pair']))<td><span class="instrument-code">{{ $order['pair'] }}</span></td>@endif
                         <td><span class="signal-tag signal-{{ $order['signal'] }}">{{ strtoupper($order['signal']) }}</span><span class="table-meta">#{{ $order['id'] }}</span></td>
                         <td class="mono">{{ $order['open_date'] }}</td>
-                        <td class="mono">{{ $order['close_date'] ?? 'OPEN' }}</td>
+                        <td class="mono">{{ ! empty($order['portfolio_entry_rejected']) ? 'REJECTED' : ($order['close_date'] ?? 'OPEN') }}</td>
                         <td class="mono">{{ number_format($order['entry_price'], 6) }}<span class="table-meta">{{ strtoupper($order['entry_price_source']) }}</span></td>
                         <td class="mono">{{ number_format($order['stop_loss'], 6) }}</td>
                         <td class="mono">@if ($order['closest_to_stop_loss']){{ number_format($order['closest_to_stop_loss']['price'], 6) }}<span class="table-meta">{{ strtoupper($order['closest_to_stop_loss']['source']) }} · {{ number_format($order['closest_to_stop_loss']['distance'], 6) }}</span>@else <span class="muted">—</span> @endif</td>
                         <td class="mono">{{ number_format($order['take_profit'], 6) }}</td>
                         <td class="mono">@if ($order['closest_to_take_profit']){{ number_format($order['closest_to_take_profit']['price'], 6) }}<span class="table-meta">{{ strtoupper($order['closest_to_take_profit']['source']) }} · {{ number_format($order['closest_to_take_profit']['distance'], 6) }}</span>@else <span class="muted">—</span> @endif</td>
-                        <td class="mono">{{ number_format($order['risk_amount'], 2) }}<span class="table-meta">{{ number_format($order['capital_at_open'], 2) }} capital · {{ number_format($order['requested_risk_amount'] ?? $order['risk_amount'], 2) }} planned risk</span></td>
-                        <td class="mono">{{ number_format($order['position_size'], 2) }} / {{ number_format($order['requested_position_size'] ?? $order['position_size'], 2) }}<span class="table-meta">filled / requested · {{ number_format($order['remaining_position_size'] ?? 0, 2) }} open · {{ number_format($order['remaining_entry_quantity'] ?? 0, 2) }} entry pending</span></td>
+                        <td class="mono">{{ number_format($order['risk_amount'], 2) }}<span class="table-meta">{{ number_format($order['capital_at_open'], 2) }} capital · {{ number_format($order['requested_risk_amount'] ?? $order['risk_amount'], 2) }} loss at stop</span></td>
+                        <td class="mono">{{ number_format($order['position_size'], 8) }} / {{ number_format($order['requested_position_size'] ?? $order['position_size'], 8) }}<span class="table-meta">filled / requested · strategy quantity {{ number_format($order['strategy_quantity'] ?? $order['requested_position_size'] ?? $order['position_size'], 8) }} {{ ($order['quantity_unit'] ?? 'units') === 'contract' ? 'contract(s)' : ((($order['quantity_unit'] ?? 'units') === 'lot') ? 'lot(s)' : 'unit(s)') }} @if (($order['quantity_unit'] ?? 'units') === 'contract') × {{ number_format($order['quantity_multiplier'] ?? 1, 8) }} quote-currency units per price point per contract @elseif (($order['quantity_unit'] ?? 'units') === 'lot') × {{ number_format($order['quantity_multiplier'] ?? 1, 8) }} units per lot @endif · {{ number_format($order['remaining_position_size'] ?? 0, 8) }} open · {{ number_format($order['remaining_entry_quantity'] ?? 0, 8) }} entry pending</span></td>
                         <td class="mono">
                             @if ($order['profit_loss'] !== null)
                                 {{ number_format($order['profit_loss'], 2) }}
@@ -280,7 +296,7 @@
                         <td>@if ($order['close_reason'])<span class="reason-tag reason-{{ $order['close_reason'] }}">{{ str_replace('_', ' ', $order['close_reason']) }}</span>@else<span class="muted">Open</span>@endif</td>
                     </tr>
                 @empty
-                    <tr><td colspan="{{ isset($orders[0]['pair']) ? 15 : 14 }}" class="empty-table">Tidak ada order yang dibuka pada rentang pengujian ini.</td></tr>
+                    <tr><td colspan="{{ isset($orders[0]['pair']) ? 15 : 14 }}" class="empty-table">No orders were opened during this test range.</td></tr>
                 @endforelse
                 </tbody>
             </table>
@@ -290,7 +306,7 @@
         <div class="panel-top"><div><span class="eyebrow">STRATEGY OUTPUT</span><h2>Candle decisions</h2></div><span class="record-count">{{ $decisions->total() }} DECISIONS</span></div>
         <div class="table-scroll">
             <table>
-                <thead><tr>@if (isset($decisions->items()[0]['pair']))<th>PAIR</th>@endif<th>DATE</th><th>CANDLE CLOSE</th><th>SIGNAL</th><th>STOP LOSS</th><th>TAKE PROFIT</th></tr></thead>
+                <thead><tr>@if (isset($decisions->items()[0]['pair']))<th>PAIR</th>@endif<th>DATE</th><th>CANDLE CLOSE</th><th>SIGNAL</th><th>QUANTITY</th><th>STOP LOSS</th><th>TAKE PROFIT</th></tr></thead>
                 <tbody>
                 @forelse ($decisions as $result)
                     <tr>
@@ -298,11 +314,12 @@
                         <td class="mono">{{ $result['candle']['price_date'] }}</td>
                         <td class="mono">{{ $result['candle']['close'] ?? '—' }}</td>
                         <td><span class="signal-tag signal-{{ $result['signal'] }}">{{ strtoupper($result['signal']) }}</span></td>
+                        <td class="mono">{{ ($result['quantity'] ?? null) === null ? '—' : number_format((float) $result['quantity'], 8).' '.(($result['quantity_unit'] ?? 'units') === 'contract' ? 'contract(s)' : ((($result['quantity_unit'] ?? 'units') === 'lot') ? 'lot(s)' : 'unit(s)')) }}</td>
                         <td class="mono">{{ $result['stop_loss'] !== null ? number_format($result['stop_loss'], 6) : '—' }}</td>
                         <td class="mono">{{ $result['take_profit'] !== null ? number_format($result['take_profit'], 6) : '—' }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="{{ isset($decisions->items()[0]['pair']) ? 6 : 5 }}" class="empty-table">Tidak ada candle dalam jadwal aktif yang dipilih.</td></tr>
+                    <tr><td colspan="{{ isset($decisions->items()[0]['pair']) ? 7 : 6 }}" class="empty-table">No candles are available within the selected active schedule.</td></tr>
                 @endforelse
                 </tbody>
             </table>

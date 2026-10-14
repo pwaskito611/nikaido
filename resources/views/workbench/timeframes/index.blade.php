@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="page-heading">
-        <div><span class="eyebrow">DATA INTERVALS / CANDLE TYPES</span><h1>Timeframes</h1><p>Kelola interval candle yang tersedia untuk backtest.</p></div>
+        <div><span class="eyebrow">DATA INTERVALS / CANDLE TYPES</span><h1>Timeframes</h1><p>Manage candle intervals available for backtesting.</p></div>
         <a class="button button-primary" href="{{ route('workbench.timeframes.create') }}"><span>＋</span> Add timeframe</a>
     </div>
     <div class="data-panel">
@@ -21,11 +21,11 @@
                         <td class="align-right actions">
                             <a href="{{ route('workbench.timeframes.show', $timeframe) }}">View</a>
                             <a href="{{ route('workbench.timeframes.edit', $timeframe) }}">Edit</a>
-                            <form method="POST" action="{{ route('workbench.timeframes.destroy', $timeframe) }}" onsubmit="return confirm('Hapus timeframe ini?')">@csrf @method('DELETE')<button class="link-danger" type="submit">Delete</button></form>
+                            <form method="POST" action="{{ route('workbench.timeframes.destroy', $timeframe) }}" onsubmit="return confirm('Delete this timeframe?')">@csrf @method('DELETE')<button class="link-danger" type="submit">Delete</button></form>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="4" class="empty-state"><span>◷</span><strong>Belum ada timeframe</strong><p>Buat interval agar bisa dipilih ketika menjalankan backtest.</p><a href="{{ route('workbench.timeframes.create') }}">Add timeframe →</a></td></tr>
+                    <tr><td colspan="4" class="empty-state"><span>◷</span><strong>No timeframes yet</strong><p>Create an interval to select when running a backtest.</p><a href="{{ route('workbench.timeframes.create') }}">Add timeframe →</a></td></tr>
                 @endforelse
                 </tbody>
             </table>

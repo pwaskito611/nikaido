@@ -4,19 +4,26 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Engine\Actions\InitiateMarketTypeBacktestAction;
-use App\Engine\Actions\RecordMarketTypeBacktestPairResultAction;
-use App\Engine\Actions\RunConfiguredPairBacktestAction;
-use App\Engine\Jobs\RunMarketTypeBacktestPairJob;
-use App\Engine\Models\MarketPair;
-use App\Engine\Models\MarketPrice;
-use App\Engine\Models\MarketType;
-use App\Engine\Models\MarketTypeBacktestRun;
-use App\Engine\Models\TimeframeType;
-use App\Engine\Repositories\MarketPairRepository;
-use App\Engine\Repositories\MarketTypeBacktestRunRepository;
-use App\Engine\Repositories\MarketTypeRepository;
-use App\Engine\Repositories\TimeframeTypeRepository;
+use App\Features\Engine\Actions\InitiateMarketTypeBacktestAction;
+use App\Features\Engine\Actions\RunConfiguredPairBacktestAction;
+use App\Features\Engine\Config\ConfiguredPairBacktestInput;
+use App\Features\Engine\Config\FixedSlippageConfig;
+use App\Features\Engine\Config\PartialFillConfig;
+use App\Features\Engine\Domain\BacktestExecutionConfiguration;
+use App\Features\Engine\Domain\ConfiguredPairBacktestResult;
+use App\Features\Engine\Domain\RecordMarketTypeBacktestPairResultDomain as RecordMarketTypeBacktestPairResultAction;
+use App\Features\Engine\Domain\SpecificPairBacktestResult;
+use App\Features\Engine\Jobs\RunMarketTypeBacktestPairJob;
+use App\Features\Engine\Models\MarketPair;
+use App\Features\Engine\Models\MarketPrice;
+use App\Features\Engine\Models\MarketType;
+use App\Features\Engine\Models\MarketTypeBacktestRun;
+use App\Features\Engine\Models\TimeframeType;
+use App\Features\Engine\Repositories\MarketPairRepository;
+use App\Features\Engine\Repositories\MarketTypeBacktestRunRepository;
+use App\Features\Engine\Repositories\MarketTypeRepository;
+use App\Features\Engine\Repositories\TimeframeTypeRepository;
+use Exact\Collection\Vec;
 use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
@@ -42,15 +49,24 @@ class MarketTypeBacktestTest extends TestCase
         $otherTimeframe = TimeframeType::create(['name' => '4h']);
         $eligibleOne = $this->createPairWithPrice($type, 'EUR', 'USD', $timeframe, '2026-10-10 10:00:00');
         $eligibleTwo = $this->createPairWithPrice($type, 'GBP', 'USD', $timeframe, '2026-10-10 11:00:00');
+        $excludedPair = $this->createPairWithPrice($type, 'EUR', 'GBP', $timeframe, '2026-10-10 12:00:00');
         $this->createPairWithPrice($type, 'AUD', 'USD', $otherTimeframe, '2026-10-10 10:00:00');
         $this->createPairWithPrice($type, 'NZD', 'USD', $timeframe, '2026-10-12 10:00:00');
         $otherType = MarketType::create(['name' => 'Crypto']);
         $this->createPairWithPrice($otherType, 'BTC', 'USD', $timeframe, '2026-10-10 10:00:00');
 
+        $this->get('/workbench/tests/create')
+            ->assertOk()
+            ->assertSee('Exclude pairs')
+            ->assertSee('Shared portfolio capital')
+            ->assertSee('Separate capital per pair')
+            ->assertSee('EUR/GBP');
+
         $this->post('/workbench/tests', $this->requestPayload([
             'test_type' => 'market_type',
             'market_type_id' => $type->id,
             'timeframe_type_id' => $timeframe->id,
+            'excluded_pair_ids' => [$excludedPair->id],
             'slippage_enabled' => '1',
             'slippage_pips' => '1.5',
             'slippage_pip_size' => '0.01',
@@ -63,8 +79,11 @@ class MarketTypeBacktestTest extends TestCase
         $this->assertSame('running', $run->status);
         $this->assertSame(2, $run->total_pairs);
         $this->assertSame(2, $run->pairRuns()->where('status', 'pending')->count());
+        $this->assertFalse($run->pairRuns()->where('pair_id', $excludedPair->id)->exists());
         $this->assertArrayNotHasKey('test_type', $run->configuration);
+        $this->assertArrayNotHasKey('excluded_pair_ids', $run->configuration);
         $this->assertSame('1h', $run->configuration['timeframe_name']);
+        $this->assertSame('shared', $run->configuration['capital_mode']);
         $this->assertTrue(filter_var($run->configuration['slippage_enabled'], FILTER_VALIDATE_BOOLEAN));
         $this->assertSame('1.5', $run->configuration['slippage_pips']);
         $this->assertSame('0.01', $run->configuration['slippage_pip_size']);
@@ -105,16 +124,50 @@ class MarketTypeBacktestTest extends TestCase
             ->assertSessionHasErrors('market_type_id');
         $this->assertDatabaseCount('market_type_backtest_run', 0);
 
+        $this->from('/workbench/tests/create')
+            ->post('/workbench/tests', $this->requestPayload([
+                'market_type_id' => $type->id,
+                'timeframe_type_id' => $timeframe->id,
+                'capital_mode' => 'invalid',
+            ]))
+            ->assertRedirect('/workbench/tests/create')
+            ->assertSessionHasErrors('capital_mode');
+        $this->assertDatabaseCount('market_type_backtest_run', 0);
+
         $this->post('/workbench/tests', $this->requestPayload([
             'test_type' => 'market_type',
             'market_type_id' => $type->id,
             'timeframe_type_id' => $timeframe->id,
+            'capital_mode' => 'separate',
         ]))->assertRedirect('/workbench/tests/market-type-runs/1');
 
         $run = MarketTypeBacktestRun::query()->findOrFail(1);
+        $this->assertSame('separate', $run->configuration['capital_mode']);
         $this->assertSame(0, $run->total_pairs);
         $this->assertSame('completed', $run->status);
         $this->assertNotNull($run->completed_at);
+        Bus::assertNotDispatched(RunMarketTypeBacktestPairJob::class);
+    }
+
+    public function test_parallel_test_rejects_excluding_a_pair_from_another_market_type(): void
+    {
+        Bus::fake();
+        $type = MarketType::create(['name' => 'Forex']);
+        $otherType = MarketType::create(['name' => 'Crypto']);
+        $timeframe = TimeframeType::create(['name' => '1h']);
+        $foreignPair = $this->createPairWithPrice($otherType, 'BTC', 'USD', $timeframe, '2026-10-10 10:00:00');
+        $this->createPairWithPrice($type, 'EUR', 'USD', $timeframe, '2026-10-10 10:00:00');
+
+        $this->from('/workbench/tests/create')
+            ->post('/workbench/tests', $this->requestPayload([
+                'market_type_id' => $type->id,
+                'timeframe_type_id' => $timeframe->id,
+                'excluded_pair_ids' => [$foreignPair->id],
+            ]))
+            ->assertRedirect('/workbench/tests/create')
+            ->assertSessionHasErrors('excluded_pair_ids.0');
+
+        $this->assertDatabaseCount('market_type_backtest_run', 0);
         Bus::assertNotDispatched(RunMarketTypeBacktestPairJob::class);
     }
 
@@ -150,13 +203,12 @@ class MarketTypeBacktestTest extends TestCase
         );
         $run = $this->createRun($pair);
         $pairRun = $run->pairRuns()->firstOrFail();
-        $result = ['pair' => 'EUR/USD', 'order_history' => [], 'ending_capital' => 10000.0];
+        $result = $this->configuredBacktestResult('EUR/USD');
         $specificBacktest = Mockery::mock(RunConfiguredPairBacktestAction::class);
         $specificBacktest->shouldReceive('execute')
             ->once()
-            ->with(Mockery::on(static fn (array $configuration): bool => $configuration['market_pair_id'] === $pair->id
-                && $configuration['timeframe_type_id'] === 1
-                && $configuration['risk_per_trade_percent'] === '1.00'))
+            ->with(Mockery::on(static fn (ConfiguredPairBacktestInput $input): bool => $input->marketPairId === $pair->id
+                && $input->timeframeTypeId === 1))
             ->andReturn($result);
 
         $job = new RunMarketTypeBacktestPairJob($pairRun->id);
@@ -167,7 +219,7 @@ class MarketTypeBacktestTest extends TestCase
 
         $pairRun->refresh();
         $this->assertSame('succeeded', $pairRun->status);
-        $this->assertEquals($result, $pairRun->result);
+        $this->assertEquals($result->toPersistedArray(), $pairRun->result);
         $this->assertSame('completed', $run->fresh()->status);
     }
 
@@ -190,12 +242,13 @@ class MarketTypeBacktestTest extends TestCase
                 'from' => '2026-10-10 00:00:00',
                 'to' => '2026-10-11 00:00:00',
                 'initial_capital' => 10000.0,
-                'risk_per_trade_percent' => 1.0,
                 'ending_capital' => 10000.0,
                 'results' => [[
                     'candle' => ['price_date' => '2026-10-10 10:00:00', 'close' => '1.100000'],
                     'result' => false,
                     'signal' => 'none',
+                    'quantity' => null,
+                    'quantity_unit' => 'units',
                     'stop_loss' => null,
                     'take_profit' => null,
                 ]],
@@ -230,6 +283,7 @@ class MarketTypeBacktestTest extends TestCase
         $pairTwo = $this->createPairWithPrice($type, 'GBP', 'USD', $timeframe, '2026-10-10 11:00:00');
         $run = $this->createRun($pairOne, $pairTwo);
         $run->update(['status' => 'completed_with_failures']);
+        $run->update(['configuration' => [...$run->configuration, 'capital_mode' => 'separate']]);
 
         $successfulRun = $run->pairRuns()->where('pair_id', $pairOne->id)->firstOrFail();
         $successfulRun->update([
@@ -240,12 +294,13 @@ class MarketTypeBacktestTest extends TestCase
                 'from' => '2026-10-10 00:00:00',
                 'to' => '2026-10-11 00:00:00',
                 'initial_capital' => 10000.0,
-                'risk_per_trade_percent' => 1.0,
                 'ending_capital' => 10100.0,
                 'results' => [[
                     'candle' => ['price_date' => '2026-10-10 10:00:00', 'close' => '1.100000'],
                     'result' => false,
                     'signal' => 'none',
+                    'quantity' => null,
+                    'quantity_unit' => 'units',
                     'stop_loss' => null,
                     'take_profit' => null,
                 ]],
@@ -260,12 +315,26 @@ class MarketTypeBacktestTest extends TestCase
                     'take_profit' => 1.12,
                     'close_reason' => 'take_profit',
                     'close_price' => 1.12,
+                    'strategy_quantity' => 10000.0,
+                    'quantity_unit' => 'units',
+                    'quantity_multiplier' => 1.0,
+                    'pnl_multiplier' => 1.0,
                     'closest_to_stop_loss' => null,
                     'closest_to_take_profit' => null,
                     'adverse_extreme' => null,
                     'favorable_extreme' => null,
                     'risk_amount' => 100.0,
+                    'requested_risk_amount' => 100.0,
                     'position_size' => 10000.0,
+                    'requested_position_size' => 10000.0,
+                    'remaining_entry_quantity' => 0.0,
+                    'remaining_position_size' => 0.0,
+                    'closed_position_size' => 10000.0,
+                    'cancelled_entry_quantity' => 0.0,
+                    'cancelled_exit_quantity' => 0.0,
+                    'entry_fills' => [],
+                    'exit_fills' => [],
+                    'realized_profit_loss' => 100.0,
                     'capital_at_open' => 10000.0,
                     'profit_loss' => 100.0,
                     'capital_after_close' => 10100.0,
@@ -275,7 +344,16 @@ class MarketTypeBacktestTest extends TestCase
         ]);
 
         $failedRun = $run->pairRuns()->where('pair_id', $pairTwo->id)->firstOrFail();
-        $failedRun->update(['status' => 'failed', 'completed_at' => now()]);
+        $failedRun->update([
+            'status' => 'succeeded',
+            'result' => [
+                'initial_capital' => 8000.0,
+                'ending_capital' => 9000.0,
+                'results' => [],
+                'order_history' => [],
+            ],
+            'completed_at' => now(),
+        ]);
 
         $this->get("/workbench/tests/market-type-runs/{$run->id}")
             ->assertOk()
@@ -284,7 +362,13 @@ class MarketTypeBacktestTest extends TestCase
         $this->get("/workbench/tests/market-type-runs/{$run->id}/overall")
             ->assertOk()
             ->assertSee('Overall market-type results')
-            ->assertSee('Aggregated 1 successful pair(s)')
+            ->assertSee('2 successful pair(s)')
+            ->assertSee('Separate capital per pair')
+            ->assertSee('Overall initial and ending capital are sums')
+            ->assertSee('AVERAGE INITIAL CAPITAL / PAIR')
+            ->assertSee('AVERAGE ENDING CAPITAL / PAIR')
+            ->assertSee('9,000.00')
+            ->assertSee('9,550.00')
             ->assertSee('EUR/USD')
             ->assertSee('CLUSTER ANALYSIS')
             ->assertSee('Fluctuation Stress Test')
@@ -292,7 +376,15 @@ class MarketTypeBacktestTest extends TestCase
             ->assertSee('100.00')
             ->assertSee('1.100000');
 
-        $this->get("/workbench/tests/market-type-runs/{$run->id}/overall?stress_mode=adverse&adverse_stress=0.5&favorable_stress=0.5")
+        $run->update(['configuration' => [...$run->configuration, 'capital_mode' => 'shared']]);
+        $this->get("/workbench/tests/market-type-runs/{$run->id}/overall")
+            ->assertOk()
+            ->assertSee('Shared portfolio capital')
+            ->assertSee('synchronizes entries and exits chronologically')
+            ->assertSee('same account unit')
+            ->assertDontSee('AVERAGE INITIAL CAPITAL / PAIR');
+
+        $this->get("/workbench/tests/market-type-runs/{$run->id}/overall?stress_x=0.5")
             ->assertOk()
             ->assertSee('STRESS SCENARIO')
             ->assertSee('100.00');
@@ -314,7 +406,8 @@ class MarketTypeBacktestTest extends TestCase
         $specificBacktest = Mockery::mock(RunConfiguredPairBacktestAction::class);
         $specificBacktest->shouldReceive('execute')
             ->once()
-            ->andReturn(['pair' => $pairRuns[0]->pair_name, 'order_history' => []]);
+            ->with(Mockery::type(ConfiguredPairBacktestInput::class))
+            ->andReturn($this->configuredBacktestResult($pairRuns[0]->pair_name));
         (new RunMarketTypeBacktestPairJob($pairRuns[0]->id))->handle(
             $specificBacktest,
             app(RecordMarketTypeBacktestPairResultAction::class),
@@ -362,7 +455,6 @@ class MarketTypeBacktestTest extends TestCase
             'market_type_id' => $pair->market_type_id,
             'timeframe_type_id' => $pair->prices()->value('timeframe_type_id'),
             'initial_capital' => '10000.00',
-            'risk_per_trade_percent' => '1.00',
             'from' => '2026-10-10 00:00:00',
             'to' => '2026-10-11 00:00:00',
             'active_from' => '09:00',
@@ -408,8 +500,8 @@ class MarketTypeBacktestTest extends TestCase
     }
 
     /**
-     * @param  array<string, int|string>  $overrides
-     * @return array<string, int|string>
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
      */
     private function requestPayload(array $overrides): array
     {
@@ -418,7 +510,6 @@ class MarketTypeBacktestTest extends TestCase
             'market_type_id' => 1,
             'timeframe_type_id' => 1,
             'initial_capital' => '10000.00',
-            'risk_per_trade_percent' => '1.00',
             'from' => '2026-10-10T00:00',
             'to' => '2026-10-11T00:00',
             'active_from' => '09:00',
@@ -435,7 +526,7 @@ class MarketTypeBacktestTest extends TestCase
                 'timeframe_type_id' => 1,
                 'timeframe_name' => '1h',
                 'initial_capital' => '10000.00',
-                'risk_per_trade_percent' => '1.00',
+                'capital_mode' => 'shared',
                 'from' => '2026-10-10 00:00:00',
                 'to' => '2026-10-11 00:00:00',
                 'active_from' => '09:00',
@@ -454,5 +545,28 @@ class MarketTypeBacktestTest extends TestCase
         }
 
         return $run;
+    }
+
+    private function configuredBacktestResult(string $pair): ConfiguredPairBacktestResult
+    {
+        return new ConfiguredPairBacktestResult(
+            pair: $pair,
+            timeframe: '1h',
+            from: new \DateTimeImmutable('2026-10-10 00:00:00'),
+            to: new \DateTimeImmutable('2026-10-11 00:00:00'),
+            backtest: new SpecificPairBacktestResult(
+                decisions: Vec::empty(),
+                orders: Vec::empty(),
+                initialCapital: 10000.0,
+                quantityUnit: 'units',
+                unitsPerLot: 1.0,
+                quantityMultiplier: 1.0,
+                endingCapital: 10000.0,
+                executionConfiguration: new BacktestExecutionConfiguration(
+                    new FixedSlippageConfig,
+                    new PartialFillConfig,
+                ),
+            ),
+        );
     }
 }

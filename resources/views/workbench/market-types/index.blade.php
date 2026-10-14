@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="page-heading">
-        <div><span class="eyebrow">UNIVERSE / CLASSIFICATION</span><h1>Market types</h1><p>Kelola kategori aset untuk mengorganisasi market pair.</p></div>
+        <div><span class="eyebrow">UNIVERSE / CLASSIFICATION</span><h1>Market types</h1><p>Manage asset categories to organize market pairs.</p></div>
         <a class="button button-primary" href="{{ route('workbench.market-types.create') }}"><span>＋</span> Add market type</a>
     </div>
     <div class="data-panel">
@@ -21,11 +21,11 @@
                         <td class="align-right actions">
                             <a href="{{ route('workbench.market-types.show', $marketType) }}">View</a>
                             <a href="{{ route('workbench.market-types.edit', $marketType) }}">Edit</a>
-                            <form method="POST" action="{{ route('workbench.market-types.destroy', $marketType) }}" onsubmit="return confirm('Hapus market type ini?')">@csrf @method('DELETE')<button class="link-danger" type="submit">Delete</button></form>
+                            <form method="POST" action="{{ route('workbench.market-types.destroy', $marketType) }}" onsubmit="return confirm('Delete this market type?')">@csrf @method('DELETE')<button class="link-danger" type="submit">Delete</button></form>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="4" class="empty-state"><span>◈</span><strong>Belum ada market type</strong><p>Buat market type pertama untuk mengelompokkan pair.</p><a href="{{ route('workbench.market-types.create') }}">Add market type →</a></td></tr>
+                    <tr><td colspan="4" class="empty-state"><span>◈</span><strong>No market types yet</strong><p>Create your first market type to organize pairs.</p><a href="{{ route('workbench.market-types.create') }}">Add market type →</a></td></tr>
                 @endforelse
                 </tbody>
             </table>

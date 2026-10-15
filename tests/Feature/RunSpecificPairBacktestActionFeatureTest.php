@@ -10,6 +10,7 @@ use App\Feature\MarketTypes\Model\MarketType;
 use App\Feature\Timeframes\Model\TimeframeType;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class RunSpecificPairBacktestActionFeatureTest extends TestCase
@@ -78,6 +79,68 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
 
         $this->assertCount(1, $results->decisions);
         $this->assertSame($selectedCandle->id, $results->decisions->first()->candle->id);
+    }
+
+    public function test_it_rejects_a_backtest_with_no_candles_in_the_selected_range(): void
+    {
+        $timeframe = TimeframeType::create(['name' => '1h']);
+        $marketType = MarketType::create(['name' => 'Forex']);
+        $pair = MarketPair::create([
+            'market_type_id' => $marketType->id,
+            'base' => 'EUR',
+            'quote' => 'USD',
+        ]);
+        $this->createCandle($pair, '2026-10-09 10:00:00');
+
+        try {
+            app(RunSpecificPairBacktestAction::class)->execute(new SpecificPairTestConfig(
+                base: 'EUR',
+                quote: 'USD',
+                from: new DateTimeImmutable('2026-10-10 00:00:00'),
+                to: new DateTimeImmutable('2026-10-10 23:59:59'),
+                activeFrom: false,
+                activeUntil: false,
+                timeframeTypeId: $timeframe->id,
+                marketPairId: $pair->id,
+            ));
+            $this->fail('A backtest with no in-range candles must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                'No market price candles were found for this pair, timeframe, and date range.',
+                $exception->errors()['from'][0],
+            );
+        }
+    }
+
+    public function test_it_rejects_a_backtest_when_all_candles_are_outside_the_active_schedule(): void
+    {
+        $timeframe = TimeframeType::create(['name' => '1h']);
+        $marketType = MarketType::create(['name' => 'Forex']);
+        $pair = MarketPair::create([
+            'market_type_id' => $marketType->id,
+            'base' => 'EUR',
+            'quote' => 'USD',
+        ]);
+        $this->createCandle($pair, '2026-10-09 08:00:00');
+
+        try {
+            app(RunSpecificPairBacktestAction::class)->execute(new SpecificPairTestConfig(
+                base: 'EUR',
+                quote: 'USD',
+                from: new DateTimeImmutable('2026-10-09 00:00:00'),
+                to: new DateTimeImmutable('2026-10-09 23:59:59'),
+                activeFrom: '09:00',
+                activeUntil: '17:00',
+                timeframeTypeId: $timeframe->id,
+                marketPairId: $pair->id,
+            ));
+            $this->fail('A backtest with no active candles must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                'No candles fall within the selected active hours and days.',
+                $exception->errors()['from'][0],
+            );
+        }
     }
 
     private function createCandle(MarketPair $pair, string $timestamp): MarketPrice

@@ -107,10 +107,18 @@ class SpecificPairTestRequestTest extends TestCase
     public function test_it_accepts_false_for_both_active_time_boundaries(): void
     {
         $marketType = MarketType::create(['name' => 'Forex']);
-        MarketPair::create([
+        $pair = MarketPair::create([
             'market_type_id' => $marketType->id,
             'base' => 'EUR',
             'quote' => 'USD',
+        ]);
+        MarketPrice::create([
+            'pair_id' => $pair->id,
+            'price_date' => '2026-10-09 09:00:00',
+            'timeframe_type_id' => 1,
+            'open' => '1.100000',
+            'close' => '1.200000',
+            ...$this->quotes('1.100000', '1.200000'),
         ]);
 
         $this->postJson('/api/engine/specific-pair-test', [
@@ -122,7 +130,8 @@ class SpecificPairTestRequestTest extends TestCase
             'active_until' => false,
         ])
             ->assertOk()
-            ->assertJsonPath('data', [])
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.signal', 'none')
             ->assertJsonPath('order_history', []);
     }
 

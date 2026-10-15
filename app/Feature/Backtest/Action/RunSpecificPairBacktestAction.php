@@ -8,6 +8,7 @@ use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Data\SpecificPairBacktestResult;
 use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
 use App\Feature\MarketPairs\Repository\MarketPairRepository;
+use Illuminate\Validation\ValidationException;
 
 class RunSpecificPairBacktestAction
 {
@@ -27,6 +28,27 @@ class RunSpecificPairBacktestAction
             $config->marketPairId,
         );
 
-        return $this->backtest->execute($config, $marketData);
+        $hasCandlesInRange = false;
+        foreach ($marketData->candles as $candle) {
+            if ($candle->price_date < $config->from || $candle->price_date > $config->to) {
+                continue;
+            }
+
+            $hasCandlesInRange = true;
+            if ($config->excludedDays->contains((int) $candle->price_date->format('N'))) {
+                continue;
+            }
+            if (! $config->activeSchedule->includes($candle->price_date)) {
+                continue;
+            }
+
+            return $this->backtest->execute($config, $marketData);
+        }
+
+        throw ValidationException::withMessages([
+            'from' => $hasCandlesInRange
+                ? 'No candles fall within the selected active hours and days.'
+                : 'No market price candles were found for this pair, timeframe, and date range.',
+        ]);
     }
 }

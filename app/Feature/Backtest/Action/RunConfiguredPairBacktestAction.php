@@ -7,7 +7,6 @@ namespace App\Feature\Backtest\Action;
 use App\Feature\Backtest\Config\ConfiguredPairBacktestInput;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Data\ConfiguredPairBacktestResult;
-use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
 use App\Feature\MarketPairs\Repository\MarketPairRepository;
 use App\Feature\Timeframes\Repository\TimeframeTypeRepository;
 
@@ -16,7 +15,7 @@ class RunConfiguredPairBacktestAction
     public function __construct(
         private readonly MarketPairRepository $marketPairs,
         private readonly TimeframeTypeRepository $timeframes,
-        private readonly SpecificPairBacktestProcess $runBacktest,
+        private readonly RunSpecificPairBacktestAction $runBacktest,
     ) {}
 
     public function execute(ConfiguredPairBacktestInput $input): ConfiguredPairBacktestResult
@@ -37,15 +36,7 @@ class RunConfiguredPairBacktestAction
             slippage: $input->slippage,
             partialFill: $input->partialFill,
         );
-        $marketData = $this->marketPairs->findWithPricesBetween(
-            $config->base,
-            $config->quote,
-            $config->from,
-            $config->to,
-            $config->timeframeTypeId,
-            $config->marketPairId,
-        );
-        $backtest = $this->runBacktest->execute($config, $marketData);
+        $backtest = $this->runBacktest->execute($config);
 
         return new ConfiguredPairBacktestResult(
             pair: $pair->base.'/'.$pair->quote,

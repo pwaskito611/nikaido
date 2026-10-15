@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Engine\Domain;
 
-use App\Features\Engine\Config\MonteCarloSimulationConfig;
-use App\Features\Engine\Domain\MonteCarloSimulationDomain as RunMonteCarloSimulationAction;
-use App\Features\Engine\Domain\MonteCarloTrade;
+use App\Feature\Backtest\Config\MonteCarloSimulationConfig;
+use App\Feature\Backtest\Data\MonteCarloTrade;
+use App\Feature\Backtest\Process\MonteCarloSimulationProcess;
 use Exact\Collection\Vec;
 use Exact\Type\Option\Option;
 use InvalidArgumentException;
@@ -144,7 +144,7 @@ class MonteCarloSimulationDomainTest extends TestCase
     public function test_empty_closed_trade_sample_is_rejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        (new RunMonteCarloSimulationAction)->execute(
+        (new MonteCarloSimulationProcess)->execute(
             Vec::empty(),
             new MonteCarloSimulationConfig,
         );
@@ -165,7 +165,7 @@ class MonteCarloSimulationDomainTest extends TestCase
     public function test_compounded_model_requires_a_valid_opening_equity(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        (new RunMonteCarloSimulationAction)->execute(
+        (new MonteCarloSimulationProcess)->execute(
             Vec::of(new MonteCarloTrade(10.0, Option::some(0.0))),
             new MonteCarloSimulationConfig(
                 riskModel: MonteCarloSimulationConfig::RISK_MODEL_COMPOUNDED_RETURN,
@@ -186,6 +186,6 @@ class MonteCarloSimulationDomainTest extends TestCase
             ),
         );
 
-        return (new RunMonteCarloSimulationAction)->execute($trades, $config)->toArray();
+        return (new MonteCarloSimulationProcess)->execute($trades, $config)->toArray();
     }
 }

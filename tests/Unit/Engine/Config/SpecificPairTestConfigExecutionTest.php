@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Engine\Config;
 
-use App\Features\Engine\Config\FixedSlippageConfig;
-use App\Features\Engine\Config\PartialFillConfig;
-use App\Features\Engine\Config\SpecificPairTestConfig;
+use App\Feature\Backtest\Config\FixedSlippageConfig;
+use App\Feature\Backtest\Config\PartialFillConfig;
+use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;

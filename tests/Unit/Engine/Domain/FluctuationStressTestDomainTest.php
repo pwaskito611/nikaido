@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Engine\Domain;
 
-use App\Features\Engine\Domain\FluctuationStressTestDomain;
-use App\Features\Engine\Domain\StressTestInput;
+use App\Feature\Backtest\Data\StressTestInput;
+use App\Feature\Backtest\Process\FluctuationStressTestProcess;
 use InvalidArgumentException;
 use Tests\TestCase;
 use UnexpectedValueException;
@@ -260,7 +260,7 @@ class FluctuationStressTestDomainTest extends TestCase
      */
     private function runStressTest(array $backtest, float $x): array
     {
-        return (new FluctuationStressTestDomain)
+        return (new FluctuationStressTestProcess)
             ->execute(StressTestInput::fromPersistedBacktest($backtest), $x)
             ->toArray();
     }

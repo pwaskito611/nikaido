@@ -2,16 +2,17 @@
 
 namespace Tests\Unit\Engine\Domain;
 
-use App\Features\Engine\Config\FixedSlippageConfig;
-use App\Features\Engine\Config\PartialFillConfig;
-use App\Features\Engine\Config\SpecificPairTestConfig;
-use App\Features\Engine\Config\UnfilledOrderPolicy;
-use App\Features\Engine\Domain\SpecificPairBacktestDomain as RunSpecificPairBacktestAction;
-use App\Features\Engine\Domain\SpecificPairMarketData;
-use App\Features\Engine\Models\MarketPair;
-use App\Features\Engine\Models\MarketPrice;
-use App\Features\Engine\Repositories\MarketPairRepository;
-use App\Features\Workbench\Domain\MarketPairs\MarketPairQuantityUnit;
+use App\Feature\Backtest\Action\RunSpecificPairBacktestAction;
+use App\Feature\Backtest\Config\FixedSlippageConfig;
+use App\Feature\Backtest\Config\PartialFillConfig;
+use App\Feature\Backtest\Config\SpecificPairTestConfig;
+use App\Feature\Backtest\Config\UnfilledOrderPolicy;
+use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
+use App\Feature\MarketPairs\Data\MarketPairMarketData;
+use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
+use App\Feature\MarketPairs\Model\MarketPair;
+use App\Feature\MarketPairs\Repository\MarketPairRepository;
+use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Platform\Strategy\Enums\StrategySignal;
 use App\Platform\Strategy\Models\StrategyDecision;
 use App\Platform\Strategy\Models\StrategyExecutionContext;
@@ -60,7 +61,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             false,
         );
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
         $order = $results->orders->at(0);
 
         $this->assertSame(250000.0, $order->requestedPositionSize);
@@ -113,7 +114,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             },
         );
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute(new SpecificPairTestConfig(
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute(new SpecificPairTestConfig(
             'EUR',
             'USD',
             new DateTimeImmutable('2026-10-09 00:00:00'),
@@ -145,7 +146,7 @@ class SpecificPairBacktestDomainTest extends TestCase
         $this->expectException(\UnexpectedValueException::class);
         $this->expectExceptionMessage('An entry signal must include a positive quantity.');
 
-        (new RunSpecificPairBacktestAction($repository, $strategy))->execute(new SpecificPairTestConfig(
+        (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute(new SpecificPairTestConfig(
             'EUR',
             'USD',
             new DateTimeImmutable('2026-10-09 00:00:00'),
@@ -168,7 +169,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             new StrategyDecision(StrategySignal::Long, 1.0, 1.2, '2.5'),
         ]));
 
-        $order = (new RunSpecificPairBacktestAction($repository, $strategy))
+        $order = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))
             ->execute(new SpecificPairTestConfig(
                 'EUR',
                 'USD',
@@ -203,7 +204,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             new StrategyDecision(StrategySignal::Close, null, null),
         ]));
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute(new SpecificPairTestConfig(
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute(new SpecificPairTestConfig(
             'ES',
             'USD',
             new DateTimeImmutable('2026-10-09 00:00:00'),
@@ -271,7 +272,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             [6, 7],
         );
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
 
         $this->assertSame(2, $results->decisions->count());
         $this->assertSame('2026-10-09 09:00:00', $results->decisions->at(0)->candle->price_date->format('Y-m-d H:i:s'));
@@ -307,7 +308,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             [6],
         );
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
 
         $this->assertSame(1, $results->decisions->count());
         $this->assertSame('2026-10-09 02:00:00', $results->decisions->at(0)->candle->price_date->format('Y-m-d H:i:s'));
@@ -352,7 +353,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             '17:00',
         );
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
         $order = $results->orders->at(0);
 
         $this->assertSame(1, $results->decisions->count());
@@ -400,7 +401,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             false,
         );
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
         $order = $results->orders->at(0);
 
         $this->assertSame('stop_loss', $order->closeReason);
@@ -444,7 +445,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             false,
         );
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
         $order = $results->orders->at(0);
 
         $this->assertSame('stop_loss', $order->closeReason);
@@ -493,7 +494,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             '17:00',
         );
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
 
         $this->assertSame(2, $results->orders->count());
         $firstOrder = $results->orders->at(0);
@@ -554,7 +555,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             slippage: new FixedSlippageConfig(enabled: true, pips: 1),
         );
 
-        $order = (new RunSpecificPairBacktestAction($repository, $strategy))
+        $order = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))
             ->execute($config)->orders->at(0);
 
         $this->assertEqualsWithDelta(1.1001, $order->entryPrice, 0.0000001);
@@ -591,7 +592,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             slippage: new FixedSlippageConfig(enabled: true, pips: 1),
         );
 
-        $order = (new RunSpecificPairBacktestAction($repository, $strategy))
+        $order = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))
             ->execute($config)->orders->at(0);
 
         $this->assertEqualsWithDelta(1.0999, $order->entryPrice, 0.0000001);
@@ -641,7 +642,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             partialFill: new PartialFillConfig(enabled: true, ratio: 0.5),
         );
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
         $order = $results->orders->at(0);
 
         $this->assertEqualsWithDelta(1000, $order->requestedPositionSize, 0.000001);
@@ -684,7 +685,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             partialFill: new PartialFillConfig(enabled: true, ratio: 0.5, unfilledOrderPolicy: UnfilledOrderPolicy::Cancel),
         );
 
-        $order = (new RunSpecificPairBacktestAction($repository, $strategy))
+        $order = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))
             ->execute($config)->orders->at(0);
 
         $this->assertEqualsWithDelta(500, $order->positionSize, 0.000001);
@@ -717,7 +718,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             partialFill: new PartialFillConfig(enabled: true, ratio: 0.5),
         );
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
         $order = $results->orders->at(0);
 
         $this->assertEqualsWithDelta(500, $order->positionSize, 0.000001);
@@ -754,7 +755,7 @@ class SpecificPairBacktestDomainTest extends TestCase
             partialFill: new PartialFillConfig(enabled: true, ratio: 0.5),
         );
 
-        $results = (new RunSpecificPairBacktestAction($repository, $strategy))->execute($config);
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
         $order = $results->orders->at(0);
 
         $this->assertSame([0.5, 0.5, 'keep'], [
@@ -797,14 +798,14 @@ class SpecificPairBacktestDomainTest extends TestCase
         ]);
     }
 
-    private function marketData(MarketPair $pair): SpecificPairMarketData
+    private function marketData(MarketPair $pair): MarketPairMarketData
     {
         $quantityUnit = MarketPairQuantityUnit::tryFrom($pair->quantity_unit ?? 'units');
         if ($quantityUnit === null) {
             throw new \UnexpectedValueException('Unsupported test market-pair quantity unit.');
         }
 
-        return new SpecificPairMarketData(
+        return new MarketPairMarketData(
             candles: Vec::fromArray($pair->prices->all()),
             quantityUnit: $quantityUnit,
             contractSize: is_numeric($pair->contract_size) ? (string) $pair->contract_size : '1',

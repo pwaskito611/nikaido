@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Workbench\Actions\Backtests;
 
-use App\Features\Engine\Config\MonteCarloSimulationConfig;
-use App\Features\Engine\Domain\FluctuationStressTestDomain;
-use App\Features\Engine\Domain\MonteCarloSimulationDomain;
-use App\Features\Workbench\Actions\Backtests\AnalyzeBacktestResultsAction;
-use App\Features\Workbench\Domain\Backtests\BacktestAnalysisDecision;
-use App\Features\Workbench\Domain\Backtests\BacktestAnalysisInput;
-use App\Features\Workbench\Domain\Backtests\BacktestAnalysisOptions;
-use App\Features\Workbench\Domain\Backtests\BacktestClusterAnalysisDomain;
+use App\Feature\Backtest\Action\AnalyzeBacktestResultsAction;
+use App\Feature\Backtest\Config\MonteCarloSimulationConfig;
+use App\Feature\Backtest\Data\Analysis\BacktestAnalysisDecision;
+use App\Feature\Backtest\Data\Analysis\BacktestAnalysisInput;
+use App\Feature\Backtest\Data\Analysis\BacktestAnalysisOptions;
+use App\Feature\Backtest\Process\BacktestClusterAnalysisProcess;
+use App\Feature\Backtest\Process\FluctuationStressTestProcess;
+use App\Feature\Backtest\Process\MonteCarloSimulationProcess;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -20,9 +20,9 @@ class AnalyzeBacktestResultsActionTest extends TestCase
     public function test_it_selects_decisions_and_orders_for_requested_cluster(): void
     {
         $action = new AnalyzeBacktestResultsAction(
-            new FluctuationStressTestDomain,
-            new MonteCarloSimulationDomain,
-            new BacktestClusterAnalysisDomain,
+            new FluctuationStressTestProcess,
+            new MonteCarloSimulationProcess,
+            new BacktestClusterAnalysisProcess,
         );
 
         $analysis = $action->execute(
@@ -46,9 +46,9 @@ class AnalyzeBacktestResultsActionTest extends TestCase
     public function test_it_rejects_monte_carlo_when_no_closed_trade_is_available(): void
     {
         $action = new AnalyzeBacktestResultsAction(
-            new FluctuationStressTestDomain,
-            new MonteCarloSimulationDomain,
-            new BacktestClusterAnalysisDomain,
+            new FluctuationStressTestProcess,
+            new MonteCarloSimulationProcess,
+            new BacktestClusterAnalysisProcess,
         );
 
         $this->expectException(ValidationException::class);
@@ -68,9 +68,9 @@ class AnalyzeBacktestResultsActionTest extends TestCase
     public function test_it_includes_realized_partial_exit_fills_in_pnl_and_capital_movement(): void
     {
         $action = new AnalyzeBacktestResultsAction(
-            new FluctuationStressTestDomain,
-            new MonteCarloSimulationDomain,
-            new BacktestClusterAnalysisDomain,
+            new FluctuationStressTestProcess,
+            new MonteCarloSimulationProcess,
+            new BacktestClusterAnalysisProcess,
         );
         $backtest = $this->backtest();
         $backtest['order_history'] = [[

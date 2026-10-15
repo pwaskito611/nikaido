@@ -23,6 +23,7 @@
     },
     "autoload": {
         "psr-4": {
+            "App\\Feature\\": "app/Feature/",
             "App\\": "app/",
             "Nikaido\\": "src/",
             "Database\\Factories\\": "database/factories/",

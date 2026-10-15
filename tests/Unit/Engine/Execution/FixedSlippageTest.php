@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Engine\Execution;
 
-use App\Features\Engine\Execution\FixedSlippage;
+use App\Feature\Backtest\Execution\FixedSlippage;
 use PHPUnit\Framework\TestCase;
 
 class FixedSlippageTest extends TestCase

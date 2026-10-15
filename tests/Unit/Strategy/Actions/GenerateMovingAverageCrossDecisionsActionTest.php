@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Strategy\Actions;
 
-use App\Features\Engine\Models\MarketPrice;
+use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Platform\Strategy\Actions\GenerateMovingAverageCrossDecisionsAction;
 use App\Platform\Strategy\Enums\StrategySignal;
 use App\Platform\Strategy\Models\StrategyDecision;

@@ -2,12 +2,12 @@
 
 namespace Tests\Feature;
 
-use App\Features\Engine\Actions\RunSpecificPairBacktestAction;
-use App\Features\Engine\Config\SpecificPairTestConfig;
-use App\Features\Engine\Models\MarketPair;
-use App\Features\Engine\Models\MarketPrice;
-use App\Features\Engine\Models\MarketType;
-use App\Features\Engine\Models\TimeframeType;
+use App\Feature\Backtest\Action\RunSpecificPairBacktestAction;
+use App\Feature\Backtest\Config\SpecificPairTestConfig;
+use App\Feature\MarketPairs\Model\MarketPair;
+use App\Feature\MarketPrice\Model\MarketPrice;
+use App\Feature\MarketTypes\Model\MarketType;
+use App\Feature\Timeframes\Model\TimeframeType;
 use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;

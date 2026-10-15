@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Features\Engine\Repositories\MarketPairRepository;
-use App\Features\Engine\Repositories\MarketPriceRepository;
-use App\Features\Engine\Repositories\MarketTypeRepository;
-use App\Features\Workbench\Domain\MarketPairs\MarketPairDefinition;
-use App\Features\Workbench\Domain\MarketPairs\MarketPairQuantityUnit;
+use App\Feature\MarketPairs\Repository\MarketPairRepository;
+use App\Feature\MarketPrice\Repository\MarketPriceRepository;
+use App\Feature\MarketTypes\Repository\MarketTypeRepository;
+use App\Feature\MarketPairs\Data\MarketPairDefinition;
+use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
 use Exact\Collection\Vec;
 use Exact\Type\Option\Option;
 use Illuminate\Foundation\Testing\RefreshDatabase;

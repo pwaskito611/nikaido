@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Workbench\Domain\MarketPairs;
 
-use App\Features\Workbench\Domain\MarketPairs\MarketPairDefinition;
-use App\Features\Workbench\Domain\MarketPairs\MarketPairQuantityUnit;
+use App\Feature\MarketPairs\Data\MarketPairDefinition;
+use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
 use Exact\Type\Option\Option;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;

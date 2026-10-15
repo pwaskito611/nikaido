@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Workbench\Domain\Backtests;
 
-use App\Features\Workbench\Domain\Backtests\BacktestAnalysisTimestamp;
+use App\Feature\Backtest\Data\Analysis\BacktestAnalysisTimestamp;
 use PHPUnit\Framework\TestCase;
 use UnexpectedValueException;
 

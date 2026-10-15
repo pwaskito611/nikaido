@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Engine\Domain;
 
-use App\Features\Engine\Domain\ActiveTradingSchedule;
+use App\Feature\Backtest\Rules\ActiveTradingSchedule;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;

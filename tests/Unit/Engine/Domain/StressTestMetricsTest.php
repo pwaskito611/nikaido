@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Engine\Domain;
 
-use App\Features\Engine\Domain\StressTestMetric;
-use App\Features\Engine\Domain\StressTestMetricName;
-use App\Features\Engine\Domain\StressTestMetrics;
+use App\Feature\Backtest\Data\StressTestMetric;
+use App\Feature\Backtest\Data\StressTestMetricName;
+use App\Feature\Backtest\Data\StressTestMetrics;
 use Exact\Collection\Vec;
 use Exact\Type\Option\Option;
 use InvalidArgumentException;

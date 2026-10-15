@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Workbench\Actions\MarketTypeBacktests;
 
-use App\Features\Engine\Models\MarketTypeBacktestPairRun;
-use App\Features\Engine\Models\MarketTypeBacktestRun;
-use App\Features\Workbench\Actions\MarketTypeBacktests\CombineMarketTypeBacktestResultsAction;
-use App\Features\Workbench\Domain\MarketTypeBacktests\PortfolioCapitalSynchronizationDomain;
+use App\Feature\Backtest\Model\MarketTypeBacktestPairRun;
+use App\Feature\Backtest\Model\MarketTypeBacktestRun;
+use App\Feature\Backtest\Action\MarketTypeBacktests\CombineMarketTypeBacktestResultsAction;
+use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioCapitalSynchronizationProcess;
 use InvalidArgumentException;
 use Tests\TestCase;
 use UnexpectedValueException;
@@ -16,7 +16,7 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
 {
     public function test_it_rejects_empty_pair_results_and_unknown_capital_modes(): void
     {
-        $combiner = new CombineMarketTypeBacktestResultsAction(new PortfolioCapitalSynchronizationDomain);
+        $combiner = new CombineMarketTypeBacktestResultsAction(new PortfolioCapitalSynchronizationProcess);
         $run = new MarketTypeBacktestRun([
             'market_type_name' => 'Forex',
             'configuration' => [
@@ -101,7 +101,7 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
             ]);
         }
 
-        $result = (new CombineMarketTypeBacktestResultsAction(new PortfolioCapitalSynchronizationDomain))
+        $result = (new CombineMarketTypeBacktestResultsAction(new PortfolioCapitalSynchronizationProcess))
             ->execute($run, $pairRuns);
 
         $this->assertSame(100.0, $result['initial_capital']);
@@ -201,7 +201,7 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
             ]),
         ];
 
-        $result = (new CombineMarketTypeBacktestResultsAction(new PortfolioCapitalSynchronizationDomain))
+        $result = (new CombineMarketTypeBacktestResultsAction(new PortfolioCapitalSynchronizationProcess))
             ->execute($run, $pairRuns);
 
         $this->assertSame('Overall · Forex', $result['pair']);

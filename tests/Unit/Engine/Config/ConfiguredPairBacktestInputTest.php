@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Engine\Config;
 
-use App\Features\Engine\Config\ConfiguredPairBacktestInput;
-use App\Features\Engine\Config\UnfilledOrderPolicy;
-use App\Features\Engine\Domain\ActiveTradingSchedule;
+use App\Feature\Backtest\Config\ConfiguredPairBacktestInput;
+use App\Feature\Backtest\Config\UnfilledOrderPolicy;
+use App\Feature\Backtest\Rules\ActiveTradingSchedule;
 use Exact\Collection\Vec;
 use PHPUnit\Framework\TestCase;
 

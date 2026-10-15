@@ -10,8 +10,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         api: [
-            __DIR__.'/../app/Features/Engine/routes.php',
-            __DIR__.'/../app/Features/DataImport/api.php',
+            __DIR__.'/../app/Feature/Backtest/api.php',
+            __DIR__.'/../app/Feature/DataImport/api.php',
         ],
         commands: __DIR__.'/../routes/console.php',
         health: '/up',

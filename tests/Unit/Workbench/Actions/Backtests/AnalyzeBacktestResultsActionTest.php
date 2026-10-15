@@ -98,6 +98,53 @@ class AnalyzeBacktestResultsActionTest extends TestCase
         $this->assertSame(9995.0, $analysis->capitalChart->end);
     }
 
+    public function test_it_calculates_profit_factor_and_drawdown_percentages_from_full_equity_history(): void
+    {
+        $action = new AnalyzeBacktestResultsAction(
+            new FluctuationStressTestProcess,
+            new MonteCarloSimulationProcess,
+            new BacktestClusterAnalysisProcess,
+        );
+        $backtest = $this->backtest();
+        $backtest['initial_capital'] = 1000.0;
+        $backtest['order_history'] = [];
+
+        foreach ([
+            ['profit_loss' => 100.0, 'capital' => 1100.0],
+            ['profit_loss' => -55.0, 'capital' => 1045.0],
+            ['profit_loss' => -110.0, 'capital' => 935.0],
+            ['profit_loss' => 55.0, 'capital' => 990.0],
+        ] as $index => $trade) {
+            $date = sprintf('2026-10-12 10:%02d:00', $index + 1);
+            $backtest['order_history'][] = [
+                'id' => $index + 1,
+                'signal' => $trade['profit_loss'] > 0 ? 'long' : 'short',
+                'open_date' => sprintf('2026-10-12 09:%02d:00', $index + 1),
+                'close_date' => $date,
+                'profit_loss' => $trade['profit_loss'],
+                'realized_profit_loss' => $trade['profit_loss'],
+                'capital_at_open' => 1000.0,
+                'capital_after_close' => $trade['capital'],
+                'exit_fills' => [[
+                    'date' => $date,
+                    'profit_loss' => $trade['profit_loss'],
+                    'capital_after' => $trade['capital'],
+                ]],
+            ];
+        }
+
+        $analysis = $action->execute(
+            BacktestAnalysisInput::fromPersistedResult($backtest),
+            BacktestAnalysisOptions::fromValidatedQuery([], null, 1),
+        );
+
+        $this->assertSame(4, $analysis->closedTradeCount);
+        $this->assertSame(155 / 165, $analysis->profitFactor);
+        $this->assertEqualsWithDelta(10.0, $analysis->averageDrawdownPercent, 0.000001);
+        $this->assertEqualsWithDelta(15.0, $analysis->maximumDrawdownPercent, 0.000001);
+        $this->assertEqualsWithDelta(10.0, $analysis->medianDrawdownPercent, 0.000001);
+    }
+
     /**
      * @return array<string, mixed>
      */

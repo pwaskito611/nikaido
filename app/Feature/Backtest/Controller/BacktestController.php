@@ -177,6 +177,11 @@ class BacktestController
             'clusterOptions' => $clusterCount === null ? [] : range(1, $clusterCount),
             'clusterAnalysis' => $analysis->clusterAnalysis->toArray(),
             'capitalChart' => $analysis->capitalChart->toArray(),
+            'profitFactor' => $analysis->profitFactor,
+            'closedTradeCount' => $analysis->closedTradeCount,
+            'averageDrawdownPercent' => $analysis->averageDrawdownPercent,
+            'maximumDrawdownPercent' => $analysis->maximumDrawdownPercent,
+            'medianDrawdownPercent' => $analysis->medianDrawdownPercent,
             'stressTest' => $analysis->stressTest->map(
                 static fn (FluctuationStressTestResult $stressTest): array => $stressTest->toArray(),
             )->getOrNull(),

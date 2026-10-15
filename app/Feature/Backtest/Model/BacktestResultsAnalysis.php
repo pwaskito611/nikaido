@@ -30,6 +30,11 @@ final readonly class BacktestResultsAnalysis
         public Option $selectedCluster,
         public BacktestClusterSummary $clusterAnalysis,
         public BacktestCapitalChart $capitalChart,
+        public ?float $profitFactor,
+        public int $closedTradeCount,
+        public float $averageDrawdownPercent,
+        public float $maximumDrawdownPercent,
+        public float $medianDrawdownPercent,
         public Option $stressTest,
         public Option $monteCarlo,
     ) {}

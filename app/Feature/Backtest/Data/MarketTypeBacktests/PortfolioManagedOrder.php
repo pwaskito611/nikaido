@@ -32,6 +32,8 @@ final readonly class PortfolioManagedOrder
         public float $closedPositionSize,
         public float $cancelledExitQuantity,
         public float $realizedProfitLoss,
+        public float $grossRealizedProfitLoss,
+        public array $tradeCostTotals,
         public Vec $entryFills,
         public Vec $exitFills,
         public Option $allocationFactor,
@@ -54,6 +56,7 @@ final readonly class PortfolioManagedOrder
         if (! is_string($openDate) || strtotime($openDate) === false) {
             throw new UnexpectedValueException('A portfolio-managed order must have a valid opening date.');
         }
+
         $pair = $order['pair'] ?? null;
         if (! is_string($pair) || $pair === '') {
             throw new UnexpectedValueException('A portfolio-managed order must have a pair name.');
@@ -77,6 +80,9 @@ final readonly class PortfolioManagedOrder
             throw new UnexpectedValueException('Portfolio entry-rejected state must be boolean.');
         }
 
+        $tradeCostTotals = self::costs($order['trade_costs'] ?? []);
+        $realizedProfitLoss = self::optionalNumber($order, 'realized_profit_loss')->getOrElse(0.0);
+
         return new self(
             index: $index,
             pair: $pair,
@@ -93,7 +99,10 @@ final readonly class PortfolioManagedOrder
             remainingPositionSize: self::nonNegativeNumber($order, 'remaining_position_size'),
             closedPositionSize: self::nonNegativeNumber($order, 'closed_position_size'),
             cancelledExitQuantity: self::nonNegativeNumber($order, 'cancelled_exit_quantity'),
-            realizedProfitLoss: self::optionalNumber($order, 'realized_profit_loss')->getOrElse(0.0),
+            realizedProfitLoss: $realizedProfitLoss,
+            grossRealizedProfitLoss: self::optionalNumber($order, 'gross_realized_profit_loss')
+                ->getOrElse($realizedProfitLoss + array_sum($tradeCostTotals)),
+            tradeCostTotals: $tradeCostTotals,
             entryFills: $entryFills,
             exitFills: $exitFills,
             allocationFactor: self::optionalNumber($order, 'portfolio_allocation_factor'),
@@ -111,8 +120,23 @@ final readonly class PortfolioManagedOrder
         return $this->requestedRiskAmount / $this->requestedPositionSize;
     }
 
-    public function withAllocation(float $factor, float $requestedRisk, float $allocatedRisk, float $capital): self
-    {
+    /** @param list<string> $perOrderCostComponents */
+    public function withAllocation(
+        float $factor,
+        float $requestedRisk,
+        float $allocatedRisk,
+        float $capital,
+        array $perOrderCostComponents = [],
+    ): self {
+        $tradeCosts = $this->tradeCostTotals;
+        foreach ($tradeCosts as $component => $amount) {
+            if (! in_array($component, $perOrderCostComponents, true)) {
+                $tradeCosts[$component] = $amount * $factor;
+            }
+        }
+        $grossProfitLoss = $this->grossRealizedProfitLoss * $factor;
+        $netProfitLoss = $grossProfitLoss - array_sum($tradeCosts);
+
         return $this->copy(
             positionSize: $this->positionSize * $factor,
             riskAmount: $this->riskAmount * $factor,
@@ -121,10 +145,16 @@ final readonly class PortfolioManagedOrder
             closedPositionSize: $this->closedPositionSize * $factor,
             cancelledEntryQuantity: $this->cancelledEntryQuantity * $factor,
             cancelledExitQuantity: $this->cancelledExitQuantity * $factor,
-            realizedProfitLoss: $this->realizedProfitLoss * $factor,
-            profitLoss: $this->profitLoss->map(static fn (float $value): float => $value * $factor),
-            entryFills: $this->entryFills->map(static fn (PortfolioEntryFill $fill): PortfolioEntryFill => $fill->scaled($factor)),
-            exitFills: $this->exitFills->map(static fn (PortfolioExitFill $fill): PortfolioExitFill => $fill->scaled($factor)),
+            realizedProfitLoss: $netProfitLoss,
+            grossRealizedProfitLoss: $grossProfitLoss,
+            tradeCostTotals: $tradeCosts,
+            profitLoss: $this->profitLoss->map(fn (float $_): float => $netProfitLoss),
+            entryFills: $this->entryFills->map(
+                fn (PortfolioEntryFill $fill): PortfolioEntryFill => $fill->scaled($factor, $perOrderCostComponents),
+            ),
+            exitFills: $this->exitFills->map(
+                fn (PortfolioExitFill $fill): PortfolioExitFill => $fill->scaled($factor, $perOrderCostComponents),
+            ),
             allocationFactor: Option::some($factor),
             portfolioRequestedRiskAmount: Option::some($requestedRisk),
             portfolioAllocatedRiskAmount: Option::some($allocatedRisk),
@@ -149,6 +179,18 @@ final readonly class PortfolioManagedOrder
         return $this->copy(capitalAfterClose: Option::some($capital));
     }
 
+    /** @return array<string, float> */
+    public function entryTradeCosts(): array
+    {
+        return $this->entryFills->foldLeft([], static function (array $totals, PortfolioEntryFill $fill): array {
+            foreach ($fill->tradeCosts as $component => $amount) {
+                $totals[$component] = ($totals[$component] ?? 0.0) + $amount;
+            }
+
+            return $totals;
+        });
+    }
+
     public function rejected(): self
     {
         return $this->copy(
@@ -159,6 +201,8 @@ final readonly class PortfolioManagedOrder
             remainingPositionSize: 0.0,
             closedPositionSize: 0.0,
             realizedProfitLoss: 0.0,
+            grossRealizedProfitLoss: 0.0,
+            tradeCostTotals: [],
             entryFills: Vec::empty(),
             exitFills: Vec::empty(),
             entryRejected: true,
@@ -190,6 +234,8 @@ final readonly class PortfolioManagedOrder
                 ->map(static fn (PortfolioExitFill $fill): array => $fill->toArray())
                 ->toArray(),
             'realized_profit_loss' => $this->realizedProfitLoss,
+            'gross_realized_profit_loss' => $this->grossRealizedProfitLoss,
+            'trade_costs' => $this->tradeCostTotals,
             'profit_loss' => $this->profitLoss->getOrNull(),
             'capital_after_close' => $this->capitalAfterClose->getOrNull(),
         ];
@@ -251,6 +297,22 @@ final readonly class PortfolioManagedOrder
         return Option::some((float) $value);
     }
 
+    /** @return array<string, float> */
+    private static function costs(mixed $value): array
+    {
+        if (! is_array($value)) {
+            throw new UnexpectedValueException('Portfolio trade costs must be a record.');
+        }
+        foreach ($value as $component => $amount) {
+            if (! is_string($component) || ! is_numeric($amount) || ! is_finite((float) $amount) || (float) $amount < 0) {
+                throw new UnexpectedValueException('Portfolio trade costs must contain finite non-negative amounts.');
+            }
+            $value[$component] = (float) $amount;
+        }
+
+        return $value;
+    }
+
     /** @return Vec<PortfolioEntryFill> */
     private static function entryFills(mixed $records): Vec
     {
@@ -296,6 +358,8 @@ final readonly class PortfolioManagedOrder
         ?float $cancelledEntryQuantity = null,
         ?float $cancelledExitQuantity = null,
         ?float $realizedProfitLoss = null,
+        ?float $grossRealizedProfitLoss = null,
+        ?array $tradeCostTotals = null,
         ?Option $profitLoss = null,
         ?Vec $entryFills = null,
         ?Vec $exitFills = null,
@@ -323,6 +387,8 @@ final readonly class PortfolioManagedOrder
             $closedPositionSize ?? $this->closedPositionSize,
             $cancelledExitQuantity ?? $this->cancelledExitQuantity,
             $realizedProfitLoss ?? $this->realizedProfitLoss,
+            $grossRealizedProfitLoss ?? $this->grossRealizedProfitLoss,
+            $tradeCostTotals ?? $this->tradeCostTotals,
             $entryFills ?? $this->entryFills,
             $exitFills ?? $this->exitFills,
             $allocationFactor ?? $this->allocationFactor,

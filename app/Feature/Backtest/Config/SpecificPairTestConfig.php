@@ -35,6 +35,7 @@ class SpecificPairTestConfig
         public readonly ?int $marketPairId = null,
         public readonly FixedSlippageConfig $slippage = new FixedSlippageConfig,
         public readonly PartialFillConfig $partialFill = new PartialFillConfig,
+        public readonly TradeCostConfig $tradeCosts = new TradeCostConfig,
     ) {
         if ($activeFrom instanceof ActiveTradingSchedule) {
             if ($activeUntil !== null) {

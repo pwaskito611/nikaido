@@ -37,11 +37,14 @@ class SpecificPairBacktestProcess
 
     private readonly PartialFill $partialFill;
 
+    private readonly TradeCostCalculator $tradeCostCalculator;
+
     public function __construct(
         private readonly Strategy $strategy,
     ) {
         $this->fixedSlippage = new FixedSlippage;
         $this->partialFill = new PartialFill;
+        $this->tradeCostCalculator = new TradeCostCalculator;
     }
 
     public function execute(
@@ -123,6 +126,9 @@ class SpecificPairBacktestProcess
                         $candle->price_date->format('Y-m-d H:i:s'),
                         $entry->second(),
                     );
+                    $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
+                    $order->recordEntryTradeCosts($entryCosts);
+                    $currentCapital -= array_sum($entryCosts);
                 }
 
                 $this->updateClosestToStopLoss($order, $candle);
@@ -161,12 +167,29 @@ class SpecificPairBacktestProcess
                         $order->remainingPositionSize,
                         $fillRatio,
                     );
+                    $exitDate = $candle->price_date->format('Y-m-d H:i:s');
+                    $exitCosts = $this->transactionCosts($order, $fillQuantity, $exitPrice, $config, 'exit');
+                    if ($config->tradeCosts->enabled) {
+                        $notionalDays = $order->consumeEntryNotionalDays($fillQuantity, $exitDate);
+                        $components = $config->tradeCosts->components();
+                        if ($order->signal === StrategySignal::Short->value) {
+                            $exitCosts['borrow_fee'] = $this->tradeCostCalculator->holding(
+                                $components['borrow_fee'],
+                                $notionalDays,
+                            );
+                        }
+                        $exitCosts['financing_fee'] = $this->tradeCostCalculator->holding(
+                            $components['financing_fee'],
+                            $notionalDays,
+                        );
+                    }
                     $fillProfitLoss = $order->recordExitFill(
                         $fillQuantity,
                         $exitPrice,
-                        $candle->price_date->format('Y-m-d H:i:s'),
+                        $exitDate,
                         $priceSource,
                         $closeReason,
+                        $exitCosts,
                     );
                     $currentCapital = (float) Number::of($currentCapital)
                         ->add($fillProfitLoss)
@@ -262,6 +285,9 @@ class SpecificPairBacktestProcess
                     $candle->price_date->format('Y-m-d H:i:s'),
                     $entry->second(),
                 );
+                $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
+                $order->recordEntryTradeCosts($entryCosts);
+                $currentCapital -= array_sum($entryCosts);
                 if ($config->partialFill->enabled && $config->partialFill->unfilledOrderPolicy === UnfilledOrderPolicy::Cancel) {
                     $order->cancelledEntryQuantity += $order->remainingEntryQuantity;
                     $order->remainingEntryQuantity = 0.0;
@@ -282,8 +308,50 @@ class SpecificPairBacktestProcess
             unitsPerLot: $quantityUnit === 'lot' ? (float) $configuredQuantityMultiplier : 1.0,
             quantityMultiplier: $quantityUnit === 'units' ? 1.0 : (float) $configuredQuantityMultiplier,
             endingCapital: $currentCapital,
-            executionConfiguration: new BacktestExecutionConfiguration($config->slippage, $config->partialFill),
+            executionConfiguration: new BacktestExecutionConfiguration($config->slippage, $config->partialFill, $config->tradeCosts),
         );
+    }
+
+    /**
+     * @return array<string, float>
+     */
+    private function transactionCosts(
+        BacktestOrderHistoryEntry $order,
+        float $positionQuantity,
+        float $price,
+        SpecificPairTestConfig $config,
+        string $side,
+    ): array {
+        if (! $config->tradeCosts->enabled) {
+            return [];
+        }
+
+        $costs = [];
+        $tradeQuantity = $order->quantityUnit === 'lot'
+            ? $positionQuantity / $order->quantityMultiplier
+            : $positionQuantity;
+        $transactionValue = $positionQuantity * $price * $order->pnlMultiplier;
+        foreach (['commission', 'exchange_fee', 'clearing_fee', 'regulatory_fee', 'transaction_tax'] as $name) {
+            $component = $config->tradeCosts->components()[$name];
+            if ($component->appliesTo !== 'both' && $component->appliesTo !== $side) {
+                $costs[$name] = 0.0;
+
+                continue;
+            }
+            $isOrderCost = $component->method !== 'per_order'
+                || ! $order->orderCostAlreadyCharged($name, $side);
+            $costs[$name] = $this->tradeCostCalculator->transaction(
+                $component,
+                $tradeQuantity,
+                $transactionValue,
+                $isOrderCost,
+            );
+            if ($component->enabled && $component->method === 'per_order' && $isOrderCost) {
+                $order->markOrderCostCharged($name, $side);
+            }
+        }
+
+        return $costs;
     }
 
     private function updateClosestToStopLoss(BacktestOrderHistoryEntry $order, MarketPrice $candle): void

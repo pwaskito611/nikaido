@@ -25,6 +25,7 @@ final readonly class ConfiguredPairBacktestInput
         public Vec $excludedDays,
         public FixedSlippageConfig $slippage,
         public PartialFillConfig $partialFill,
+        public TradeCostConfig $tradeCosts,
     ) {
         if ($marketPairId < 1 || $timeframeTypeId < 1) {
             throw new InvalidArgumentException('Configured backtests require positive pair and timeframe IDs.');
@@ -59,7 +60,8 @@ final readonly class ConfiguredPairBacktestInput
      *     slippage_pip_size?: int|float|string|null,
      *     partial_fill_enabled?: bool|string,
      *     partial_fill_ratio?: int|float|string|null,
-     *     unfilled_order_policy?: 'keep'|'cancel'
+     *     unfilled_order_policy?: 'keep'|'cancel',
+     *     trade_costs?: array<string, mixed>
      * } $input
      */
     public static function fromArray(array $input): self
@@ -90,6 +92,7 @@ final readonly class ConfiguredPairBacktestInput
                 ratio: (float) ($input['partial_fill_ratio'] ?? 1),
                 unfilledOrderPolicy: UnfilledOrderPolicy::from($input['unfilled_order_policy'] ?? UnfilledOrderPolicy::Keep->value),
             ),
+            tradeCosts: TradeCostConfig::fromArray($input['trade_costs'] ?? []),
         );
     }
 }

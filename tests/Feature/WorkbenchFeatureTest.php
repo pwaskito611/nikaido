@@ -563,6 +563,7 @@ class WorkbenchFeatureTest extends TestCase
             ->assertSee('stop loss')
             ->assertSee('ENDING CAPITAL')
             ->assertSee('PROFIT FACTOR')
+            ->assertSee('ADDITIONAL TRADE COSTS')
             ->assertSee('AVERAGE DRAWDOWN')
             ->assertSee('MEDIAN DRAWDOWN')
             ->assertSee('MAXIMUM DRAWDOWN')
@@ -676,7 +677,10 @@ class WorkbenchFeatureTest extends TestCase
             ->assertSee('Synthetic partial fills')
             ->assertSee('not a liquidity simulation')
             ->assertSee('slippage_enabled')
-            ->assertSee('partial_fill_enabled');
+            ->assertSee('partial_fill_enabled')
+            ->assertSee('Trade cost settings')
+            ->assertSee('trade_costs[commission][method]')
+            ->assertSee('trade_costs[financing_fee][rate]');
 
         $this->from('/workbench/tests/create')
             ->post('/workbench/tests', [
@@ -692,9 +696,21 @@ class WorkbenchFeatureTest extends TestCase
                 'slippage_pips' => '1',
                 'partial_fill_enabled' => '1',
                 'partial_fill_ratio' => '0',
+                'trade_costs' => [
+                    'enabled' => '1',
+                    'commission' => [
+                        'enabled' => '1',
+                        'method' => 'round_trip_guess',
+                        'rate' => '-0.25',
+                    ],
+                ],
             ])
             ->assertRedirect('/workbench/tests/create')
-            ->assertSessionHasErrors('partial_fill_ratio');
+            ->assertSessionHasErrors([
+                'partial_fill_ratio',
+                'trade_costs.commission.method',
+                'trade_costs.commission.rate',
+            ]);
     }
 
     private function createMarketType(): MarketType

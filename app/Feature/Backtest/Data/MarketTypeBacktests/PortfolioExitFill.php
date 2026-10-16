@@ -26,32 +26,51 @@ final readonly class PortfolioExitFill
         public Option $reason,
         public Option $profitLoss,
         public Option $capitalAfter,
+        public float $grossProfitLoss = 0.0,
+        public array $tradeCosts = [],
     ) {}
 
     /** @param array<string, mixed> $fill */
     public static function fromPersistedArray(array $fill): self
     {
+        $tradeCosts = self::costs($fill['trade_costs'] ?? []);
+        $profitLoss = self::number($fill['profit_loss'] ?? null);
+
         return new self(
             quantity: self::number($fill['quantity'] ?? null),
             price: self::number($fill['price'] ?? null),
             date: self::string($fill['date'] ?? null, 'date'),
             source: self::string($fill['source'] ?? null, 'source'),
             reason: self::string($fill['reason'] ?? null, 'reason'),
-            profitLoss: self::number($fill['profit_loss'] ?? null),
+            profitLoss: $profitLoss,
             capitalAfter: self::number($fill['capital_after'] ?? null),
+            grossProfitLoss: self::number($fill['gross_profit_loss'] ?? null)
+                ->getOrElse($profitLoss->getOrElse(0.0) + array_sum($tradeCosts)),
+            tradeCosts: $tradeCosts,
         );
     }
 
-    public function scaled(float $factor): self
+    /** @param list<string> $perOrderCostComponents */
+    public function scaled(float $factor, array $perOrderCostComponents = []): self
     {
+        $tradeCosts = $this->tradeCosts;
+        foreach ($tradeCosts as $component => $amount) {
+            if (! in_array($component, $perOrderCostComponents, true)) {
+                $tradeCosts[$component] = $amount * $factor;
+            }
+        }
+        $grossProfitLoss = $this->grossProfitLoss * $factor;
+
         return new self(
             quantity: $this->quantity->map(static fn (float $value): float => $value * $factor),
             price: $this->price,
             date: $this->date,
             source: $this->source,
             reason: $this->reason,
-            profitLoss: $this->profitLoss->map(static fn (float $value): float => $value * $factor),
+            profitLoss: $this->profitLoss->map(fn (float $_): float => $grossProfitLoss - array_sum($tradeCosts)),
             capitalAfter: $this->capitalAfter,
+            grossProfitLoss: $grossProfitLoss,
+            tradeCosts: $tradeCosts,
         );
     }
 
@@ -65,6 +84,8 @@ final readonly class PortfolioExitFill
             $this->reason,
             $this->profitLoss,
             Option::some($capital),
+            $this->grossProfitLoss,
+            $this->tradeCosts,
         );
     }
 
@@ -93,6 +114,10 @@ final readonly class PortfolioExitFill
         if ($this->capitalAfter->isSome()) {
             $fill['capital_after'] = $this->capitalAfter->getOrElse(0.0);
         }
+        if ($this->tradeCosts !== []) {
+            $fill['gross_profit_loss'] = $this->grossProfitLoss;
+            $fill['trade_costs'] = $this->tradeCosts;
+        }
 
         return $fill;
     }
@@ -119,5 +144,21 @@ final readonly class PortfolioExitFill
         }
 
         return Option::from($value);
+    }
+
+    /** @return array<string, float> */
+    private static function costs(mixed $value): array
+    {
+        if (! is_array($value)) {
+            throw new UnexpectedValueException('Portfolio exit-fill trade costs must be a record.');
+        }
+        foreach ($value as $component => $amount) {
+            if (! is_string($component) || ! is_numeric($amount) || ! is_finite((float) $amount) || (float) $amount < 0) {
+                throw new UnexpectedValueException('Portfolio exit-fill trade costs must contain finite non-negative amounts.');
+            }
+            $value[$component] = (float) $amount;
+        }
+
+        return $value;
     }
 }

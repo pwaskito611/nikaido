@@ -20,6 +20,7 @@ final readonly class PortfolioEntryFill
         public Option $price,
         public Option $date,
         public Option $source,
+        public array $tradeCosts = [],
     ) {}
 
     /** @param array<string, mixed> $fill */
@@ -30,20 +31,23 @@ final readonly class PortfolioEntryFill
             self::number($fill, 'price'),
             self::string($fill, 'date'),
             self::string($fill, 'source'),
+            self::costs($fill['trade_costs'] ?? []),
         );
     }
 
-    public function scaled(float $factor): self
+    /** @param list<string> $perOrderCostComponents */
+    public function scaled(float $factor, array $perOrderCostComponents = []): self
     {
         return new self(
             $this->quantity->map(static fn (float $quantity): float => $quantity * $factor),
             $this->price,
             $this->date,
             $this->source,
+            self::scaleCosts($this->tradeCosts, $factor, $perOrderCostComponents),
         );
     }
 
-    /** @return array<string, float|string> */
+    /** @return array<string, mixed> */
     public function toArray(): array
     {
         $fill = [];
@@ -59,8 +63,27 @@ final readonly class PortfolioEntryFill
         if ($this->source->isSome()) {
             $fill['source'] = $this->source->getOrElse('');
         }
+        if ($this->tradeCosts !== []) {
+            $fill['trade_costs'] = $this->tradeCosts;
+        }
 
         return $fill;
+    }
+
+    /**
+     * @param  array<string, float>  $costs
+     * @param  list<string>  $perOrderCostComponents
+     * @return array<string, float>
+     */
+    private static function scaleCosts(array $costs, float $factor, array $perOrderCostComponents): array
+    {
+        foreach ($costs as $component => $amount) {
+            if (! in_array($component, $perOrderCostComponents, true)) {
+                $costs[$component] = $amount * $factor;
+            }
+        }
+
+        return $costs;
     }
 
     /** @param array<string, mixed> $fill */
@@ -89,5 +112,21 @@ final readonly class PortfolioEntryFill
         }
 
         return Option::some($value);
+    }
+
+    /** @return array<string, float> */
+    private static function costs(mixed $value): array
+    {
+        if (! is_array($value)) {
+            throw new UnexpectedValueException('Portfolio entry-fill trade costs must be a record.');
+        }
+        foreach ($value as $component => $amount) {
+            if (! is_string($component) || ! is_numeric($amount) || ! is_finite((float) $amount) || (float) $amount < 0) {
+                throw new UnexpectedValueException('Portfolio entry-fill trade costs must contain finite non-negative amounts.');
+            }
+            $value[$component] = (float) $amount;
+        }
+
+        return $value;
     }
 }

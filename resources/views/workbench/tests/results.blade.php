@@ -14,10 +14,23 @@
             <p class="analysis-note">Separate capital per pair · {{ $successfulPairCount }} successful pair(s). Each pair is backtested independently with its own starting capital and does not share or reserve capital with other pairs. Overall initial and ending capital are sums across successful pairs; the average starting and ending capital per pair are shown below. Ending capital includes realized P/L only; floating P/L is not included. P/L is combined as reported, without FX conversion, so all pair results must use the same account unit.</p>
         @endif
     @endif
-    @if (isset($backtest['execution_config']))
-        @php
-            $executionConfig = $backtest['execution_config'];
-        @endphp
+    @php
+        $executionConfig = $backtest['execution_config'] ?? null;
+        $tradeCostConfig = $executionConfig['trade_costs'] ?? ['enabled' => false, 'components' => []];
+        $tradeCostTotals = collect($backtest['order_history'])->reduce(function (array $totals, array $order): array {
+            foreach (($order['trade_costs'] ?? []) as $component => $amount) {
+                $totals[$component] = ($totals[$component] ?? 0) + (float) $amount;
+            }
+            return $totals;
+        }, []);
+        $totalAdditionalTradeCosts = array_sum($tradeCostTotals);
+        $modeledCostLabels = collect($tradeCostConfig['components'] ?? [])
+            ->filter(fn (array $component) => $tradeCostConfig['enabled'] && ($component['enabled'] ?? false))
+            ->keys()
+            ->map(fn (string $component) => str_replace('_', ' ', $component))
+            ->join(', ');
+    @endphp
+    @if ($executionConfig !== null)
         <p class="analysis-note">
             Execution assumptions:
             slippage {{ $executionConfig['slippage_enabled'] ? number_format($executionConfig['slippage_pips'], 2).' pip(s)' : 'off' }}
@@ -28,16 +41,43 @@
             Synthetic fills do not use candle volume or order-book liquidity.
         </p>
     @endif
+    @if ($tradeCostConfig !== null)
+        <p class="analysis-note">
+            Trade costs:
+            @if (! ($tradeCostConfig['enabled'] ?? false))
+                disabled.
+            @elseif ($modeledCostLabels === '')
+                enabled, but no cost component was configured; no additional cost was modeled.
+            @else
+                modeled components: {{ $modeledCostLabels }}. Other fees are not modeled.
+            @endif
+            No costs are inferred from the instrument or market type.
+        </p>
+    @endif
     <div class="metric-grid">
         <div class="metric-card"><span class="eyebrow">CANDLES EVALUATED</span><strong>{{ count($backtest['results']) }}</strong><span class="metric-note">strategy decisions returned</span></div>
         <div class="metric-card"><span class="eyebrow">ORDERS OPENED</span><strong>{{ collect($backtest['order_history'])->reject(fn ($order) => ! empty($order['portfolio_entry_rejected']))->count() }}</strong><span class="metric-note">excludes entries rejected for insufficient portfolio risk capital</span></div>
         <div class="metric-card"><span class="eyebrow">CLOSED ORDERS</span><strong>{{ collect($backtest['order_history'])->whereNotNull('close_date')->count() }}</strong><span class="metric-note">closed by SL, TP, or strategy</span></div>
-        <div class="metric-card"><span class="eyebrow">PROFIT FACTOR</span><strong>{{ $closedTradeCount === 0 ? '—' : ($profitFactor === null ? '—' : (is_infinite($profitFactor) ? '∞' : number_format($profitFactor, 2))) }}</strong><span class="metric-note">gross profit ÷ gross loss across closed trades</span></div>
+        <div class="metric-card"><span class="eyebrow">PROFIT FACTOR</span><strong>{{ $closedTradeCount === 0 ? '—' : ($profitFactor === null ? '—' : (is_infinite($profitFactor) ? '∞' : number_format($profitFactor, 2))) }}</strong><span class="metric-note">profitable net P/L ÷ losing net P/L across closed trades</span></div>
         <div class="metric-card"><span class="eyebrow">AVERAGE DRAWDOWN</span><strong>{{ number_format($averageDrawdownPercent, 2) }}%</strong><span class="metric-note">mean realized-equity drawdown below all-time high</span></div>
         <div class="metric-card"><span class="eyebrow">MEDIAN DRAWDOWN</span><strong>{{ number_format($medianDrawdownPercent, 2) }}%</strong><span class="metric-note">median realized-equity drawdown below all-time high</span></div>
         <div class="metric-card"><span class="eyebrow">MAXIMUM DRAWDOWN</span><strong>{{ number_format($maximumDrawdownPercent, 2) }}%</strong><span class="metric-note">largest realized-equity decline from all-time high</span></div>
         <div class="metric-card"><span class="eyebrow">INITIAL CAPITAL</span><strong>{{ number_format($backtest['initial_capital'], 2) }}</strong><span class="metric-note">{{ $successfulPairCount === null ? $backtest['pair'].' quote currency' : (($backtest['capital_mode'] ?? 'separate') === 'shared' ? 'one shared portfolio balance' : 'sum across independent pair accounts') }}</span></div>
         <div class="metric-card"><span class="eyebrow">ENDING CAPITAL</span><strong>{{ number_format($backtest['ending_capital'], 2) }}</strong><span class="metric-note">realized trade P/L included</span></div>
+        <div class="metric-card"><span class="eyebrow">ADDITIONAL TRADE COSTS</span><strong>{{ number_format($totalAdditionalTradeCosts, 2) }}</strong><span class="metric-note">{{ ($tradeCostConfig['enabled'] ?? false) ? 'configured modeled costs only' : 'disabled' }}</span></div>
+        @foreach ([
+            'commission' => 'COMMISSION',
+            'exchange_fee' => 'EXCHANGE FEES',
+            'clearing_fee' => 'CLEARING FEES',
+            'regulatory_fee' => 'REGULATORY FEES',
+            'transaction_tax' => 'TRANSACTION TAXES',
+            'borrow_fee' => 'BORROW FEES',
+            'financing_fee' => 'FINANCING / HOLDING COSTS',
+        ] as $component => $componentLabel)
+            @if (($tradeCostConfig['enabled'] ?? false) && ($tradeCostConfig['components'][$component]['enabled'] ?? false))
+                <div class="metric-card"><span class="eyebrow">{{ $componentLabel }}</span><strong>{{ number_format($tradeCostTotals[$component] ?? 0, 2) }}</strong><span class="metric-note">deducted from net P/L</span></div>
+            @endif
+        @endforeach
         @if ($successfulPairCount !== null && ($backtest['capital_mode'] ?? 'separate') === 'separate')
             <div class="metric-card"><span class="eyebrow">AVERAGE INITIAL CAPITAL / PAIR</span><strong>{{ number_format($backtest['average_initial_capital_per_pair'], 2) }}</strong><span class="metric-note">mean starting capital across successful pairs</span></div>
             <div class="metric-card"><span class="eyebrow">AVERAGE ENDING CAPITAL / PAIR</span><strong>{{ number_format($backtest['average_ending_capital_per_pair'], 2) }}</strong><span class="metric-note">mean realized ending capital across successful pairs</span></div>

@@ -35,6 +35,7 @@ class RunConfiguredPairBacktestAction
             excludedDays: $input->excludedDays,
             slippage: $input->slippage,
             partialFill: $input->partialFill,
+            tradeCosts: $input->tradeCosts,
         );
         $backtest = $this->runBacktest->execute($config);
 

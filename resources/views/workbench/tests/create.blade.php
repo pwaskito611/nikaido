@@ -162,6 +162,69 @@
                     </div>
                 </div>
             </div>
+            <div class="form-section">
+                <span class="form-section-number">07</span><div class="form-section-body">
+                    <h3>Trade cost settings</h3>
+                    <p>Optional user-supplied costs are deducted from net P/L. No broker schedule, jurisdictional tax, asset type, or missing rate is inferred. Spread and slippage remain handled by execution prices and slippage settings above.</p>
+                    <label class="check-row">
+                        <input type="checkbox" id="trade_costs_enabled" name="trade_costs[enabled]" value="1" @checked(old('trade_costs.enabled'))>
+                        <span><strong>Enable additional trade costs</strong><small>Only configured components below are modeled. Disabled or unconfigured costs are not included.</small></span>
+                    </label>
+                    @php
+                        $tradeCostComponents = [
+                            'commission' => ['Commission', ['per_order' => 'Fixed amount per order side', 'transaction_value_percent' => 'Percentage of transaction value', 'per_quantity' => 'Amount per unit / lot / contract']],
+                            'exchange_fee' => ['Exchange fee', ['per_order' => 'Fixed amount per order side', 'transaction_value_percent' => 'Percentage of transaction value', 'per_quantity' => 'Amount per unit / lot / contract']],
+                            'clearing_fee' => ['Clearing fee', ['per_order' => 'Fixed amount per order side', 'transaction_value_percent' => 'Percentage of transaction value', 'per_quantity' => 'Amount per unit / lot / contract']],
+                            'regulatory_fee' => ['Regulatory fee', ['per_order' => 'Fixed amount per order side', 'transaction_value_percent' => 'Percentage of transaction value', 'per_quantity' => 'Amount per unit / lot / contract']],
+                            'transaction_tax' => ['Transaction tax', ['per_order' => 'Fixed amount per order side', 'transaction_value_percent' => 'Percentage of transaction value', 'per_quantity' => 'Amount per unit / lot / contract']],
+                            'borrow_fee' => ['Short borrow fee', ['daily_notional_percent' => 'Percentage of entry notional per 24 hours']],
+                            'financing_fee' => ['Financing / holding cost', ['daily_notional_percent' => 'Percentage of entry notional per 24 hours']],
+                        ];
+                    @endphp
+                    @foreach ($tradeCostComponents as $component => [$label, $methods])
+                        @php
+                            $holdingCost = in_array($component, ['borrow_fee', 'financing_fee'], true);
+                            $methodField = "trade_costs.{$component}.method";
+                            $rateField = "trade_costs.{$component}.rate";
+                            $componentEnabled = "trade_costs.{$component}.enabled";
+                        @endphp
+                        <div class="trade-cost-component">
+                            <label class="check-row">
+                                <input class="trade-cost-toggle" type="checkbox" id="trade_cost_{{ $component }}_enabled" name="trade_costs[{{ $component }}][enabled]" value="1" @checked(old($componentEnabled))>
+                                <span><strong>{{ $label }}</strong><small>{{ $holdingCost ? ($component === 'borrow_fee' ? 'Applied only to short positions.' : 'Applied to long and short positions when enabled.') : 'Applied independently on entry and exit fills.' }}</small></span>
+                            </label>
+                            <div class="field-row trade-cost-fields" id="trade_cost_{{ $component }}_fields" hidden>
+                                <div>
+                                    <label class="field-label" for="trade_cost_{{ $component }}_method">Calculation method</label>
+                                    <select class="text-input trade-cost-method" id="trade_cost_{{ $component }}_method" name="trade_costs[{{ $component }}][method]">
+                                        @foreach ($methods as $method => $methodLabel)
+                                            <option value="{{ $method }}" @selected(old($methodField, $holdingCost ? 'daily_notional_percent' : ($component === 'commission' ? 'transaction_value_percent' : 'per_order')) === $method)>{{ $methodLabel }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                @unless ($holdingCost)
+                                    <div>
+                                        <label class="field-label" for="trade_cost_{{ $component }}_applies_to">Charge side</label>
+                                        <select class="text-input" id="trade_cost_{{ $component }}_applies_to" name="trade_costs[{{ $component }}][applies_to]">
+                                            @if ($component === 'transaction_tax')
+                                                <option value="" @selected(old("trade_costs.{$component}.applies_to") === null)>Choose applicable side</option>
+                                            @endif
+                                            <option value="both" @selected(old("trade_costs.{$component}.applies_to", $component === 'transaction_tax' ? '' : 'both') === 'both')>Entry and exit</option>
+                                            <option value="entry" @selected(old("trade_costs.{$component}.applies_to") === 'entry')>Entry only</option>
+                                            <option value="exit" @selected(old("trade_costs.{$component}.applies_to") === 'exit')>Exit only</option>
+                                        </select>
+                                    </div>
+                                @endunless
+                                <div>
+                                    <label class="field-label" for="trade_cost_{{ $component }}_rate">{{ $holdingCost ? 'Rate (% per 24 hours)' : 'Rate' }}</label>
+                                    <input class="text-input" id="trade_cost_{{ $component }}_rate" name="trade_costs[{{ $component }}][rate]" type="number" min="0" step="any" value="{{ old($rateField, '0') }}">
+                                    <small class="field-hint">{{ $holdingCost ? 'Uses entry-fill notional × elapsed 24-hour periods; charged on exit. No calendar-day or jurisdictional assumptions.' : 'Percentage rates use executed transaction value. Per-quantity rates use the selected pair’s stored unit (units, lots, or contracts); fixed amounts use the account currency.' }}</small>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
             <div class="form-actions test-submit"><span>Make sure price data is available for the selected pair and date range.</span><button class="button button-primary" type="submit">Run backtest <span>→</span></button></div>
         </form>
     @endif
@@ -228,5 +291,20 @@
         };
         setOptionalInputs(slippageToggle, ['slippage_pips', 'slippage_pip_size']);
         setOptionalInputs(partialFillToggle, ['partial_fill_ratio', 'unfilled_order_policy']);
+        const tradeCostsToggle = document.getElementById('trade_costs_enabled');
+        const tradeCostToggles = [...document.querySelectorAll('.trade-cost-toggle')];
+        const updateTradeCostFields = () => {
+            for (const toggle of tradeCostToggles) {
+                const fields = document.getElementById(toggle.id.replace('_enabled', '_fields'));
+                fields.hidden = !tradeCostsToggle.checked || !toggle.checked;
+                for (const input of fields.querySelectorAll('input, select')) {
+                    input.disabled = fields.hidden;
+                }
+                toggle.disabled = !tradeCostsToggle.checked;
+            }
+        };
+        tradeCostsToggle.addEventListener('change', updateTradeCostFields);
+        tradeCostToggles.forEach((toggle) => toggle.addEventListener('change', updateTradeCostFields));
+        updateTradeCostFields();
     </script>
 @endsection

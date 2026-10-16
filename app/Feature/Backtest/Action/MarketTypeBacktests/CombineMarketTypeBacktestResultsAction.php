@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Feature\Backtest\Action\MarketTypeBacktests;
 
+use App\Feature\Backtest\Config\TradeCostConfig;
 use App\Feature\Backtest\Config\UnfilledOrderPolicy;
 use App\Feature\Backtest\Data\MarketTypeBacktests\PortfolioManagedOrder;
 use App\Feature\Backtest\Model\MarketTypeBacktestPairRun;
@@ -103,6 +104,7 @@ class CombineMarketTypeBacktestResultsAction
                 $initialCapital,
                 $managedPortfolioOrders,
                 UnfilledOrderPolicy::from($run->configuration['unfilled_order_policy'] ?? UnfilledOrderPolicy::Keep->value),
+                $this->perOrderCostComponents($run->configuration['trade_costs'] ?? []),
             )
             : $this->portfolioCapital->applySeparateCapitalTimeline($initialCapital, $managedPortfolioOrders);
         $orders = $managedPortfolio->orders
@@ -129,10 +131,34 @@ class CombineMarketTypeBacktestResultsAction
                 'partial_fill_enabled' => filter_var($run->configuration['partial_fill_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'partial_fill_ratio' => (float) ($run->configuration['partial_fill_ratio'] ?? 1),
                 'unfilled_order_policy' => $run->configuration['unfilled_order_policy'] ?? UnfilledOrderPolicy::Keep->value,
+                'trade_costs' => TradeCostConfig::fromArray($run->configuration['trade_costs'] ?? [])->toArray(),
             ],
             'ending_capital' => $capital,
             'results' => $results,
             'order_history' => $orders,
         ];
+    }
+
+    /** @return list<string> */
+    private function perOrderCostComponents(mixed $costConfiguration): array
+    {
+        if (! is_array($costConfiguration)) {
+            return [];
+        }
+        $components = $costConfiguration['components'] ?? $costConfiguration;
+        if (! is_array($components)) {
+            return [];
+        }
+
+        $perOrder = [];
+        foreach ($components as $name => $component) {
+            if (is_string($name) && is_array($component)
+                && filter_var($component['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)
+                && ($component['method'] ?? null) === 'per_order') {
+                $perOrder[] = $name;
+            }
+        }
+
+        return $perOrder;
     }
 }

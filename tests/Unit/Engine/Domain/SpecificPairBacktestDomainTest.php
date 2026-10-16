@@ -6,6 +6,8 @@ use App\Feature\Backtest\Action\RunSpecificPairBacktestAction;
 use App\Feature\Backtest\Config\FixedSlippageConfig;
 use App\Feature\Backtest\Config\PartialFillConfig;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
+use App\Feature\Backtest\Config\TradeCostComponentConfig;
+use App\Feature\Backtest\Config\TradeCostConfig;
 use App\Feature\Backtest\Config\UnfilledOrderPolicy;
 use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
 use App\Feature\MarketPairs\Data\MarketPairMarketData;
@@ -31,6 +33,161 @@ class SpecificPairBacktestDomainTest extends TestCase
         Mockery::close();
 
         parent::tearDown();
+    }
+
+    public function test_trade_costs_are_applied_to_entry_exit_and_holding_events(): void
+    {
+        $pair = new MarketPair(['quantity_unit' => 'units']);
+        $pair->setRelation('prices', new EloquentCollection([
+            $this->candle('2026-10-09 09:00:00', ['open' => 100, 'ask_open' => 100]),
+            $this->candle('2026-10-10 09:00:00', [
+                'open' => 110,
+                'high' => 115,
+                'low' => 105,
+                'close' => 110,
+                'bid_close' => 110,
+            ]),
+        ]));
+        $repository = Mockery::mock(MarketPairRepository::class);
+        $repository->shouldReceive('findWithPricesBetween')->twice()->andReturn($this->marketData($pair));
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->twice()->andReturn(Vec::fromArray([
+            new StrategyDecision(StrategySignal::Long, 90, 120, 10),
+            new StrategyDecision(StrategySignal::Close, null, null),
+        ]));
+
+        $config = new SpecificPairTestConfig(
+            'EUR',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-10 23:59:59'),
+            false,
+            false,
+            tradeCosts: new TradeCostConfig(
+                enabled: true,
+                components: [
+                    'commission' => new TradeCostComponentConfig(true, 'transaction_value_percent', 1),
+                    'exchange_fee' => new TradeCostComponentConfig(true, 'per_order', 2),
+                    'financing_fee' => new TradeCostComponentConfig(true, 'daily_notional_percent', 1),
+                ],
+            ),
+        );
+
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
+        $order = $results->orders->at(0);
+
+        $this->assertEqualsWithDelta(100.0, $order->grossRealizedProfitLoss, 0.000001);
+        $this->assertEqualsWithDelta(65.0, $order->realizedProfitLoss, 0.000001);
+        $this->assertEqualsWithDelta(10065.0, $results->endingCapital, 0.000001);
+        $this->assertEqualsWithDelta(21.0, $order->tradeCostTotals['commission'], 0.000001);
+        $this->assertEqualsWithDelta(4.0, $order->tradeCostTotals['exchange_fee'], 0.000001);
+        $this->assertEqualsWithDelta(10.0, $order->tradeCostTotals['financing_fee'], 0.000001);
+        $this->assertEqualsWithDelta(77.0, $order->exitFills->at(0)->profitLoss, 0.000001);
+        $this->assertEqualsWithDelta(12.0, array_sum($order->entryFills->at(0)->tradeCosts), 0.000001);
+
+        $disabledConfig = new SpecificPairTestConfig(
+            'EUR',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-10 23:59:59'),
+            false,
+            false,
+            tradeCosts: new TradeCostConfig(enabled: false, components: $config->tradeCosts->components()),
+        );
+        $disabledOrder = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))
+            ->execute($disabledConfig)->orders->at(0);
+        $this->assertEqualsWithDelta(100.0, $disabledOrder->realizedProfitLoss, 0.000001);
+        $this->assertSame(0.0, array_sum($disabledOrder->tradeCostTotals));
+    }
+
+    public function test_borrow_fees_are_charged_for_short_positions_only(): void
+    {
+        $pair = new MarketPair(['quantity_unit' => 'units']);
+        $pair->setRelation('prices', new EloquentCollection([
+            $this->candle('2026-10-09 09:00:00', ['open' => 100, 'bid_open' => 100]),
+            $this->candle('2026-10-10 09:00:00', [
+                'open' => 90,
+                'high' => 95,
+                'low' => 85,
+                'close' => 90,
+                'ask_close' => 90,
+            ]),
+        ]));
+        $repository = Mockery::mock(MarketPairRepository::class);
+        $repository->shouldReceive('findWithPricesBetween')->once()->andReturn($this->marketData($pair));
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->once()->andReturn(Vec::fromArray([
+            new StrategyDecision(StrategySignal::Short, 110, 80, 10),
+            new StrategyDecision(StrategySignal::Close, null, null),
+        ]));
+        $config = new SpecificPairTestConfig(
+            'ABC',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-10 23:59:59'),
+            false,
+            false,
+            tradeCosts: new TradeCostConfig(
+                enabled: true,
+                components: [
+                    'borrow_fee' => new TradeCostComponentConfig(true, 'daily_notional_percent', 1),
+                ],
+            ),
+        );
+
+        $order = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))
+            ->execute($config)->orders->at(0);
+
+        $this->assertEqualsWithDelta(100.0, $order->grossRealizedProfitLoss, 0.000001);
+        $this->assertEqualsWithDelta(10.0, $order->tradeCostTotals['borrow_fee'], 0.000001);
+        $this->assertEqualsWithDelta(90.0, $order->realizedProfitLoss, 0.000001);
+    }
+
+    public function test_per_quantity_and_transaction_value_fees_use_contract_size_without_currency_conversion(): void
+    {
+        $pair = new MarketPair(['quantity_unit' => 'contract', 'contract_size' => '10.00000000']);
+        $pair->setRelation('prices', new EloquentCollection([
+            $this->candle('2026-10-09 09:00:00', ['open' => 100, 'ask_open' => 100]),
+            $this->candle('2026-10-09 10:00:00', [
+                'open' => 110,
+                'high' => 115,
+                'low' => 105,
+                'close' => 110,
+                'bid_close' => 110,
+            ]),
+        ]));
+        $repository = Mockery::mock(MarketPairRepository::class);
+        $repository->shouldReceive('findWithPricesBetween')->once()->andReturn($this->marketData($pair));
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->once()->andReturn(Vec::fromArray([
+            new StrategyDecision(StrategySignal::Long, 90, 120, 2),
+            new StrategyDecision(StrategySignal::Close, null, null),
+        ]));
+        $config = new SpecificPairTestConfig(
+            'ABC',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-09 23:59:59'),
+            false,
+            false,
+            tradeCosts: new TradeCostConfig(
+                enabled: true,
+                components: [
+                    'commission' => new TradeCostComponentConfig(true, 'per_quantity', 0.5),
+                    'exchange_fee' => new TradeCostComponentConfig(true, 'transaction_value_percent', 0.1),
+                    'transaction_tax' => new TradeCostComponentConfig(true, 'transaction_value_percent', 1, 'exit'),
+                ],
+            ),
+        );
+
+        $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
+        $order = $results->orders->at(0);
+
+        $this->assertEqualsWithDelta(200.0, $order->grossRealizedProfitLoss, 0.000001);
+        $this->assertEqualsWithDelta(2.0, $order->tradeCostTotals['commission'], 0.000001);
+        $this->assertEqualsWithDelta(4.2, $order->tradeCostTotals['exchange_fee'], 0.000001);
+        $this->assertEqualsWithDelta(22.0, $order->tradeCostTotals['transaction_tax'], 0.000001);
+        $this->assertEqualsWithDelta(171.8, $order->realizedProfitLoss, 0.000001);
     }
 
     public function test_manual_contract_size_calculates_position_risk_and_pnl_from_filled_quantity(): void
@@ -600,7 +757,7 @@ class SpecificPairBacktestDomainTest extends TestCase
         $this->assertSame('stop_loss', $order->closeReason);
     }
 
-    public function test_it_retries_entry_and_exit_fills_and_calculates_weighted_prices_and_realized_pnl(): void
+    public function test_it_retries_entry_and_exit_fills_and_charges_per_order_commission_once_per_side(): void
     {
         $pair = new MarketPair;
         $pair->setRelation('prices', new EloquentCollection([
@@ -640,6 +797,12 @@ class SpecificPairBacktestDomainTest extends TestCase
             false,
             false,
             partialFill: new PartialFillConfig(enabled: true, ratio: 0.5),
+            tradeCosts: new TradeCostConfig(
+                enabled: true,
+                components: [
+                    'commission' => new TradeCostComponentConfig(true, 'per_order', 2),
+                ],
+            ),
         );
 
         $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))->execute($config);
@@ -652,8 +815,9 @@ class SpecificPairBacktestDomainTest extends TestCase
         $this->assertEqualsWithDelta(100, $order->requestedRiskAmount, 0.000001);
         $this->assertEqualsWithDelta(1000, $order->closedPositionSize, 0.000001);
         $this->assertEqualsWithDelta(1.0, $order->closePrice, 0.000001);
-        $this->assertEqualsWithDelta(-110, $order->profitLoss, 0.000001);
-        $this->assertEqualsWithDelta(9890, $results->endingCapital, 0.000001);
+        $this->assertEqualsWithDelta(-114, $order->profitLoss, 0.000001);
+        $this->assertEqualsWithDelta(9886, $results->endingCapital, 0.000001);
+        $this->assertEqualsWithDelta(4, $order->tradeCostTotals['commission'], 0.000001);
         $this->assertCount(2, $order->entryFills);
         $this->assertCount(2, $order->exitFills);
     }

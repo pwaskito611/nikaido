@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Workbench\Actions\MarketTypeBacktests;
 
+use App\Feature\Backtest\Action\MarketTypeBacktests\CombineMarketTypeBacktestResultsAction;
 use App\Feature\Backtest\Model\MarketTypeBacktestPairRun;
 use App\Feature\Backtest\Model\MarketTypeBacktestRun;
-use App\Feature\Backtest\Action\MarketTypeBacktests\CombineMarketTypeBacktestResultsAction;
 use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioCapitalSynchronizationProcess;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -53,6 +53,10 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
                 'timeframe_name' => '1h',
                 'from' => '2026-10-10 00:00:00',
                 'to' => '2026-10-12 23:59:59',
+                'trade_costs' => [
+                    'enabled' => true,
+                    'commission' => ['enabled' => true, 'method' => 'per_order', 'rate' => 2],
+                ],
             ],
         ]);
         $pairRuns = [];
@@ -85,16 +89,25 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
                         'risk_amount' => 80.0,
                         'requested_risk_amount' => 80.0,
                         'cancelled_entry_quantity' => 0.0,
-                        'realized_profit_loss' => 50.0,
-                        'profit_loss' => 50.0,
+                        'gross_realized_profit_loss' => 50.0,
+                        'trade_costs' => ['commission' => 4.0],
+                        'realized_profit_loss' => 46.0,
+                        'profit_loss' => 46.0,
                         'capital_at_open' => 100.0,
-                        'capital_after_close' => 150.0,
-                        'entry_fills' => [['quantity' => 8.0, 'price' => 100.0, 'date' => '2026-10-10 10:00:00']],
+                        'capital_after_close' => 146.0,
+                        'entry_fills' => [[
+                            'quantity' => 8.0,
+                            'price' => 100.0,
+                            'date' => '2026-10-10 10:00:00',
+                            'trade_costs' => ['commission' => 2.0],
+                        ]],
                         'exit_fills' => [[
                             'quantity' => 8.0,
                             'price' => 105.0,
                             'date' => '2026-10-10 11:00:00',
-                            'profit_loss' => 50.0,
+                            'profit_loss' => 48.0,
+                            'gross_profit_loss' => 50.0,
+                            'trade_costs' => ['commission' => 2.0],
                         ]],
                     ]],
                 ],
@@ -105,11 +118,12 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
             ->execute($run, $pairRuns);
 
         $this->assertSame(100.0, $result['initial_capital']);
-        $this->assertSame(162.5, $result['ending_capital']);
-        $this->assertSame(0.625, $result['order_history'][0]['portfolio_allocation_factor']);
-        $this->assertSame(0.625, $result['order_history'][1]['portfolio_allocation_factor']);
-        $this->assertSame(5.0, $result['order_history'][0]['position_size']);
-        $this->assertSame(31.25, $result['order_history'][0]['profit_loss']);
+        $this->assertSame(152.0, $result['ending_capital']);
+        $this->assertSame(0.6, $result['order_history'][0]['portfolio_allocation_factor']);
+        $this->assertSame(0.6, $result['order_history'][1]['portfolio_allocation_factor']);
+        $this->assertSame(4.8, $result['order_history'][0]['position_size']);
+        $this->assertSame(26.0, $result['order_history'][0]['profit_loss']);
+        $this->assertSame(4.0, $result['order_history'][0]['trade_costs']['commission']);
     }
 
     public function test_separate_capital_mode_sums_each_pair_account_and_updates_aggregate_equity(): void

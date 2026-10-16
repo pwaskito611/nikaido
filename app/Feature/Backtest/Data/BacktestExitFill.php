@@ -19,6 +19,8 @@ final readonly class BacktestExitFill
         public string $reason,
         public float $profitLoss,
         public Option $capitalAfter,
+        public float $grossProfitLoss = 0.0,
+        public array $tradeCosts = [],
     ) {}
 
     public function withCapitalAfter(float $capital): self
@@ -31,10 +33,12 @@ final readonly class BacktestExitFill
             $this->reason,
             $this->profitLoss,
             Option::some($capital),
+            $this->grossProfitLoss,
+            $this->tradeCosts,
         );
     }
 
-    /** @return array{quantity: float, price: float, date: string, source: string, reason: string, profit_loss: float, capital_after?: float} */
+    /** @return array<string, mixed> */
     public function toArray(): array
     {
         return [
@@ -44,6 +48,10 @@ final readonly class BacktestExitFill
             'source' => $this->source,
             'reason' => $this->reason,
             'profit_loss' => $this->profitLoss,
+            ...($this->tradeCosts === [] ? [] : [
+                'gross_profit_loss' => $this->grossProfitLoss,
+                'trade_costs' => $this->tradeCosts,
+            ]),
             ...($this->capitalAfter->isSome()
                 ? ['capital_after' => $this->capitalAfter->getOrElse(0.0)]
                 : []),

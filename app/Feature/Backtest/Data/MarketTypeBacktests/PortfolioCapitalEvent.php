@@ -19,5 +19,6 @@ final readonly class PortfolioCapitalEvent
         public string $pair,
         public int $orderId,
         public int $sequence,
+        public bool $isEntryFill = false,
     ) {}
 }

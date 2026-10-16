@@ -66,6 +66,9 @@ class RunWorkbenchBacktestRequest extends FormRequest
             'partial_fill_enabled' => ['sometimes', 'boolean'],
             'partial_fill_ratio' => ['required_if:partial_fill_enabled,1', 'nullable', 'numeric', 'gt:0', 'lte:1'],
             'unfilled_order_policy' => ['sometimes', 'in:keep,cancel'],
+            'trade_costs' => ['sometimes', 'array'],
+            'trade_costs.enabled' => ['sometimes', 'boolean'],
+            ...$this->tradeCostRules(),
         ];
     }
 
@@ -79,6 +82,14 @@ class RunWorkbenchBacktestRequest extends FormRequest
                 $validator->errors()->add(
                     'active_from',
                     'Both active time boundaries must be false for a full-day schedule.',
+                );
+            }
+
+            if (filter_var($this->input('trade_costs.transaction_tax.enabled', false), FILTER_VALIDATE_BOOLEAN)
+                && ! in_array($this->input('trade_costs.transaction_tax.applies_to'), ['both', 'entry', 'exit'], true)) {
+                $validator->errors()->add(
+                    'trade_costs.transaction_tax.applies_to',
+                    'Choose whether the transaction tax applies to entry, exit, or both.',
                 );
             }
         });
@@ -104,5 +115,49 @@ class RunWorkbenchBacktestRequest extends FormRequest
                 $fail("The {$attribute} field must be a time in HH:MM format or false.");
             }
         };
+    }
+
+    /** @return array<string, array<int, mixed>> */
+    private function tradeCostRules(): array
+    {
+        $rules = [];
+        foreach ([
+            'commission', 'exchange_fee', 'clearing_fee', 'regulatory_fee', 'transaction_tax',
+        ] as $component) {
+            $prefix = "trade_costs.{$component}";
+            $rules["{$prefix}"] = ['sometimes', 'array'];
+            $rules["{$prefix}.enabled"] = ['sometimes', 'boolean'];
+            $rules["{$prefix}.applies_to"] = $component === 'transaction_tax'
+                ? ["required_if:{$prefix}.enabled,1", 'nullable', 'in:both,entry,exit']
+                : ['sometimes', 'in:both,entry,exit'];
+            $rules["{$prefix}.method"] = [
+                "required_if:{$prefix}.enabled,1",
+                'nullable',
+                'in:per_order,transaction_value_percent,per_quantity',
+            ];
+            $rules["{$prefix}.rate"] = [
+                "required_if:{$prefix}.enabled,1",
+                'nullable',
+                'numeric',
+                'gte:0',
+                'max:1000000000',
+            ];
+        }
+        foreach (['borrow_fee', 'financing_fee'] as $component) {
+            $prefix = "trade_costs.{$component}";
+            $rules["{$prefix}"] = ['sometimes', 'array'];
+            $rules["{$prefix}.enabled"] = ['sometimes', 'boolean'];
+            $rules["{$prefix}.applies_to"] = ['sometimes', 'in:both,entry,exit'];
+            $rules["{$prefix}.method"] = ["required_if:{$prefix}.enabled,1", 'nullable', 'in:daily_notional_percent'];
+            $rules["{$prefix}.rate"] = [
+                "required_if:{$prefix}.enabled,1",
+                'nullable',
+                'numeric',
+                'gte:0',
+                'max:1000000000',
+            ];
+        }
+
+        return $rules;
     }
 }

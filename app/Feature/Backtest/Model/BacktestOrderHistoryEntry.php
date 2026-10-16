@@ -7,9 +7,11 @@ namespace App\Feature\Backtest\Model;
 use App\Feature\Backtest\Data\BacktestEntryFill;
 use App\Feature\Backtest\Data\BacktestExitFill;
 use App\Feature\Backtest\Data\BacktestPriceObservation;
+use DateTimeImmutable;
 use Exact\Collection\Vec;
 use Exact\Type\Option\Option;
 use Gauss\Number\Number;
+use InvalidArgumentException;
 use JsonSerializable;
 
 class BacktestOrderHistoryEntry implements JsonSerializable
@@ -50,6 +52,17 @@ class BacktestOrderHistoryEntry implements JsonSerializable
 
     public float $realizedProfitLoss = 0.0;
 
+    public float $grossRealizedProfitLoss = 0.0;
+
+    /** @var array<string, float> */
+    public array $tradeCostTotals = [];
+
+    /** @var array<string, true> */
+    private array $chargedOrderCosts = [];
+
+    /** @var list<array{quantity: float, price: float, timestamp: int}> */
+    private array $entryLots = [];
+
     public ?string $pendingExitReason = null;
 
     public ?float $pendingExitRequestedQuantity = null;
@@ -84,6 +97,10 @@ class BacktestOrderHistoryEntry implements JsonSerializable
         $this->favorableExtreme = Option::none();
         $this->entryFills = Vec::empty();
         $this->exitFills = Vec::empty();
+        $this->tradeCostTotals = array_fill_keys([
+            'commission', 'exchange_fee', 'clearing_fee', 'regulatory_fee',
+            'transaction_tax', 'borrow_fee', 'financing_fee',
+        ], 0.0);
     }
 
     public function recordEntryFill(float $quantity, float $price, string $date, string $source): void
@@ -106,18 +123,34 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             ->mul($this->pnlMultiplier)
             ->value();
         $this->remainingEntryQuantity = max(0.0, $this->remainingEntryQuantity - $quantity);
+        $this->entryLots[] = [
+            'quantity' => $quantity,
+            'price' => $price,
+            'timestamp' => $this->timestamp($date),
+        ];
         $this->entryFills = $this->entryFills->append(new BacktestEntryFill($quantity, $price, $date, $source));
     }
 
-    public function recordExitFill(float $quantity, float $price, string $date, string $source, string $reason): float
-    {
+    /** @param array<string, float> $tradeCosts */
+    public function recordExitFill(
+        float $quantity,
+        float $price,
+        string $date,
+        string $source,
+        string $reason,
+        array $tradeCosts = [],
+    ): float {
         $quantity = min($quantity, $this->remainingPositionSize);
         $isLong = $this->signal === 'long';
         $priceMove = $isLong
             ? Number::of($price)->sub($this->entryPrice)
             : Number::of($this->entryPrice)->sub($price);
         $fillProfitLoss = (float) $priceMove->mul($quantity)->mul($this->pnlMultiplier)->value();
-        $this->realizedProfitLoss += $fillProfitLoss;
+        $totalCosts = array_sum($tradeCosts);
+        $netProfitLoss = $fillProfitLoss - $totalCosts;
+        $this->grossRealizedProfitLoss += $fillProfitLoss;
+        $this->realizedProfitLoss += $netProfitLoss;
+        $this->addTradeCosts($tradeCosts);
         $this->remainingPositionSize = max(0.0, $this->remainingPositionSize - $quantity);
         $this->closedPositionSize += $quantity;
         $this->exitFills = $this->exitFills->append(new BacktestExitFill(
@@ -126,8 +159,10 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             $date,
             $source,
             $reason,
-            $fillProfitLoss,
+            $netProfitLoss,
             Option::none(),
+            $fillProfitLoss,
+            array_filter($tradeCosts, static fn (float $cost): bool => $cost > 0),
         ));
         $this->closePrice = $this->closedPositionSize === $quantity
             ? $price
@@ -137,7 +172,90 @@ class BacktestOrderHistoryEntry implements JsonSerializable
                 ->div($this->closedPositionSize)
                 ->value();
 
-        return $fillProfitLoss;
+        return $netProfitLoss;
+    }
+
+    /** @param array<string, float> $tradeCosts */
+    public function recordEntryTradeCosts(array $tradeCosts): void
+    {
+        $totalCosts = array_sum($tradeCosts);
+        $this->realizedProfitLoss -= $totalCosts;
+        $this->addTradeCosts($tradeCosts);
+        if ($totalCosts <= 0) {
+            return;
+        }
+
+        $lastIndex = $this->entryFills->count() - 1;
+        $fill = $this->entryFills->at($lastIndex);
+        $updatedFill = new BacktestEntryFill(
+            $fill->quantity,
+            $fill->price,
+            $fill->date,
+            $fill->source,
+            array_filter($tradeCosts, static fn (float $cost): bool => $cost > 0),
+        );
+        $this->entryFills = $this->entryFills->slice(0, $lastIndex)->concat(Vec::of($updatedFill));
+    }
+
+    public function orderCostAlreadyCharged(string $component, string $side): bool
+    {
+        return isset($this->chargedOrderCosts["{$component}:{$side}"]);
+    }
+
+    public function markOrderCostCharged(string $component, string $side): void
+    {
+        $this->chargedOrderCosts["{$component}:{$side}"] = true;
+    }
+
+    public function consumeEntryNotionalDays(float $quantity, string $exitDate): float
+    {
+        $remaining = min($quantity, $this->remainingPositionSize);
+        $exitTimestamp = $this->timestamp($exitDate);
+        $notionalDaysInSeconds = 0.0;
+
+        foreach ($this->entryLots as $index => $lot) {
+            if ($remaining <= 0) {
+                break;
+            }
+            $consumed = min($remaining, $lot['quantity']);
+            $durationSeconds = $exitTimestamp - $lot['timestamp'];
+            if ($durationSeconds < 0) {
+                throw new InvalidArgumentException('An exit fill cannot precede its entry fill.');
+            }
+            $notionalDaysInSeconds += $consumed * $lot['price'] * $this->pnlMultiplier * $durationSeconds;
+            $remaining -= $consumed;
+            $lot['quantity'] -= $consumed;
+            if ($lot['quantity'] <= 0.000000000001) {
+                unset($this->entryLots[$index]);
+            } else {
+                $this->entryLots[$index] = $lot;
+            }
+        }
+        if ($remaining > 0.000000000001) {
+            throw new InvalidArgumentException('Exit quantity exceeds the remaining entry fill quantities.');
+        }
+
+        return $notionalDaysInSeconds / 86400;
+    }
+
+    /** @param array<string, float> $tradeCosts */
+    private function addTradeCosts(array $tradeCosts): void
+    {
+        foreach ($tradeCosts as $component => $cost) {
+            if (! array_key_exists($component, $this->tradeCostTotals) || ! is_finite($cost) || $cost < 0) {
+                throw new InvalidArgumentException("Invalid trade cost for component {$component}.");
+            }
+            $this->tradeCostTotals[$component] += $cost;
+        }
+    }
+
+    private function timestamp(string $date): int
+    {
+        try {
+            return (new DateTimeImmutable($date))->getTimestamp();
+        } catch (\Exception $exception) {
+            throw new InvalidArgumentException('Trade-cost calculation requires valid fill timestamps.', previous: $exception);
+        }
     }
 
     public function recordExitCapitalAfter(float $capital): void
@@ -178,8 +296,10 @@ class BacktestOrderHistoryEntry implements JsonSerializable
      *     closed_position_size: float,
      *     cancelled_entry_quantity: float,
      *     cancelled_exit_quantity: float,
-     *     entry_fills: list<array{quantity: float, price: float, date: string, source: string}>,
-     *     exit_fills: list<array{quantity: float, price: float, date: string, source: string, reason: string, profit_loss: float, capital_after?: float}>,
+     *     entry_fills: list<array<string, mixed>>,
+     *     exit_fills: list<array<string, mixed>>,
+     *     trade_costs: array<string, float>,
+     *     gross_realized_profit_loss: float,
      *     realized_profit_loss: float,
      *     profit_loss: ?float,
      *     capital_after_close: ?float
@@ -230,6 +350,8 @@ class BacktestOrderHistoryEntry implements JsonSerializable
                 ->map(static fn (BacktestExitFill $fill): array => $fill->toArray())
                 ->toArray(),
             'realized_profit_loss' => $this->realizedProfitLoss,
+            'gross_realized_profit_loss' => $this->grossRealizedProfitLoss,
+            'trade_costs' => $this->tradeCostTotals,
             'capital_at_open' => $this->capitalAtOpen,
             'profit_loss' => $this->profitLoss,
             'capital_after_close' => $this->capitalAfterClose,

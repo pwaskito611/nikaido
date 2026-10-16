@@ -11,9 +11,10 @@ final readonly class BacktestEntryFill
         public float $price,
         public string $date,
         public string $source,
+        public array $tradeCosts = [],
     ) {}
 
-    /** @return array{quantity: float, price: float, date: string, source: string} */
+    /** @return array<string, mixed> */
     public function toArray(): array
     {
         return [
@@ -21,6 +22,7 @@ final readonly class BacktestEntryFill
             'price' => $this->price,
             'date' => $this->date,
             'source' => $this->source,
+            ...($this->tradeCosts === [] ? [] : ['trade_costs' => $this->tradeCosts]),
         ];
     }
 }

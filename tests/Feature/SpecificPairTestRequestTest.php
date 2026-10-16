@@ -53,6 +53,14 @@ class SpecificPairTestRequestTest extends TestCase
             'partial_fill_enabled' => true,
             'partial_fill_ratio' => 0.4,
             'unfilled_order_policy' => 'cancel',
+            'trade_costs' => [
+                'enabled' => true,
+                'commission' => [
+                    'enabled' => true,
+                    'method' => 'transaction_value_percent',
+                    'rate' => 0.25,
+                ],
+            ],
         ])
             ->assertOk()
             ->assertJsonCount(1, 'data')
@@ -69,6 +77,9 @@ class SpecificPairTestRequestTest extends TestCase
             ->assertJsonPath('execution_config.partial_fill_enabled', true)
             ->assertJsonPath('execution_config.partial_fill_ratio', 0.4)
             ->assertJsonPath('execution_config.unfilled_order_policy', 'cancel')
+            ->assertJsonPath('execution_config.trade_costs.enabled', true)
+            ->assertJsonPath('execution_config.trade_costs.components.commission.enabled', true)
+            ->assertJsonPath('execution_config.trade_costs.components.commission.rate', 0.25)
             ->assertJsonPath('order_history', []);
     }
 
@@ -102,6 +113,37 @@ class SpecificPairTestRequestTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['slippage_pips', 'partial_fill_ratio']);
+    }
+
+    public function test_it_rejects_unsupported_trade_cost_methods_and_negative_rates(): void
+    {
+        $this->postJson('/api/engine/specific-pair-test', [
+            'base' => 'EUR',
+            'quote' => 'USD',
+            'from' => '2026-10-09 00:00:00',
+            'to' => '2026-10-09 23:59:59',
+            'active_from' => false,
+            'active_until' => false,
+            'trade_costs' => [
+                'enabled' => true,
+                'commission' => [
+                    'enabled' => true,
+                    'method' => 'round_trip_guess',
+                    'rate' => -0.25,
+                ],
+                'transaction_tax' => [
+                    'enabled' => true,
+                    'method' => 'transaction_value_percent',
+                    'rate' => 0.2,
+                ],
+            ],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'trade_costs.commission.method',
+                'trade_costs.commission.rate',
+                'trade_costs.transaction_tax.applies_to',
+            ]);
     }
 
     public function test_it_accepts_false_for_both_active_time_boundaries(): void

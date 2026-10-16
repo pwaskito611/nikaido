@@ -8,13 +8,13 @@ use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Config\UnfilledOrderPolicy;
 use App\Feature\Backtest\Data\BacktestDecision;
 use App\Feature\Backtest\Data\BacktestExecutionConfiguration;
+use App\Feature\Backtest\Data\BacktestOrderHistoryEntry;
 use App\Feature\Backtest\Data\BacktestPriceObservation;
 use App\Feature\Backtest\Data\SpecificPairBacktestResult;
 use App\Feature\Backtest\Data\StressTestPriceSource;
 use App\Feature\Backtest\Data\StressTestTimestamp;
 use App\Feature\Backtest\Execution\FixedSlippage;
 use App\Feature\Backtest\Execution\PartialFill;
-use App\Feature\Backtest\Model\BacktestOrderHistoryEntry;
 use App\Feature\MarketPairs\Data\MarketPairMarketData;
 use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Platform\Strategy\Enums\StrategySignal;
@@ -28,6 +28,7 @@ use Exact\Type\Tuple\Pair;
 use Gauss\Number\Number;
 use Iterator;
 use IteratorIterator;
+use LogicException;
 use Traversable;
 use UnexpectedValueException;
 
@@ -137,7 +138,7 @@ class SpecificPairBacktestProcess
                 $this->updateClosestToTakeProfit($order, $candle);
                 $this->updateExcursionExtremes($order, $candle);
 
-                $closeReason = $order->pendingExitReason ?? (
+                $closeReason = $order->pendingExitReason->getOrElse(null) ?? (
                     $order->remainingPositionSize > 0
                         ? $this->getPriceExitReason($order, $candle)
                         : null
@@ -150,8 +151,9 @@ class SpecificPairBacktestProcess
                 if ($closeReason !== null) {
                     $order->cancelledEntryQuantity += $order->remainingEntryQuantity;
                     $order->remainingEntryQuantity = 0.0;
-                    $order->pendingExitReason ??= $closeReason;
-                    $order->pendingExitRequestedQuantity ??= $order->remainingPositionSize;
+                    $order->pendingExitReason = $order->pendingExitReason->orElse(Option::some($closeReason));
+                    $order->pendingExitRequestedQuantity = $order->pendingExitRequestedQuantity
+                        ->orElse(Option::some($order->remainingPositionSize));
                     $close = $this->closePrice($order, $candle, $closeReason);
                     $referencePrice = $close->first()->getOrNull();
                     $priceSource = $close->second();
@@ -165,7 +167,9 @@ class SpecificPairBacktestProcess
                     );
                     $fillRatio = $config->partialFill->enabled ? $config->partialFill->ratio : 1.0;
                     $fillQuantity = $this->partialFill->quantity(
-                        $order->pendingExitRequestedQuantity,
+                        $order->pendingExitRequestedQuantity->getOrElseThrow(
+                            new LogicException('An exit request must retain its requested quantity while filling.'),
+                        ),
                         $order->remainingPositionSize,
                         $fillRatio,
                     );
@@ -201,14 +205,21 @@ class SpecificPairBacktestProcess
                     if ($order->remainingPositionSize <= 0.000000000001) {
                         $order->remainingPositionSize = 0.0;
                         $order->closeDate = $candle->price_date->format('Y-m-d H:i:s');
-                        $order->closeReason = $order->pendingExitReason;
+                        $order->closeReason = $order->pendingExitReason->getOrElseThrow(
+                            new LogicException('A closed order must retain its exit reason.'),
+                        );
                         $order->profitLoss = $order->realizedProfitLoss;
                         $order->capitalAfterClose = $currentCapital;
                         $openOrderIndex = null;
                     } elseif ($config->partialFill->unfilledOrderPolicy === UnfilledOrderPolicy::Cancel) {
-                        $order->cancelledExitQuantity += max(0.0, $order->pendingExitRequestedQuantity - $fillQuantity);
-                        $order->pendingExitReason = null;
-                        $order->pendingExitRequestedQuantity = null;
+                        $order->cancelledExitQuantity += max(
+                            0.0,
+                            $order->pendingExitRequestedQuantity->getOrElseThrow(
+                                new LogicException('A cancelled exit must retain its requested quantity.'),
+                            ) - $fillQuantity,
+                        );
+                        $order->pendingExitReason = Option::none();
+                        $order->pendingExitRequestedQuantity = Option::none();
                     }
                 }
             }
@@ -404,7 +415,7 @@ class SpecificPairBacktestProcess
                     StressTestTimestamp::fromPersistedValue(
                         $candle->price_date->format('Y-m-d H:i:s'),
                         'backtest observation date',
-                    )->getOrElseThrow(new \LogicException('A valid candle timestamp was expected.')),
+                    )->getOrElseThrow(new LogicException('A valid candle timestamp was expected.')),
                     $priceSource,
                     Option::some($distance),
                 ));
@@ -447,7 +458,7 @@ class SpecificPairBacktestProcess
                     StressTestTimestamp::fromPersistedValue(
                         $candle->price_date->format('Y-m-d H:i:s'),
                         'backtest observation date',
-                    )->getOrElseThrow(new \LogicException('A valid candle timestamp was expected.')),
+                    )->getOrElseThrow(new LogicException('A valid candle timestamp was expected.')),
                     $priceSource,
                     Option::some($distance),
                 ));
@@ -489,7 +500,7 @@ class SpecificPairBacktestProcess
             $order->adverseExtreme = Option::some(new BacktestPriceObservation(
                 $adverse,
                 StressTestTimestamp::fromPersistedValue($timestamp, 'backtest observation date')
-                    ->getOrElseThrow(new \LogicException('A valid candle timestamp was expected.')),
+                    ->getOrElseThrow(new LogicException('A valid candle timestamp was expected.')),
                 $priceSource,
                 Option::none(),
             ));
@@ -507,7 +518,7 @@ class SpecificPairBacktestProcess
             $order->favorableExtreme = Option::some(new BacktestPriceObservation(
                 $favorable,
                 StressTestTimestamp::fromPersistedValue($timestamp, 'backtest observation date')
-                    ->getOrElseThrow(new \LogicException('A valid candle timestamp was expected.')),
+                    ->getOrElseThrow(new LogicException('A valid candle timestamp was expected.')),
                 $priceSource,
                 Option::none(),
             ));

@@ -2,14 +2,12 @@
 
 declare(strict_types=1);
 
-namespace App\Feature\Backtest\Model;
+namespace App\Feature\Backtest\Data;
 
 use App\Feature\Backtest\Data\Analysis\BacktestAnalysisDecision;
 use App\Feature\Backtest\Data\Analysis\BacktestAnalysisOrder;
 use App\Feature\Backtest\Data\Analysis\BacktestCapitalChart;
 use App\Feature\Backtest\Data\Analysis\BacktestClusterSummary;
-use App\Feature\Backtest\Data\FluctuationStressTestResult;
-use App\Feature\Backtest\Data\MonteCarloSimulationResult;
 use Exact\Collection\Vec;
 use Exact\Type\Option\Option;
 

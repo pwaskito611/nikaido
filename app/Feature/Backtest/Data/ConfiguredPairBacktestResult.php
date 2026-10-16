@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Feature\Backtest\Data;
 
-use App\Feature\Backtest\Model\BacktestOrderHistoryEntry;
 use DateTimeInterface;
 
 final readonly class ConfiguredPairBacktestResult

@@ -2,11 +2,8 @@
 
 declare(strict_types=1);
 
-namespace App\Feature\Backtest\Model;
+namespace App\Feature\Backtest\Data;
 
-use App\Feature\Backtest\Data\BacktestEntryFill;
-use App\Feature\Backtest\Data\BacktestExitFill;
-use App\Feature\Backtest\Data\BacktestPriceObservation;
 use DateTimeImmutable;
 use Exact\Collection\Vec;
 use Exact\Type\Option\Option;
@@ -63,9 +60,11 @@ class BacktestOrderHistoryEntry implements JsonSerializable
     /** @var list<array{quantity: float, price: float, timestamp: int}> */
     private array $entryLots = [];
 
-    public ?string $pendingExitReason = null;
+    /** @var Option<string> */
+    public Option $pendingExitReason;
 
-    public ?float $pendingExitRequestedQuantity = null;
+    /** @var Option<float> */
+    public Option $pendingExitRequestedQuantity;
 
     /** @var Vec<BacktestEntryFill> */
     public Vec $entryFills;
@@ -95,6 +94,8 @@ class BacktestOrderHistoryEntry implements JsonSerializable
         $this->closestToTakeProfit = Option::none();
         $this->adverseExtreme = Option::none();
         $this->favorableExtreme = Option::none();
+        $this->pendingExitReason = Option::none();
+        $this->pendingExitRequestedQuantity = Option::none();
         $this->entryFills = Vec::empty();
         $this->exitFills = Vec::empty();
         $this->tradeCostTotals = array_fill_keys([

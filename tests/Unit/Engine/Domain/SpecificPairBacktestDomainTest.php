@@ -9,7 +9,7 @@ use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Config\TradeCostComponentConfig;
 use App\Feature\Backtest\Config\TradeCostConfig;
 use App\Feature\Backtest\Config\UnfilledOrderPolicy;
-use App\Feature\Backtest\Model\BacktestOrderHistoryEntry;
+use App\Feature\Backtest\Data\BacktestOrderHistoryEntry;
 use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
 use App\Feature\Backtest\Process\TradeCostCalculator;
 use App\Feature\MarketPairs\Data\MarketPairMarketData;

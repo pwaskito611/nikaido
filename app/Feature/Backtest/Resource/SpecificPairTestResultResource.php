@@ -27,6 +27,8 @@ class SpecificPairTestResultResource extends JsonResource
             'quantity_unit' => $decision->quantityUnit,
             'stop_loss' => $decision->stopLoss->getOrNull(),
             'take_profit' => $decision->takeProfit->getOrNull(),
+            'entry_order_status' => $decision->entryOrderStatus,
+            'entry_limit_price' => $decision->entryLimitPrice,
         ];
     }
 }

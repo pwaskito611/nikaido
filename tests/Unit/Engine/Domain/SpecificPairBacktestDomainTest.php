@@ -10,6 +10,7 @@ use App\Feature\Backtest\Config\TradeCostComponentConfig;
 use App\Feature\Backtest\Config\TradeCostConfig;
 use App\Feature\Backtest\Config\UnfilledOrderPolicy;
 use App\Feature\Backtest\Data\BacktestOrderHistoryEntry;
+use App\Feature\Backtest\Data\SpecificPairBacktestResult;
 use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
 use App\Feature\Backtest\Process\TradeCostCalculator;
 use App\Feature\MarketPairs\Data\MarketPairMarketData;
@@ -1023,6 +1024,159 @@ class SpecificPairBacktestDomainTest extends TestCase
         $this->assertEqualsWithDelta(9950, $results->endingCapital, 0.000001);
     }
 
+    public function test_buy_limit_waits_for_a_later_candle_and_fills_at_the_limit(): void
+    {
+        $result = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['open' => 100, 'ask_low' => 98]),
+                $this->candle('2026-10-09 10:00:00', ['open' => 100, 'ask_low' => 98, 'ask_high' => 102]),
+                $this->candle('2026-10-09 11:00:00', ['open' => 100, 'close' => 100]),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Long, 95, 110, 1, limitPrice: 99),
+                new StrategyDecision(StrategySignal::None, null, null),
+                new StrategyDecision(StrategySignal::Close, null, null),
+            ],
+        );
+
+        $order = $result->orders->at(0);
+        $this->assertSame('2026-10-09 10:00:00', $order->openDate);
+        $this->assertSame(99.0, $order->entryPrice);
+        $this->assertSame('ask_low', $order->entryPriceSource);
+        $this->assertSame(99.0, $order->requestedEntryPrice);
+        $this->assertSame('filled', $result->decisions->at(0)->entryOrderStatus);
+        $this->assertSame(99.0, $result->decisions->at(0)->entryLimitPrice);
+    }
+
+    public function test_sell_limit_fills_when_bid_high_reaches_its_limit(): void
+    {
+        $result = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['open' => 100]),
+                $this->candle('2026-10-09 10:00:00', ['open' => 100, 'bid_high' => 102]),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Short, 105, 90, 1, limitPrice: 101),
+                new StrategyDecision(StrategySignal::None, null, null),
+            ],
+        );
+
+        $order = $result->orders->at(0);
+        $this->assertSame(StrategySignal::Short->value, $order->signal);
+        $this->assertSame(101.0, $order->entryPrice);
+        $this->assertSame('bid_high', $order->entryPriceSource);
+        $this->assertSame('filled', $result->decisions->at(0)->entryOrderStatus);
+    }
+
+    public function test_unfilled_limit_remains_pending_and_does_not_create_a_position(): void
+    {
+        $result = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['open' => 100, 'ask_low' => 98]),
+                $this->candle('2026-10-09 10:00:00', ['open' => 100, 'ask_low' => 99.5]),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Long, 95, 110, 1, limitPrice: 99),
+                new StrategyDecision(StrategySignal::None, null, null),
+            ],
+            tradeCosts: new TradeCostConfig(
+                enabled: true,
+                components: [
+                    'commission' => new TradeCostComponentConfig(true, 'per_order', 5),
+                ],
+            ),
+        );
+
+        $this->assertTrue($result->orders->isEmpty());
+        $this->assertSame('pending', $result->decisions->at(0)->entryOrderStatus);
+        $this->assertSame(10000.0, $result->endingCapital);
+    }
+
+    public function test_limit_gap_fill_respects_the_limit_after_slippage(): void
+    {
+        $result = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['open' => 100]),
+                $this->candle('2026-10-09 10:00:00', ['open' => 97, 'ask_open' => 97, 'ask_low' => 95]),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Long, 90, 110, 1, limitPrice: 99),
+                new StrategyDecision(StrategySignal::None, null, null),
+            ],
+            slippage: new FixedSlippageConfig(enabled: true, pips: 3, pipSize: 1),
+        );
+
+        $order = $result->orders->at(0);
+        $this->assertSame(99.0, $order->entryPrice);
+        $this->assertSame('ask_open', $order->entryPriceSource);
+    }
+
+    public function test_exit_signal_cancels_a_limit_that_has_not_filled(): void
+    {
+        $result = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['open' => 100]),
+                $this->candle('2026-10-09 10:00:00', ['open' => 100, 'ask_low' => 99.5]),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Long, 95, 110, 1, limitPrice: 99),
+                new StrategyDecision(StrategySignal::Close, null, null),
+            ],
+        );
+
+        $this->assertTrue($result->orders->isEmpty());
+        $this->assertSame('cancelled', $result->decisions->at(0)->entryOrderStatus);
+    }
+
+    public function test_partial_limit_fill_charges_fees_only_on_filled_quantity_and_does_not_duplicate(): void
+    {
+        $result = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['open' => 100]),
+                $this->candle('2026-10-09 10:00:00', ['open' => 100, 'ask_low' => 98]),
+                $this->candle('2026-10-09 11:00:00', ['open' => 100, 'ask_low' => 99.5]),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Long, 95, 110, 1, limitPrice: 99),
+                new StrategyDecision(StrategySignal::None, null, null),
+                new StrategyDecision(StrategySignal::None, null, null),
+            ],
+            tradeCosts: new TradeCostConfig(
+                enabled: true,
+                components: [
+                    'commission' => new TradeCostComponentConfig(true, 'per_quantity', 0.1),
+                ],
+            ),
+            partialFill: new PartialFillConfig(enabled: true, ratio: 0.5),
+        );
+
+        $this->assertSame(1, $result->orders->count());
+        $this->assertSame(0.5, $result->orders->at(0)->positionSize);
+        $this->assertSame(0.5, $result->orders->at(0)->remainingEntryQuantity);
+        $this->assertSame(0.05, $result->orders->at(0)->tradeCostTotals['commission']);
+        $this->assertSame('partially_filled', $result->decisions->at(0)->entryOrderStatus);
+    }
+
+    public function test_limit_filled_position_uses_existing_stop_loss_exit_logic(): void
+    {
+        $result = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['open' => 100]),
+                $this->candle('2026-10-09 10:00:00', ['open' => 100, 'ask_low' => 98]),
+                $this->candle('2026-10-09 11:00:00', ['open' => 94, 'bid_low' => 93]),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Long, 95, 110, 1, limitPrice: 99),
+                new StrategyDecision(StrategySignal::None, null, null),
+                new StrategyDecision(StrategySignal::None, null, null),
+            ],
+        );
+
+        $order = $result->orders->at(0);
+        $this->assertSame('stop_loss', $order->closeReason);
+        $this->assertSame('2026-10-09 11:00:00', $order->closeDate);
+    }
+
     /**
      * @param  array<string, int|float|string|null>  $attributes
      */
@@ -1049,6 +1203,41 @@ class SpecificPairBacktestDomainTest extends TestCase
             'ask_close' => $close,
             ...$attributes,
         ]);
+    }
+
+    /**
+     * @param  list<MarketPrice>  $candles
+     * @param  list<StrategyDecision>  $decisions
+     */
+    private function runBacktest(
+        array $candles,
+        array $decisions,
+        ?TradeCostConfig $tradeCosts = null,
+        ?FixedSlippageConfig $slippage = null,
+        ?PartialFillConfig $partialFill = null,
+    ): SpecificPairBacktestResult {
+        $pair = new MarketPair(['quantity_unit' => 'units']);
+        $pair->setRelation('prices', new EloquentCollection($candles));
+
+        $repository = Mockery::mock(MarketPairRepository::class);
+        $repository->shouldReceive('findWithPricesBetween')->once()->andReturn($this->marketData($pair));
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->once()->andReturn(Vec::fromArray($decisions));
+
+        $config = new SpecificPairTestConfig(
+            'EUR',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-10 23:59:59'),
+            false,
+            false,
+            slippage: $slippage ?? new FixedSlippageConfig,
+            partialFill: $partialFill ?? new PartialFillConfig,
+            tradeCosts: $tradeCosts ?? new TradeCostConfig,
+        );
+
+        return (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))
+            ->execute($config);
     }
 
     private function marketData(MarketPair $pair): MarketPairMarketData

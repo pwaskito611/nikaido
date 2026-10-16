@@ -89,6 +89,17 @@ engine does not convert settlement currencies or model margin. The pair editor
 defaults new pairs to `units`; pairs created before the unit setting was introduced
 are treated as lots to preserve their existing multiplier.
 
+Strategies can request a limit entry by passing `limitPrice` to a long or short
+`StrategyDecision`. A long limit buys when a later candle's ask-low reaches the
+limit; a short limit sells when its bid-high reaches the limit. The signal candle
+is never used to fill its own limit order. If the next candle opens through the
+limit, the simulated fill uses that better open price, with slippage applied but
+never beyond the requested limit. Unfilled limits stay pending until filled, a
+`Close` decision cancels them, or the test period ends. Pending orders do not
+create positions or incur fees; result decisions expose `pending`,
+`partially_filled`, `filled`, or `cancelled` status. Shared-capital allocation
+uses the actual fill timestamp.
+
 For local development on Linux, start the Laravel development server and one
 queue worker together:
 

@@ -127,6 +127,7 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
         $this->assertNull($result['orders'][1]['close_date']);
         $this->assertNull($result['orders'][1]['profit_loss']);
         $this->assertSame(0.0, $result['orders'][1]['position_size']);
+        $this->assertSame('cancelled', $result['orders'][1]['entry_status']);
     }
 
     public function test_cancelled_unfilled_entry_quantity_does_not_reserve_risk_capital(): void
@@ -221,6 +222,10 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
             20,
             20,
         );
+        $persistedOrder['entry_order_type'] = 'limit';
+        $persistedOrder['requested_entry_price'] = 99.0;
+        $persistedOrder['open_date'] = '2026-10-10 10:30:00';
+        $persistedOrder['entry_fills'][0]['date'] = '2026-10-10 10:30:00';
         $persistedOrder['capital_at_open'] = 75.0;
         $persistedOrder['exit_fills'] = [
             ['quantity' => 1.0, 'price' => 106.0, 'date' => '2026-10-10 11:00:00', 'profit_loss' => 12.0],
@@ -240,6 +245,10 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
         $this->assertSame('long', $serializedOrder['signal']);
         $this->assertSame('ask_open', $serializedOrder['entry_price_source']);
         $this->assertSame('units', $serializedOrder['quantity_unit']);
+        $this->assertSame('limit', $serializedOrder['entry_order_type']);
+        $this->assertSame('filled', $serializedOrder['entry_status']);
+        $this->assertSame(99.0, $serializedOrder['requested_entry_price']);
+        $this->assertSame('2026-10-10 10:30:00', $serializedOrder['open_date']);
     }
 
     public function test_it_requires_finite_positive_capital_and_complete_order_risk_data(): void

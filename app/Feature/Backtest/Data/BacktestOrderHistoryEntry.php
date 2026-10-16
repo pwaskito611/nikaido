@@ -88,6 +88,7 @@ class BacktestOrderHistoryEntry implements JsonSerializable
         public float $positionSize,
         public readonly float $requestedPositionSize,
         public readonly float $capitalAtOpen,
+        public readonly ?float $requestedEntryPrice = null,
     ) {
         $this->remainingEntryQuantity = $requestedPositionSize;
         $this->closestToStopLoss = Option::none();
@@ -295,6 +296,9 @@ class BacktestOrderHistoryEntry implements JsonSerializable
      *     id: int,
      *     signal: string,
      *     open_date: string,
+     *     entry_order_type: string,
+     *     entry_status: string,
+     *     requested_entry_price: ?float,
      *     close_date: ?string,
      *     entry_price: float,
      *     entry_price_source: string,
@@ -335,6 +339,9 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             'id' => $this->id,
             'signal' => $this->signal,
             'open_date' => $this->openDate,
+            'entry_order_type' => $this->requestedEntryPrice === null ? 'market' : 'limit',
+            'entry_status' => 'filled',
+            'requested_entry_price' => $this->requestedEntryPrice,
             'close_date' => $this->closeDate,
             'entry_price' => $this->entryPrice,
             'entry_price_source' => $this->entryPriceSource,

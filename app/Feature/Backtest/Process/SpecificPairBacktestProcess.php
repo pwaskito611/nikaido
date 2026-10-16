@@ -85,9 +85,15 @@ class SpecificPairBacktestProcess
         string $configuredQuantityMultiplier,
         StrategyExecutionContext $context,
     ): SpecificPairBacktestResult {
-        $results = Vec::empty();
+        /** @var list<BacktestDecision> $results */
+        $results = [];
+        /** @var array<int, string> $decisionStatuses */
+        $decisionStatuses = [];
         $orderHistory = Vec::empty();
         $openOrderIndex = null;
+        $entryDecisionIndex = null;
+        /** @var array{decision: StrategyDecision, decision_index: int}|null $pendingEntry */
+        $pendingEntry = null;
         $currentCapital = $config->initialCapital;
         $decisionIterator = $this->decisionIterator($decisions);
         $decisionIterator->rewind();
@@ -108,41 +114,99 @@ class SpecificPairBacktestProcess
             $decision = $this->isActive($candle, $config)
                 ? $currentDecision
                 : null;
-            $hadOpenOrder = $openOrderIndex !== null;
+            $hadOpenOrder = $openOrderIndex !== null || $pendingEntry !== null;
+            $filledLimitThisCandle = false;
+
+            if ($pendingEntry !== null) {
+                $limitFill = $this->limitEntryPrice(
+                    $candle,
+                    $pendingEntry['decision']->signal,
+                    $pendingEntry['decision']->limitPrice ?? throw new LogicException('A pending limit entry must have a limit price.'),
+                    $config,
+                );
+                if ($limitFill !== null) {
+                    $opened = $this->openOrder(
+                        $pendingEntry['decision'],
+                        $limitFill->first(),
+                        $limitFill->second(),
+                        $candle->price_date->format('Y-m-d H:i:s'),
+                        $orderHistory->count() + 1,
+                        $currentCapital,
+                        $quantityUnit,
+                        $configuredQuantityMultiplier,
+                        $config,
+                    );
+                    $orderHistory = $orderHistory->append($opened->first());
+                    $openOrderIndex = $orderHistory->count() - 1;
+                    $currentCapital = $opened->second();
+                    $entryDecisionIndex = $pendingEntry['decision_index'];
+                    $decisionStatuses[$entryDecisionIndex] = $opened->first()->remainingEntryQuantity > 0
+                        || $opened->first()->cancelledEntryQuantity > 0
+                        ? 'partially_filled'
+                        : 'filled';
+                    $pendingEntry = null;
+                    $filledLimitThisCandle = true;
+                } elseif ($decision?->signal === StrategySignal::Close) {
+                    $decisionStatuses[$pendingEntry['decision_index']] = 'cancelled';
+                    $pendingEntry = null;
+                }
+            }
 
             if ($openOrderIndex !== null) {
                 $order = $orderHistory->at($openOrderIndex);
-                if ($order->remainingEntryQuantity > 0 && $config->partialFill->enabled
+                if (! $filledLimitThisCandle
+                    && $order->remainingEntryQuantity > 0 && $config->partialFill->enabled
                     && $config->partialFill->unfilledOrderPolicy === UnfilledOrderPolicy::Keep) {
-                    $entry = $this->entryPrice($candle, StrategySignal::from($order->signal));
-                    $entryPrice = $this->applySlippage($entry->first(), $order->signal === StrategySignal::Long->value, $config);
-                    $fillQuantity = $this->partialFill->quantity(
-                        $order->requestedPositionSize,
-                        $order->remainingEntryQuantity,
-                        $config->partialFill->ratio,
-                    );
-                    $order->recordEntryFill(
-                        $fillQuantity,
-                        $entryPrice,
-                        $candle->price_date->format('Y-m-d H:i:s'),
-                        $entry->second(),
-                    );
-                    $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
-                    $order->recordEntryTradeCosts($entryCosts);
-                    $currentCapital = (float) Number::of($currentCapital)
-                        ->sub($this->sumCosts($entryCosts))
-                        ->value();
+                    $signal = StrategySignal::from($order->signal);
+                    $entry = $order->requestedEntryPrice === null
+                        ? $this->entryPrice($candle, $signal)
+                        : $this->limitEntryPrice($candle, $signal, $order->requestedEntryPrice, $config);
+                    if ($entry !== null) {
+                        $entryPrice = $order->requestedEntryPrice === null
+                            ? $this->applySlippage(
+                                $entry->first(),
+                                $order->signal === StrategySignal::Long->value,
+                                $config,
+                            )
+                            : $entry->first();
+                        $fillQuantity = $this->partialFill->quantity(
+                            $order->requestedPositionSize,
+                            $order->remainingEntryQuantity,
+                            $config->partialFill->ratio,
+                        );
+                        $order->recordEntryFill(
+                            $fillQuantity,
+                            $entryPrice,
+                            $candle->price_date->format('Y-m-d H:i:s'),
+                            $entry->second(),
+                        );
+                        $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
+                        $order->recordEntryTradeCosts($entryCosts);
+                        $currentCapital = (float) Number::of($currentCapital)
+                            ->sub($this->sumCosts($entryCosts))
+                            ->value();
+                        $filledLimitThisCandle = $order->requestedEntryPrice !== null;
+                        if ($entryDecisionIndex !== null) {
+                            $decisionStatuses[$entryDecisionIndex] = $order->remainingEntryQuantity > 0
+                                ? 'partially_filled'
+                                : 'filled';
+                        }
+                    }
                 }
 
-                $this->updateClosestToStopLoss($order, $candle);
-                $this->updateClosestToTakeProfit($order, $candle);
-                $this->updateExcursionExtremes($order, $candle);
+                if (! $filledLimitThisCandle) {
+                    $this->updateClosestToStopLoss($order, $candle);
+                    $this->updateClosestToTakeProfit($order, $candle);
+                    $this->updateExcursionExtremes($order, $candle);
+                }
 
-                $closeReason = $order->pendingExitReason->getOrElse(null) ?? (
-                    $order->remainingPositionSize > 0
-                        ? $this->getPriceExitReason($order, $candle)
-                        : null
-                );
+                $closeReason = $filledLimitThisCandle
+                    ? null
+                    : ($order->pendingExitReason->getOrElse(null) ?? (
+                        $order->remainingPositionSize > 0
+                            ? $this->getPriceExitReason($order, $candle)
+                            : null
+                    ));
 
                 if ($closeReason === null && $decision?->signal === StrategySignal::Close) {
                     $closeReason = 'close';
@@ -224,8 +288,49 @@ class SpecificPairBacktestProcess
                 }
             }
 
+            if (! $hadOpenOrder && $openOrderIndex === null && $decision !== null
+                && $pendingEntry === null
+                && in_array($decision->signal, [StrategySignal::Long, StrategySignal::Short], true)) {
+                $decisionIndex = count($results);
+                if ($decision->limitPrice !== null) {
+                    $this->validateEntryIntent($decision, $quantityUnit, $configuredQuantityMultiplier);
+                    $pendingEntry = [
+                        'decision' => $decision,
+                        'decision_index' => $decisionIndex,
+                    ];
+                    $decisionStatuses[$decisionIndex] = 'pending';
+                } else {
+                    $entry = $this->entryPrice($candle, $decision->signal);
+                    $entryPrice = $this->applySlippage(
+                        $entry->first(),
+                        $decision->signal === StrategySignal::Long,
+                        $config,
+                    );
+                    $opened = $this->openOrder(
+                        $decision,
+                        $entryPrice,
+                        $entry->second(),
+                        $candle->price_date->format('Y-m-d H:i:s'),
+                        $orderHistory->count() + 1,
+                        $currentCapital,
+                        $quantityUnit,
+                        $configuredQuantityMultiplier,
+                        $config,
+                    );
+                    $orderHistory = $orderHistory->append($opened->first());
+                    $openOrderIndex = $orderHistory->count() - 1;
+                    $entryDecisionIndex = $decisionIndex;
+                    $currentCapital = $opened->second();
+                    $decisionStatuses[$decisionIndex] = $opened->first()->remainingEntryQuantity > 0
+                        || $opened->first()->cancelledEntryQuantity > 0
+                        ? 'partially_filled'
+                        : 'filled';
+                }
+            }
+
             if ($decision !== null) {
-                $results = $results->append(new BacktestDecision(
+                $decisionIndex = count($results);
+                $results[] = new BacktestDecision(
                     candle: $candle,
                     entered: $decision->signal !== StrategySignal::None,
                     signal: $decision->signal,
@@ -233,82 +338,9 @@ class SpecificPairBacktestProcess
                     quantityUnit: $quantityUnit,
                     stopLoss: Option::from($decision->stopLoss),
                     takeProfit: Option::from($decision->takeProfit),
-                ));
-            }
-
-            if (! $hadOpenOrder && $openOrderIndex === null && $decision !== null
-                && in_array($decision->signal, [StrategySignal::Long, StrategySignal::Short], true)) {
-                $entry = $this->entryPrice($candle, $decision->signal);
-                $entryPrice = $this->applySlippage(
-                    $entry->first(),
-                    $decision->signal === StrategySignal::Long,
-                    $config,
+                    entryOrderStatus: $decisionStatuses[$decisionIndex] ?? null,
+                    entryLimitPrice: $decision->limitPrice,
                 );
-
-                if ($decision->stopLoss === null || $decision->takeProfit === null) {
-                    throw new UnexpectedValueException('An entry signal must include stop-loss and take-profit values.');
-                }
-
-                $riskDistance = Number::of($entryPrice)
-                    ->sub($decision->stopLoss)
-                    ->abs();
-                if ($riskDistance->compare(0) <= 0) {
-                    throw new UnexpectedValueException('Cannot size an order when entry and stop-loss prices are equal.');
-                }
-
-                if (! is_numeric($decision->quantity) || Number::of($decision->quantity)->compare(0) <= 0) {
-                    throw new UnexpectedValueException('An entry signal must include a positive quantity.');
-                }
-
-                $quantityMultiplier = $quantityUnit === 'units' ? '1' : $configuredQuantityMultiplier;
-                if (Number::of($quantityMultiplier)->compare(0) <= 0) {
-                    throw new UnexpectedValueException("A {$quantityUnit}-based market pair must have a positive quantity multiplier.");
-                }
-
-                $positionMultiplier = $quantityUnit === 'lot' ? $quantityMultiplier : '1';
-                $pnlMultiplier = $quantityUnit === 'contract' ? $quantityMultiplier : '1';
-                $requestedPositionSize = Number::of($decision->quantity)->mul($positionMultiplier);
-                $riskAmount = $riskDistance->mul($requestedPositionSize)->mul($pnlMultiplier);
-                $order = new BacktestOrderHistoryEntry(
-                    id: $orderHistory->count() + 1,
-                    signal: $decision->signal->value,
-                    openDate: $candle->price_date->format('Y-m-d H:i:s'),
-                    entryPrice: $entryPrice,
-                    entryPriceSource: $entry->second(),
-                    stopLoss: $decision->stopLoss,
-                    takeProfit: $decision->takeProfit,
-                    strategyQuantity: $decision->quantity,
-                    quantityUnit: $quantityUnit,
-                    quantityMultiplier: (float) $quantityMultiplier,
-                    pnlMultiplier: (float) $pnlMultiplier,
-                    requestedRiskAmount: (float) $riskAmount->value(),
-                    positionSize: 0.0,
-                    requestedPositionSize: (float) $requestedPositionSize->value(),
-                    capitalAtOpen: $currentCapital,
-                );
-                $fillRatio = $config->partialFill->enabled ? $config->partialFill->ratio : 1.0;
-                $fillQuantity = $this->partialFill->quantity(
-                    $requestedPositionSize,
-                    $requestedPositionSize,
-                    $fillRatio,
-                );
-                $order->recordEntryFill(
-                    $fillQuantity,
-                    $entryPrice,
-                    $candle->price_date->format('Y-m-d H:i:s'),
-                    $entry->second(),
-                );
-                $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
-                $order->recordEntryTradeCosts($entryCosts);
-                $currentCapital = (float) Number::of($currentCapital)
-                    ->sub($this->sumCosts($entryCosts))
-                    ->value();
-                if ($config->partialFill->enabled && $config->partialFill->unfilledOrderPolicy === UnfilledOrderPolicy::Cancel) {
-                    $order->cancelledEntryQuantity += $order->remainingEntryQuantity;
-                    $order->remainingEntryQuantity = 0.0;
-                }
-                $orderHistory = $orderHistory->append($order);
-                $openOrderIndex = $orderHistory->count() - 1;
             }
 
             $context->currentCapital = $currentCapital;
@@ -316,7 +348,13 @@ class SpecificPairBacktestProcess
         }
 
         return new SpecificPairBacktestResult(
-            decisions: $results,
+            decisions: Vec::fromArray(array_map(
+                static fn (BacktestDecision $decision, int $index): BacktestDecision => $decision->withEntryOrderStatus(
+                    $decisionStatuses[$index] ?? null,
+                ),
+                $results,
+                array_keys($results),
+            )),
             orders: $orderHistory,
             initialCapital: $config->initialCapital,
             quantityUnit: $quantityUnit,
@@ -325,6 +363,142 @@ class SpecificPairBacktestProcess
             endingCapital: $currentCapital,
             executionConfiguration: new BacktestExecutionConfiguration($config->slippage, $config->partialFill, $config->tradeCosts),
         );
+    }
+
+    private function validateEntryIntent(
+        StrategyDecision $decision,
+        string $quantityUnit,
+        string $configuredQuantityMultiplier,
+    ): void {
+        $this->assertValidEntryDecision(
+            $decision,
+            $decision->limitPrice ?? throw new LogicException('A limit entry must have a limit price.'),
+            $quantityUnit,
+            $configuredQuantityMultiplier,
+        );
+    }
+
+    /**
+     * @return Pair<BacktestOrderHistoryEntry, float>
+     */
+    private function openOrder(
+        StrategyDecision $decision,
+        float $entryPrice,
+        string $entryPriceSource,
+        string $openDate,
+        int $id,
+        float $capital,
+        string $quantityUnit,
+        string $configuredQuantityMultiplier,
+        SpecificPairTestConfig $config,
+    ): Pair {
+        $requestedEntryPrice = $decision->limitPrice ?? $entryPrice;
+        $this->assertValidEntryDecision(
+            $decision,
+            $requestedEntryPrice,
+            $quantityUnit,
+            $configuredQuantityMultiplier,
+        );
+        if ($decision->stopLoss === null || Number::of($entryPrice)->sub($decision->stopLoss)->abs()->compare(0) <= 0) {
+            throw new UnexpectedValueException('Cannot size an order when entry and stop-loss prices are equal.');
+        }
+
+        $positionMultiplier = $quantityUnit === 'lot' ? $configuredQuantityMultiplier : '1';
+        $pnlMultiplier = $quantityUnit === 'contract' ? $configuredQuantityMultiplier : '1';
+        $requestedPositionSize = Number::of($decision->quantity)->mul($positionMultiplier);
+        $riskAmount = Number::of($requestedEntryPrice)
+            ->sub($decision->stopLoss)
+            ->abs()
+            ->mul($requestedPositionSize)
+            ->mul($pnlMultiplier);
+        $order = new BacktestOrderHistoryEntry(
+            id: $id,
+            signal: $decision->signal->value,
+            openDate: $openDate,
+            entryPrice: $entryPrice,
+            entryPriceSource: $entryPriceSource,
+            stopLoss: $decision->stopLoss,
+            takeProfit: $decision->takeProfit,
+            strategyQuantity: $decision->quantity,
+            quantityUnit: $quantityUnit,
+            quantityMultiplier: (float) ($quantityUnit === 'units' ? '1' : $configuredQuantityMultiplier),
+            pnlMultiplier: (float) $pnlMultiplier,
+            requestedRiskAmount: (float) $riskAmount->value(),
+            positionSize: 0.0,
+            requestedPositionSize: (float) $requestedPositionSize->value(),
+            capitalAtOpen: $capital,
+            requestedEntryPrice: $decision->limitPrice,
+        );
+        $fillRatio = $config->partialFill->enabled ? $config->partialFill->ratio : 1.0;
+        $fillQuantity = $this->partialFill->quantity(
+            $requestedPositionSize,
+            $requestedPositionSize,
+            $fillRatio,
+        );
+        $order->recordEntryFill($fillQuantity, $entryPrice, $openDate, $entryPriceSource);
+        $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
+        $order->recordEntryTradeCosts($entryCosts);
+        $capital = (float) Number::of($capital)->sub($this->sumCosts($entryCosts))->value();
+        if ($config->partialFill->enabled && $config->partialFill->unfilledOrderPolicy === UnfilledOrderPolicy::Cancel) {
+            $order->cancelledEntryQuantity += $order->remainingEntryQuantity;
+            $order->remainingEntryQuantity = 0.0;
+        }
+
+        return Pair::of($order, $capital);
+    }
+
+    private function assertValidEntryDecision(
+        StrategyDecision $decision,
+        float $referencePrice,
+        string $quantityUnit,
+        string $configuredQuantityMultiplier,
+    ): void {
+        if ($decision->stopLoss === null || $decision->takeProfit === null) {
+            throw new UnexpectedValueException('An entry signal must include stop-loss and take-profit values.');
+        }
+        if (Number::of($referencePrice)->sub($decision->stopLoss)->abs()->compare(0) <= 0) {
+            throw new UnexpectedValueException('Cannot size an order when entry and stop-loss prices are equal.');
+        }
+        if (! is_numeric($decision->quantity) || Number::of($decision->quantity)->compare(0) <= 0) {
+            throw new UnexpectedValueException('An entry signal must include a positive quantity.');
+        }
+        $quantityMultiplier = $quantityUnit === 'units' ? '1' : $configuredQuantityMultiplier;
+        if (Number::of($quantityMultiplier)->compare(0) <= 0) {
+            throw new UnexpectedValueException("A {$quantityUnit}-based market pair must have a positive quantity multiplier.");
+        }
+    }
+
+    /** @return Pair<float, string>|null */
+    private function limitEntryPrice(
+        MarketPrice $candle,
+        StrategySignal $signal,
+        float $limitPrice,
+        SpecificPairTestConfig $config,
+    ): ?Pair {
+        $isBuy = $signal === StrategySignal::Long;
+
+        $triggerField = $isBuy ? 'ask_low' : 'bid_high';
+        $triggerFallback = $isBuy ? $candle->low : $candle->high;
+        $triggerValue = is_numeric($candle->{$triggerField}) ? $candle->{$triggerField} : $triggerFallback;
+        if (! is_numeric($triggerValue)
+            || ($isBuy ? (float) $triggerValue > $limitPrice : (float) $triggerValue < $limitPrice)) {
+            return null;
+        }
+
+        $openField = $isBuy ? 'ask_open' : 'bid_open';
+        $openValue = is_numeric($candle->{$openField}) ? $candle->{$openField} : $candle->open;
+        $openIsBetter = is_numeric($openValue)
+            && ($isBuy ? (float) $openValue <= $limitPrice : (float) $openValue >= $limitPrice);
+        $referencePrice = $openIsBetter ? (float) $openValue : $limitPrice;
+        $priceSource = $openIsBetter
+            ? (is_numeric($candle->{$openField}) ? $openField : 'open')
+            : (is_numeric($candle->{$triggerField}) ? $triggerField : ($isBuy ? 'low' : 'high'));
+        $slippedPrice = $this->applySlippage($referencePrice, $isBuy, $config);
+        $executionPrice = $isBuy
+            ? min($limitPrice, $slippedPrice)
+            : max($limitPrice, $slippedPrice);
+
+        return Pair::of($executionPrice, $priceSource);
     }
 
     /**

@@ -254,6 +254,7 @@ final readonly class PortfolioManagedOrder
         }
         if ($this->entryRejected) {
             $order['portfolio_entry_rejected'] = true;
+            $order['entry_status'] = 'cancelled';
             $order['close_date'] = null;
             $order['close_reason'] = 'portfolio_capital_unavailable';
             $order['close_price'] = null;

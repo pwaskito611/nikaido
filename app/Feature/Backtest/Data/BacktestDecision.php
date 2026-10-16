@@ -23,7 +23,24 @@ final readonly class BacktestDecision
         public string $quantityUnit,
         public Option $stopLoss,
         public Option $takeProfit,
+        public ?string $entryOrderStatus = null,
+        public ?float $entryLimitPrice = null,
     ) {}
+
+    public function withEntryOrderStatus(?string $status): self
+    {
+        return new self(
+            $this->candle,
+            $this->entered,
+            $this->signal,
+            $this->quantity,
+            $this->quantityUnit,
+            $this->stopLoss,
+            $this->takeProfit,
+            $status,
+            $this->entryLimitPrice,
+        );
+    }
 
     /** @return array<string, mixed> */
     public function toArray(): array
@@ -36,6 +53,8 @@ final readonly class BacktestDecision
             'quantity_unit' => $this->quantityUnit,
             'stop_loss' => $this->stopLoss->getOrNull(),
             'take_profit' => $this->takeProfit->getOrNull(),
+            'entry_order_status' => $this->entryOrderStatus,
+            'entry_limit_price' => $this->entryLimitPrice,
         ];
     }
 }

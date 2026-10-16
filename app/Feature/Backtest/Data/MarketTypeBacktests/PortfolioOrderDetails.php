@@ -18,6 +18,8 @@ final readonly class PortfolioOrderDetails
      * @param  Option<float>  $stopLoss
      * @param  Option<float>  $takeProfit
      * @param  Option<float>  $closePrice
+     * @param  Option<float>  $requestedEntryPrice
+     * @param  Option<string>  $entryOrderType
      * @param  Option<PortfolioOrderExtreme>  $closestToStopLoss
      * @param  Option<PortfolioOrderExtreme>  $closestToTakeProfit
      * @param  Option<PortfolioOrderExtreme>  $adverseExtreme
@@ -28,6 +30,8 @@ final readonly class PortfolioOrderDetails
         public Option $entryPriceSource,
         public Option $closeReason,
         public Option $entryPrice,
+        public Option $requestedEntryPrice,
+        public Option $entryOrderType,
         public Option $stopLoss,
         public Option $takeProfit,
         public Option $closePrice,
@@ -66,12 +70,26 @@ final readonly class PortfolioOrderDetails
         if ($quantityMultiplier <= 0 || $pnlMultiplier <= 0 || $capitalAtOpen <= 0) {
             throw new UnexpectedValueException('Portfolio quantity, P/L, and capital multipliers must be positive.');
         }
+        $entryOrderType = self::optionalString($order, 'entry_order_type');
+        $requestedEntryPrice = self::optionalNumber($order, 'requested_entry_price');
+        if ($entryOrderType->isSome()
+            && ! in_array($entryOrderType->getOrNull(), ['market', 'limit'], true)) {
+            throw new UnexpectedValueException('Portfolio entry order type must be market or limit.');
+        }
+        if ($requestedEntryPrice->isSome() && $requestedEntryPrice->getOrNull() <= 0) {
+            throw new UnexpectedValueException('Portfolio requested entry price must be positive.');
+        }
+        if (($entryOrderType->getOrNull() === 'limit') !== $requestedEntryPrice->isSome()) {
+            throw new UnexpectedValueException('Portfolio limit entry type and requested price must be supplied together.');
+        }
 
         return new self(
             signal: StrategySignal::from($signal),
             entryPriceSource: self::optionalString($order, 'entry_price_source'),
             closeReason: self::optionalString($order, 'close_reason'),
             entryPrice: Option::some(self::requiredNumber($order, 'entry_price')),
+            requestedEntryPrice: $requestedEntryPrice,
+            entryOrderType: $entryOrderType,
             stopLoss: Option::some(self::requiredNumber($order, 'stop_loss')),
             takeProfit: Option::some(self::requiredNumber($order, 'take_profit')),
             closePrice: self::optionalNumber($order, 'close_price'),
@@ -99,6 +117,9 @@ final readonly class PortfolioOrderDetails
         return [
             'signal' => $this->signal->value,
             'entry_price' => $this->entryPrice->getOrNull(),
+            'entry_order_type' => $this->entryOrderType->getOrNull(),
+            'entry_status' => 'filled',
+            'requested_entry_price' => $this->requestedEntryPrice->getOrNull(),
             'entry_price_source' => $this->entryPriceSource->getOrNull(),
             'stop_loss' => $this->stopLoss->getOrNull(),
             'take_profit' => $this->takeProfit->getOrNull(),

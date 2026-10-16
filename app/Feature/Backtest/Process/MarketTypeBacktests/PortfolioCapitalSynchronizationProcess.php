@@ -126,7 +126,6 @@ class PortfolioCapitalSynchronizationProcess
         }
         $events = Vec::empty();
         $riskPerUnit = Vec::empty();
-        $riskDemand = Vec::empty();
         $activeRisk = Vec::empty();
         $sequence = 0;
 
@@ -137,10 +136,6 @@ class PortfolioCapitalSynchronizationProcess
             }
 
             $riskPerUnit = $riskPerUnit->append($unitRisk);
-            $demand = $unfilledOrderPolicy === UnfilledOrderPolicy::Cancel && $order->cancelledEntryQuantity > 0
-                ? $order->riskAmount
-                : $order->requestedRiskAmount;
-            $riskDemand = $riskDemand->append($demand);
             $activeRisk = $activeRisk->append(0.0);
             $events = $events->append(new PortfolioCapitalEvent(
                 date: $order->openDate,
@@ -206,9 +201,6 @@ class PortfolioCapitalSynchronizationProcess
                 }
                 if ($left->isEntryFill !== $right->isEntryFill) {
                     return $left->isEntryFill ? 1 : -1;
-                }
-                if ($left->isExit) {
-                    return $left->sequence <=> $right->sequence;
                 }
 
                 return [$left->pair, $left->orderId, $left->sequence]
@@ -279,8 +271,24 @@ class PortfolioCapitalSynchronizationProcess
                 static fn (PortfolioCapitalEvent $event): bool => ! $event->isExit && ! $event->isEntryFill,
             );
             $totalDemand = Number::of(0);
+            $entryDemands = [];
+            $entrySizingFactors = [];
             foreach ($entryEvents as $event) {
-                $totalDemand = $totalDemand->add($riskDemand->at($event->orderIndex));
+                $order = $orders->at($event->orderIndex);
+                $riskBasis = $unfilledOrderPolicy === UnfilledOrderPolicy::Cancel && $order->cancelledEntryQuantity > 0
+                    ? $order->riskAmount
+                    : $order->requestedRiskAmount;
+                $localCapital = $order->capitalAtOpen->getOrNull();
+                if ($localCapital !== null && $localCapital <= 0) {
+                    throw new InvalidArgumentException('A portfolio-managed order must have positive local capital at entry.');
+                }
+                $sizingFactor = $localCapital !== null
+                    ? (float) Number::of($capital)->div($localCapital)->value()
+                    : 1.0;
+                $demand = (float) Number::of($riskBasis)->mul($sizingFactor)->value();
+                $entryDemands[$event->orderIndex] = $demand;
+                $entrySizingFactors[$event->orderIndex] = $sizingFactor;
+                $totalDemand = $totalDemand->add($demand);
             }
             $availableCapital = Number::of($capital)->sub($reservedRisk);
             if ($availableCapital->compare(0) < 0) {
@@ -293,7 +301,9 @@ class PortfolioCapitalSynchronizationProcess
                     if (in_array($component, $perOrderCostComponents, true)) {
                         $fixedEntryCosts = $fixedEntryCosts->add($cost);
                     } else {
-                        $variableEntryCosts = $variableEntryCosts->add($cost);
+                        $variableEntryCosts = $variableEntryCosts->add(
+                            Number::of($cost)->mul($entrySizingFactors[$event->orderIndex]),
+                        );
                     }
                 }
             }
@@ -308,17 +318,18 @@ class PortfolioCapitalSynchronizationProcess
                 : 1.0;
 
             foreach ($entryEvents as $event) {
-                $demand = $riskDemand->at($event->orderIndex);
-                $factor = $demand > 0 ? $sharedFactor : 1.0;
-                $allocatedRisk = $demand * $factor;
+                $demand = $entryDemands[$event->orderIndex];
+                $sizingFactor = $entrySizingFactors[$event->orderIndex];
+                $allocationFactor = $sizingFactor * $sharedFactor;
+                $allocatedRisk = $demand * $sharedFactor;
                 $order = $orders->at($event->orderIndex);
 
-                if ($factor === 0.0 && $demand > 0) {
+                if ($allocationFactor === 0.0 && $order->requestedRiskAmount > 0) {
                     $orders = $this->replaceOrder(
                         $orders,
                         $event->orderIndex,
                         $order
-                            ->withAllocation($factor, $demand, $allocatedRisk, $capital)
+                            ->withAllocation($allocationFactor, $demand, $allocatedRisk, $capital)
                             ->rejected(),
                     );
 
@@ -326,7 +337,7 @@ class PortfolioCapitalSynchronizationProcess
                 }
 
                 $allocatedOrder = $order->withAllocation(
-                    $factor,
+                    $allocationFactor,
                     $demand,
                     $allocatedRisk,
                     $capital,

@@ -139,10 +139,12 @@ The overall page combines candle decisions and trades from successful pairs in
 time order and supports the same cluster, fluctuation stress, and Monte Carlo
 analysis as a specific-pair result. Runs offer two capital modes. Shared portfolio
 capital starts from one configured balance and synchronizes candidate trades
-chronologically after pair workers complete. Exits release reserved stop-loss risk
-and realize P/L before entries at the same time; simultaneous entries that exceed
-available risk capital have their quantities reduced proportionally. Strategy
-quantities otherwise remain unchanged. Separate capital per pair keeps each pair's
+chronologically after pair workers complete, using each pair's original candle
+timestamps. Exits release reserved stop-loss risk and realize P/L before entries at
+the same time. Entry quantities are rescaled from the pair-local equity used during
+parallel calculation to the shared equity at that timestamp; simultaneous entries
+that exceed available risk capital are then reduced proportionally. Separate
+capital per pair keeps each pair's
 backtest independent and reports aggregate capital as the sum across successful
 pairs, including average initial and ending capital per pair. Both modes combine
 P/L as reported and do not perform FX conversion, so results must use a common

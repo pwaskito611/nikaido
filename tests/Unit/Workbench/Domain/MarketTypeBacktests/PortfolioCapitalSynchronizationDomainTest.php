@@ -16,9 +16,12 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
 {
     public function test_it_leaves_strategy_quantity_unchanged_when_risk_capital_is_sufficient(): void
     {
+        $order = $this->order('EUR/USD', 1, '2026-10-10 10:00:00', '2026-10-10 11:00:00', 8, 80, 50);
+        $order['capital_at_open'] = 1000.0;
+
         $result = $this->synchronize(
             1000,
-            [$this->order('EUR/USD', 1, '2026-10-10 10:00:00', '2026-10-10 11:00:00', 8, 80, 50)],
+            [$order],
         );
 
         $this->assertSame(1.0, $result['orders'][0]['portfolio_allocation_factor']);
@@ -48,11 +51,47 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
             $this->order('EUR/USD', 1, '2026-10-10 10:00:00', '2026-10-10 11:00:00', 0.1, 0.1, 0.0),
             $this->order('GBP/USD', 1, '2026-10-10 10:00:00', '2026-10-10 11:00:00', 0.2, 0.2, 0.0),
         ];
+        $orders[0]['capital_at_open'] = 0.3;
+        $orders[1]['capital_at_open'] = 0.3;
 
         $result = $this->synchronize(0.3, $orders);
 
         $this->assertSame(1.0, $result['orders'][0]['portfolio_allocation_factor']);
         $this->assertSame(1.0, $result['orders'][1]['portfolio_allocation_factor']);
+    }
+
+    public function test_later_pair_entry_is_resized_to_global_capital_after_an_earlier_pair_loss(): void
+    {
+        $laterPair = $this->order('GBP/USD', 1, '2020-01-01 00:00:00', '2020-01-02 00:00:00', 1, 1, 10);
+        $laterPair['capital_at_open'] = 100.0;
+        $earlierPair = $this->order('EUR/USD', 1, '2017-01-01 00:00:00', '2019-01-01 00:00:00', 1, 50, -50);
+        $earlierPair['capital_at_open'] = 100.0;
+
+        $result = $this->synchronize(100.0, [$laterPair, $earlierPair]);
+
+        $this->assertSame(1.0, $result['orders'][1]['portfolio_allocation_factor']);
+        $this->assertSame(0.5, $result['orders'][0]['portfolio_allocation_factor']);
+        $this->assertSame(0.5, $result['orders'][0]['position_size']);
+        $this->assertSame(5.0, $result['orders'][0]['profit_loss']);
+        $this->assertSame(55.0, $result['ending_capital']);
+    }
+
+    public function test_same_timestamp_exit_order_is_stable_when_pair_results_arrive_in_a_different_order(): void
+    {
+        $eur = $this->order('EUR/USD', 1, '2020-01-01 00:00:00', '2020-01-02 00:00:00', 1, 1, 0.1);
+        $gbp = $this->order('GBP/USD', 1, '2020-01-01 00:00:00', '2020-01-02 00:00:00', 1, 1, 0.2);
+        $eur['capital_at_open'] = 10.0;
+        $gbp['capital_at_open'] = 10.0;
+
+        $first = $this->synchronize(10.0, [$gbp, $eur]);
+        $second = $this->synchronize(10.0, [$eur, $gbp]);
+        $firstCapitalAfter = array_column($first['orders'], 'capital_after_close', 'pair');
+        $secondCapitalAfter = array_column($second['orders'], 'capital_after_close', 'pair');
+        ksort($firstCapitalAfter);
+        ksort($secondCapitalAfter);
+
+        $this->assertSame(['EUR/USD' => 10.1, 'GBP/USD' => 10.3], $firstCapitalAfter);
+        $this->assertSame($firstCapitalAfter, $secondCapitalAfter);
     }
 
     public function test_it_releases_exited_risk_before_proportionally_allocating_simultaneous_entries(): void
@@ -107,6 +146,7 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
         $partiallyFilled['risk_amount'] = 25.0;
         $partiallyFilled['entry_fills'][0]['quantity'] = 2.5;
         $partiallyFilled['exit_fills'][0]['quantity'] = 2.5;
+        $partiallyFilled['capital_at_open'] = 50.0;
         $other = $this->order(
             'GBP/USD',
             1,
@@ -116,6 +156,7 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
             50,
             20,
         );
+        $other['capital_at_open'] = 50.0;
 
         $result = $this->synchronize(
             50,
@@ -162,10 +203,10 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
         );
 
         $this->assertSame(0.5, $result['orders'][0]['portfolio_allocation_factor']);
-        $this->assertSame(0.35, $result['orders'][1]['portfolio_allocation_factor']);
+        $this->assertEqualsWithDelta(0.35, $result['orders'][1]['portfolio_allocation_factor'], 0.000001);
         $this->assertSame(2.5, $result['orders'][0]['exit_fills'][0]['quantity']);
         $this->assertSame(10.0, $result['orders'][0]['exit_fills'][0]['profit_loss']);
-        $this->assertSame(3.5, $result['orders'][1]['position_size']);
+        $this->assertEqualsWithDelta(3.5, $result['orders'][1]['position_size'], 0.000001);
         $this->assertSame(87.5, $result['ending_capital']);
     }
 

@@ -146,10 +146,14 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             ? Number::of($price)->sub($this->entryPrice)
             : Number::of($this->entryPrice)->sub($price);
         $fillProfitLoss = (float) $priceMove->mul($quantity)->mul($this->pnlMultiplier)->value();
-        $totalCosts = array_sum($tradeCosts);
-        $netProfitLoss = $fillProfitLoss - $totalCosts;
-        $this->grossRealizedProfitLoss += $fillProfitLoss;
-        $this->realizedProfitLoss += $netProfitLoss;
+        $totalCosts = $this->sumCosts($tradeCosts);
+        $netProfitLoss = (float) Number::of($fillProfitLoss)->sub($totalCosts)->value();
+        $this->grossRealizedProfitLoss = (float) Number::of($this->grossRealizedProfitLoss)
+            ->add($fillProfitLoss)
+            ->value();
+        $this->realizedProfitLoss = (float) Number::of($this->realizedProfitLoss)
+            ->add($netProfitLoss)
+            ->value();
         $this->addTradeCosts($tradeCosts);
         $this->remainingPositionSize = max(0.0, $this->remainingPositionSize - $quantity);
         $this->closedPositionSize += $quantity;
@@ -178,10 +182,12 @@ class BacktestOrderHistoryEntry implements JsonSerializable
     /** @param array<string, float> $tradeCosts */
     public function recordEntryTradeCosts(array $tradeCosts): void
     {
-        $totalCosts = array_sum($tradeCosts);
-        $this->realizedProfitLoss -= $totalCosts;
+        $totalCosts = $this->sumCosts($tradeCosts);
+        $this->realizedProfitLoss = (float) Number::of($this->realizedProfitLoss)
+            ->sub($totalCosts)
+            ->value();
         $this->addTradeCosts($tradeCosts);
-        if ($totalCosts <= 0) {
+        if ($totalCosts->compare(0) <= 0) {
             return;
         }
 
@@ -211,7 +217,7 @@ class BacktestOrderHistoryEntry implements JsonSerializable
     {
         $remaining = min($quantity, $this->remainingPositionSize);
         $exitTimestamp = $this->timestamp($exitDate);
-        $notionalDaysInSeconds = 0.0;
+        $notionalDaysInSeconds = Number::of(0);
 
         foreach ($this->entryLots as $index => $lot) {
             if ($remaining <= 0) {
@@ -222,7 +228,12 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             if ($durationSeconds < 0) {
                 throw new InvalidArgumentException('An exit fill cannot precede its entry fill.');
             }
-            $notionalDaysInSeconds += $consumed * $lot['price'] * $this->pnlMultiplier * $durationSeconds;
+            $notionalDaysInSeconds = $notionalDaysInSeconds->add(
+                Number::of($consumed)
+                    ->mul($lot['price'])
+                    ->mul($this->pnlMultiplier)
+                    ->mul($durationSeconds),
+            );
             $remaining -= $consumed;
             $lot['quantity'] -= $consumed;
             if ($lot['quantity'] <= 0.000000000001) {
@@ -235,7 +246,7 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             throw new InvalidArgumentException('Exit quantity exceeds the remaining entry fill quantities.');
         }
 
-        return $notionalDaysInSeconds / 86400;
+        return (float) $notionalDaysInSeconds->div(86400)->value();
     }
 
     /** @param array<string, float> $tradeCosts */
@@ -245,8 +256,20 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             if (! array_key_exists($component, $this->tradeCostTotals) || ! is_finite($cost) || $cost < 0) {
                 throw new InvalidArgumentException("Invalid trade cost for component {$component}.");
             }
-            $this->tradeCostTotals[$component] += $cost;
+            $this->tradeCostTotals[$component] = (float) Number::of($this->tradeCostTotals[$component])
+                ->add($cost)
+                ->value();
         }
+    }
+
+    /** @param array<string, float> $tradeCosts */
+    private function sumCosts(array $tradeCosts): Number
+    {
+        return array_reduce(
+            $tradeCosts,
+            static fn (Number $total, float $cost): Number => $total->add($cost),
+            Number::of(0),
+        );
     }
 
     private function timestamp(string $date): int

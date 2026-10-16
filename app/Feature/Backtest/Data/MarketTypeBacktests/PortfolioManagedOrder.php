@@ -6,6 +6,7 @@ namespace App\Feature\Backtest\Data\MarketTypeBacktests;
 
 use Exact\Collection\Vec;
 use Exact\Type\Option\Option;
+use Gauss\Number\Number;
 use InvalidArgumentException;
 use UnexpectedValueException;
 
@@ -101,7 +102,7 @@ final readonly class PortfolioManagedOrder
             cancelledExitQuantity: self::nonNegativeNumber($order, 'cancelled_exit_quantity'),
             realizedProfitLoss: $realizedProfitLoss,
             grossRealizedProfitLoss: self::optionalNumber($order, 'gross_realized_profit_loss')
-                ->getOrElse($realizedProfitLoss + array_sum($tradeCostTotals)),
+                ->getOrElse((float) Number::of($realizedProfitLoss)->add(self::sumCosts($tradeCostTotals))->value()),
             tradeCostTotals: $tradeCostTotals,
             entryFills: $entryFills,
             exitFills: $exitFills,
@@ -135,7 +136,8 @@ final readonly class PortfolioManagedOrder
             }
         }
         $grossProfitLoss = $this->grossRealizedProfitLoss * $factor;
-        $netProfitLoss = $grossProfitLoss - array_sum($tradeCosts);
+        $totalCosts = self::sumCosts($tradeCosts);
+        $netProfitLoss = (float) Number::of($grossProfitLoss)->sub($totalCosts)->value();
 
         return $this->copy(
             positionSize: $this->positionSize * $factor,
@@ -410,5 +412,15 @@ final readonly class PortfolioManagedOrder
         return $items->slice(0, $index)
             ->concat(Vec::of($fill))
             ->concat($items->slice($index + 1));
+    }
+
+    /** @param array<string, float> $costs */
+    private static function sumCosts(array $costs): Number
+    {
+        return array_reduce(
+            $costs,
+            static fn (Number $total, float $cost): Number => $total->add($cost),
+            Number::of(0),
+        );
     }
 }

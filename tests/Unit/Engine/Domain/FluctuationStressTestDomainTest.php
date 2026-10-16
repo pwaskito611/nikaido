@@ -186,6 +186,25 @@ class FluctuationStressTestDomainTest extends TestCase
         StressTestInput::fromPersistedBacktest($this->backtest($order));
     }
 
+    public function test_it_ignores_orders_rejected_by_shared_portfolio_allocation(): void
+    {
+        $rejectedOrder = $this->longOrder();
+        $rejectedOrder['id'] = 1;
+        $rejectedOrder['position_size'] = 0.0;
+        $rejectedOrder['portfolio_entry_rejected'] = true;
+
+        $filledOrder = $this->longOrder();
+        $filledOrder['id'] = 2;
+
+        $backtest = $this->backtest($rejectedOrder);
+        $backtest['order_history'][] = $filledOrder;
+
+        $result = $this->runStressTest($backtest, 0.5);
+
+        $this->assertSame([2], array_column($result['orders'], 'id'));
+        $this->assertSame(1, $result['scenario']['trade_count']);
+    }
+
     public function test_it_rejects_malformed_present_extreme_instead_of_treating_it_as_missing(): void
     {
         $order = $this->longOrder();

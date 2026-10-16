@@ -27,6 +27,34 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
         $this->assertSame(1050.0, $result['ending_capital']);
     }
 
+    public function test_fractional_costs_keep_shared_portfolio_equity_at_break_even(): void
+    {
+        $order = $this->order('EUR/USD', 1, '2026-10-10 10:00:00', '2026-10-10 11:00:00', 1, 10, 0.3);
+        $order['trade_costs'] = ['commission' => 0.1, 'exchange_fee' => 0.2];
+        $order['gross_realized_profit_loss'] = 0.3;
+        $order['exit_fills'][0]['gross_profit_loss'] = 0.3;
+        $order['exit_fills'][0]['trade_costs'] = ['commission' => 0.1, 'exchange_fee' => 0.2];
+
+        $result = $this->synchronize(100, [$order]);
+
+        $this->assertSame(100.0, $result['ending_capital']);
+        $this->assertSame(0.0, $result['orders'][0]['profit_loss']);
+        $this->assertSame(0.0, $result['orders'][0]['exit_fills'][0]['profit_loss']);
+    }
+
+    public function test_decimal_risk_demands_equal_to_available_capital_are_not_scaled_down(): void
+    {
+        $orders = [
+            $this->order('EUR/USD', 1, '2026-10-10 10:00:00', '2026-10-10 11:00:00', 0.1, 0.1, 0.0),
+            $this->order('GBP/USD', 1, '2026-10-10 10:00:00', '2026-10-10 11:00:00', 0.2, 0.2, 0.0),
+        ];
+
+        $result = $this->synchronize(0.3, $orders);
+
+        $this->assertSame(1.0, $result['orders'][0]['portfolio_allocation_factor']);
+        $this->assertSame(1.0, $result['orders'][1]['portfolio_allocation_factor']);
+    }
+
     public function test_it_releases_exited_risk_before_proportionally_allocating_simultaneous_entries(): void
     {
         $orders = [

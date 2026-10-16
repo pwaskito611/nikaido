@@ -66,7 +66,20 @@ final readonly class StressTestInput
 
         return new self(
             initialCapital: (float) $initialCapital,
-            trades: Vec::fromArray($orders)->map(
+            trades: Vec::fromArray($orders)->filter(
+                static function (mixed $order): bool {
+                    if (! is_array($order)) {
+                        throw new UnexpectedValueException('Every stress-test order must be a record.');
+                    }
+
+                    $entryRejected = $order['portfolio_entry_rejected'] ?? false;
+                    if (! is_bool($entryRejected)) {
+                        throw new UnexpectedValueException('Stress-test portfolio entry-rejected state must be boolean.');
+                    }
+
+                    return ! $entryRejected;
+                },
+            )->map(
                 static function (mixed $order): StressTestTrade {
                     if (! is_array($order)) {
                         throw new UnexpectedValueException('Every stress-test order must be a record.');

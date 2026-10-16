@@ -9,7 +9,9 @@ use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Config\TradeCostComponentConfig;
 use App\Feature\Backtest\Config\TradeCostConfig;
 use App\Feature\Backtest\Config\UnfilledOrderPolicy;
+use App\Feature\Backtest\Model\BacktestOrderHistoryEntry;
 use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
+use App\Feature\Backtest\Process\TradeCostCalculator;
 use App\Feature\MarketPairs\Data\MarketPairMarketData;
 use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
 use App\Feature\MarketPairs\Model\MarketPair;
@@ -98,6 +100,93 @@ class SpecificPairBacktestDomainTest extends TestCase
             ->execute($disabledConfig)->orders->at(0);
         $this->assertEqualsWithDelta(100.0, $disabledOrder->realizedProfitLoss, 0.000001);
         $this->assertSame(0.0, array_sum($disabledOrder->tradeCostTotals));
+    }
+
+    public function test_small_percent_fees_scale_to_large_transaction_values(): void
+    {
+        $cost = (new TradeCostCalculator)->transaction(
+            new TradeCostComponentConfig(true, 'transaction_value_percent', 0.001),
+            quantity: 1.0,
+            transactionValue: 1_234_567_890_123.45,
+            chargePerOrder: true,
+        );
+
+        $this->assertSame(12_345_678.9012345, $cost);
+    }
+
+    public function test_repeated_fractional_costs_accumulate_without_binary_drift(): void
+    {
+        $order = new BacktestOrderHistoryEntry(
+            id: 1,
+            signal: 'long',
+            openDate: '2026-10-09 09:00:00',
+            entryPrice: 10.0,
+            entryPriceSource: 'ask_open',
+            stopLoss: 9.0,
+            takeProfit: 12.0,
+            strategyQuantity: 100,
+            quantityUnit: 'units',
+            quantityMultiplier: 1.0,
+            pnlMultiplier: 1.0,
+            requestedRiskAmount: 100.0,
+            positionSize: 0.0,
+            requestedPositionSize: 100.0,
+            capitalAtOpen: 10_000.0,
+        );
+
+        for ($fill = 0; $fill < 100; $fill++) {
+            $order->recordEntryFill(1.0, 10.0, '2026-10-09 09:00:00', 'ask_open');
+            $order->recordEntryTradeCosts(['commission' => 0.1]);
+        }
+
+        $this->assertSame(10.0, $order->tradeCostTotals['commission']);
+        $this->assertSame(-10.0, $order->realizedProfitLoss);
+    }
+
+    public function test_fractional_exit_fees_do_not_turn_a_break_even_trade_into_a_loss(): void
+    {
+        $pair = new MarketPair(['quantity_unit' => 'units']);
+        $pair->setRelation('prices', new EloquentCollection([
+            $this->candle('2026-10-09 09:00:00', ['open' => 10.0, 'ask_open' => 10.0]),
+            $this->candle('2026-10-09 10:00:00', [
+                'open' => 10.3,
+                'high' => 10.3,
+                'low' => 10.3,
+                'close' => 10.3,
+                'bid_close' => 10.3,
+            ]),
+        ]));
+        $repository = Mockery::mock(MarketPairRepository::class);
+        $repository->shouldReceive('findWithPricesBetween')->once()->andReturn($this->marketData($pair));
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->once()->andReturn(Vec::fromArray([
+            new StrategyDecision(StrategySignal::Long, 9.0, 12.0, 1),
+            new StrategyDecision(StrategySignal::Close, null, null),
+        ]));
+        $config = new SpecificPairTestConfig(
+            'ABC',
+            'USD',
+            new DateTimeImmutable('2026-10-09 00:00:00'),
+            new DateTimeImmutable('2026-10-09 23:59:59'),
+            false,
+            false,
+            tradeCosts: new TradeCostConfig(
+                enabled: true,
+                components: [
+                    'commission' => new TradeCostComponentConfig(true, 'per_order', 0.1, 'exit'),
+                    'exchange_fee' => new TradeCostComponentConfig(true, 'per_order', 0.2, 'exit'),
+                ],
+            ),
+        );
+
+        $result = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy)))
+            ->execute($config);
+
+        $this->assertSame(0.3, $result->orders->at(0)->grossRealizedProfitLoss);
+        $this->assertSame(0.1, $result->orders->at(0)->tradeCostTotals['commission']);
+        $this->assertSame(0.2, $result->orders->at(0)->tradeCostTotals['exchange_fee']);
+        $this->assertSame(0.0, $result->orders->at(0)->profitLoss);
+        $this->assertSame(10_000.0, $result->endingCapital);
     }
 
     public function test_borrow_fees_are_charged_for_short_positions_only(): void

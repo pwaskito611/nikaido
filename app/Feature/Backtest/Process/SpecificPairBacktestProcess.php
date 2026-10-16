@@ -128,7 +128,9 @@ class SpecificPairBacktestProcess
                     );
                     $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
                     $order->recordEntryTradeCosts($entryCosts);
-                    $currentCapital -= array_sum($entryCosts);
+                    $currentCapital = (float) Number::of($currentCapital)
+                        ->sub($this->sumCosts($entryCosts))
+                        ->value();
                 }
 
                 $this->updateClosestToStopLoss($order, $candle);
@@ -287,7 +289,9 @@ class SpecificPairBacktestProcess
                 );
                 $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
                 $order->recordEntryTradeCosts($entryCosts);
-                $currentCapital -= array_sum($entryCosts);
+                $currentCapital = (float) Number::of($currentCapital)
+                    ->sub($this->sumCosts($entryCosts))
+                    ->value();
                 if ($config->partialFill->enabled && $config->partialFill->unfilledOrderPolicy === UnfilledOrderPolicy::Cancel) {
                     $order->cancelledEntryQuantity += $order->remainingEntryQuantity;
                     $order->remainingEntryQuantity = 0.0;
@@ -328,9 +332,12 @@ class SpecificPairBacktestProcess
 
         $costs = [];
         $tradeQuantity = $order->quantityUnit === 'lot'
-            ? $positionQuantity / $order->quantityMultiplier
+            ? (float) Number::of($positionQuantity)->div($order->quantityMultiplier)->value()
             : $positionQuantity;
-        $transactionValue = $positionQuantity * $price * $order->pnlMultiplier;
+        $transactionValue = (float) Number::of($positionQuantity)
+            ->mul($price)
+            ->mul($order->pnlMultiplier)
+            ->value();
         foreach (['commission', 'exchange_fee', 'clearing_fee', 'regulatory_fee', 'transaction_tax'] as $name) {
             $component = $config->tradeCosts->components()[$name];
             if ($component->appliesTo !== 'both' && $component->appliesTo !== $side) {
@@ -352,6 +359,16 @@ class SpecificPairBacktestProcess
         }
 
         return $costs;
+    }
+
+    /** @param array<string, float> $costs */
+    private function sumCosts(array $costs): Number
+    {
+        return array_reduce(
+            $costs,
+            static fn (Number $total, float $cost): Number => $total->add($cost),
+            Number::of(0),
+        );
     }
 
     private function updateClosestToStopLoss(BacktestOrderHistoryEntry $order, MarketPrice $candle): void

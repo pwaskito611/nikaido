@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Feature\Backtest\Data\MarketTypeBacktests;
 
 use Exact\Type\Option\Option;
+use Gauss\Number\Number;
 use UnexpectedValueException;
 
 final readonly class PortfolioExitFill
@@ -45,7 +46,7 @@ final readonly class PortfolioExitFill
             profitLoss: $profitLoss,
             capitalAfter: self::number($fill['capital_after'] ?? null),
             grossProfitLoss: self::number($fill['gross_profit_loss'] ?? null)
-                ->getOrElse($profitLoss->getOrElse(0.0) + array_sum($tradeCosts)),
+                ->getOrElse((float) Number::of($profitLoss->getOrElse(0.0))->add(self::sumCosts($tradeCosts))->value()),
             tradeCosts: $tradeCosts,
         );
     }
@@ -67,7 +68,9 @@ final readonly class PortfolioExitFill
             date: $this->date,
             source: $this->source,
             reason: $this->reason,
-            profitLoss: $this->profitLoss->map(fn (float $_): float => $grossProfitLoss - array_sum($tradeCosts)),
+            profitLoss: $this->profitLoss->map(
+                fn (float $_): float => (float) Number::of($grossProfitLoss)->sub(self::sumCosts($tradeCosts))->value(),
+            ),
             capitalAfter: $this->capitalAfter,
             grossProfitLoss: $grossProfitLoss,
             tradeCosts: $tradeCosts,
@@ -160,5 +163,15 @@ final readonly class PortfolioExitFill
         }
 
         return $value;
+    }
+
+    /** @param array<string, float> $costs */
+    private static function sumCosts(array $costs): Number
+    {
+        return array_reduce(
+            $costs,
+            static fn (Number $total, float $cost): Number => $total->add($cost),
+            Number::of(0),
+        );
     }
 }

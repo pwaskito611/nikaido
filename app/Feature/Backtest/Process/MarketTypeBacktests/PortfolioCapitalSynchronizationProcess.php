@@ -11,6 +11,7 @@ use App\Feature\Backtest\Data\MarketTypeBacktests\PortfolioManagedOrder;
 use Exact\Collection\SortedSet;
 use Exact\Collection\Vec;
 use Exact\Type\Option\Option;
+use Gauss\Number\Number;
 use InvalidArgumentException;
 
 class PortfolioCapitalSynchronizationProcess
@@ -85,14 +86,16 @@ class PortfolioCapitalSynchronizationProcess
                 $fillIndex = $event->fillIndex->getOrElseThrow(
                     new InvalidArgumentException('An entry-cost event requires an entry fill index.'),
                 );
-                $capital -= array_sum($order->entryFills->at($fillIndex)->tradeCosts);
+                $capital = (float) Number::of($capital)
+                    ->sub($this->sumCosts($order->entryFills->at($fillIndex)->tradeCosts))
+                    ->value();
 
                 continue;
             }
             if ($event->fillIndex->isSome()) {
                 $fillIndex = $event->fillIndex->getOrElse(0);
                 $fill = $order->exitFills->at($fillIndex);
-                $capital += $fill->profitLoss->getOrElse(0.0);
+                $capital = (float) Number::of($capital)->add($fill->profitLoss->getOrElse(0.0))->value();
                 $isLastFillOfClosedOrder = $order->closeDate->isSome()
                     && $fillIndex === $order->exitFills->count() - 1;
                 $orders = $this->replaceOrder(
@@ -101,7 +104,7 @@ class PortfolioCapitalSynchronizationProcess
                     $order->withExitCapital($fillIndex, $capital, $isLastFillOfClosedOrder),
                 );
             } else {
-                $capital += $order->profitLoss->getOrElse(0.0);
+                $capital = (float) Number::of($capital)->add($order->profitLoss->getOrElse(0.0))->value();
                 $orders = $this->replaceOrder($orders, $event->orderIndex, $order->withCapitalAfterClose($capital));
             }
         }
@@ -214,7 +217,7 @@ class PortfolioCapitalSynchronizationProcess
         ));
 
         $capital = $initialCapital;
-        $reservedRisk = 0.0;
+        $reservedRisk = Number::of(0);
         $eventOffset = 0;
         while ($eventOffset < $orderedEvents->count()) {
             $date = $orderedEvents->at($eventOffset)->date;
@@ -236,7 +239,7 @@ class PortfolioCapitalSynchronizationProcess
                     $fillIndex = $event->fillIndex->getOrElse(0);
                     $fill = $order->exitFills->at($fillIndex);
                     $fillProfitLoss = $fill->profitLoss->getOrElse(0.0);
-                    $capital += $fillProfitLoss;
+                    $capital = (float) Number::of($capital)->add($fillProfitLoss)->value();
                     $releaseRisk = min(
                         $orderActiveRisk,
                         $riskPerUnit->at($event->orderIndex) * $fill->quantity->getOrElse(0.0),
@@ -252,7 +255,7 @@ class PortfolioCapitalSynchronizationProcess
                         $releaseRisk = $orderActiveRisk;
                     }
                 } else {
-                    $capital += $order->profitLoss->getOrElse(0.0);
+                    $capital = (float) Number::of($capital)->add($order->profitLoss->getOrElse(0.0))->value();
                     $releaseRisk = $orderActiveRisk;
                     $orders = $this->replaceOrder(
                         $orders,
@@ -266,32 +269,42 @@ class PortfolioCapitalSynchronizationProcess
                     $event->orderIndex,
                     max(0.0, $orderActiveRisk - $releaseRisk),
                 );
-                $reservedRisk = max(0.0, $reservedRisk - $releaseRisk);
+                $reservedRisk = $reservedRisk->sub($releaseRisk);
+                if ($reservedRisk->compare(0) < 0) {
+                    $reservedRisk = Number::of(0);
+                }
             }
 
             $entryEvents = $dateEvents->filter(
                 static fn (PortfolioCapitalEvent $event): bool => ! $event->isExit && ! $event->isEntryFill,
             );
-            $totalDemand = $entryEvents->foldLeft(
-                0.0,
-                fn (float $total, PortfolioCapitalEvent $event): float => $total + $riskDemand->at($event->orderIndex),
-            );
-            $availableCapital = max(0.0, $capital - $reservedRisk);
-            $fixedEntryCosts = 0.0;
-            $variableEntryCosts = 0.0;
+            $totalDemand = Number::of(0);
+            foreach ($entryEvents as $event) {
+                $totalDemand = $totalDemand->add($riskDemand->at($event->orderIndex));
+            }
+            $availableCapital = Number::of($capital)->sub($reservedRisk);
+            if ($availableCapital->compare(0) < 0) {
+                $availableCapital = Number::of(0);
+            }
+            $fixedEntryCosts = Number::of(0);
+            $variableEntryCosts = Number::of(0);
             foreach ($entryEvents as $event) {
                 foreach ($orders->at($event->orderIndex)->entryTradeCosts() as $component => $cost) {
                     if (in_array($component, $perOrderCostComponents, true)) {
-                        $fixedEntryCosts += $cost;
+                        $fixedEntryCosts = $fixedEntryCosts->add($cost);
                     } else {
-                        $variableEntryCosts += $cost;
+                        $variableEntryCosts = $variableEntryCosts->add($cost);
                     }
                 }
             }
-            $availableAfterFixedFees = max(0.0, $availableCapital - $fixedEntryCosts);
-            $allocationDemand = $totalDemand + $variableEntryCosts;
-            $sharedFactor = $allocationDemand > $availableAfterFixedFees && $allocationDemand > 0
-                ? $availableAfterFixedFees / $allocationDemand
+            $availableAfterFixedFees = $availableCapital->sub($fixedEntryCosts);
+            if ($availableAfterFixedFees->compare(0) < 0) {
+                $availableAfterFixedFees = Number::of(0);
+            }
+            $allocationDemand = $totalDemand->add($variableEntryCosts);
+            $sharedFactor = $allocationDemand->compare($availableAfterFixedFees) > 0
+                && $allocationDemand->compare(0) > 0
+                ? (float) $availableAfterFixedFees->div($allocationDemand)->value()
                 : 1.0;
 
             foreach ($entryEvents as $event) {
@@ -321,7 +334,7 @@ class PortfolioCapitalSynchronizationProcess
                 );
                 $orders = $this->replaceOrder($orders, $event->orderIndex, $allocatedOrder);
                 $activeRisk = $this->replaceRisk($activeRisk, $event->orderIndex, $allocatedRisk);
-                $reservedRisk += $allocatedRisk;
+                $reservedRisk = $reservedRisk->add($allocatedRisk);
             }
 
             foreach ($dateEvents->filter(
@@ -334,7 +347,9 @@ class PortfolioCapitalSynchronizationProcess
                 $fillIndex = $event->fillIndex->getOrElseThrow(
                     new InvalidArgumentException('An entry-cost event requires an entry fill index.'),
                 );
-                $capital -= array_sum($order->entryFills->at($fillIndex)->tradeCosts);
+                $capital = (float) Number::of($capital)
+                    ->sub($this->sumCosts($order->entryFills->at($fillIndex)->tradeCosts))
+                    ->value();
             }
         }
 
@@ -359,5 +374,15 @@ class PortfolioCapitalSynchronizationProcess
         return $risks->slice(0, $index)
             ->concat(Vec::of($risk))
             ->concat($risks->slice($index + 1));
+    }
+
+    /** @param array<string, float> $costs */
+    private function sumCosts(array $costs): Number
+    {
+        return array_reduce(
+            $costs,
+            static fn (Number $total, float $cost): Number => $total->add($cost),
+            Number::of(0),
+        );
     }
 }

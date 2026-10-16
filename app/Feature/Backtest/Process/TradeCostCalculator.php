@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Feature\Backtest\Process;
 
 use App\Feature\Backtest\Config\TradeCostComponentConfig;
+use Gauss\Number\Number;
 use InvalidArgumentException;
 
 final class TradeCostCalculator
@@ -20,13 +21,13 @@ final class TradeCostCalculator
         }
 
         $cost = match ($component->method) {
-            'per_order' => $component->rate,
-            'transaction_value_percent' => $transactionValue * $component->rate / 100,
-            'per_quantity' => $quantity * $component->rate,
+            'per_order' => Number::of($component->rate),
+            'transaction_value_percent' => Number::of($transactionValue)->mul($component->rate)->div(100),
+            'per_quantity' => Number::of($quantity)->mul($component->rate),
             default => throw new InvalidArgumentException("Unsupported transaction cost method: {$component->method}."),
         };
 
-        return $this->finiteCost($cost);
+        return $this->finiteCost((float) $cost->value());
     }
 
     public function holding(
@@ -40,7 +41,9 @@ final class TradeCostCalculator
             throw new InvalidArgumentException("Unsupported holding cost method: {$component->method}.");
         }
 
-        return $this->finiteCost($entryNotionalDays * $component->rate / 100);
+        $cost = Number::of($entryNotionalDays)->mul($component->rate)->div(100);
+
+        return $this->finiteCost((float) $cost->value());
     }
 
     private function finiteCost(float $cost): float

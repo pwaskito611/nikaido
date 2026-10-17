@@ -45,7 +45,8 @@ They complement the operating procedures in the User Guide and the detailed
 implementation notes in Features.
 
 - [Backtesting fundamentals](concepts/backtesting-fundamentals.md) — what
-  the engine simulates and how to interpret historical results.
+  the engine simulates, how to interpret historical results, and what would
+  need extending for economic/fundamental research.
 - [Order and execution semantics](concepts/order-and-execution-semantics.md) —
   order lifecycle, candle triggers, fills, and execution limitations.
 - [Capital and risk](concepts/capital-and-risk.md) — sizing, realized

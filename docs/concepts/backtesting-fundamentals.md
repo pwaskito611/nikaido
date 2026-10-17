@@ -91,6 +91,64 @@ one strategy observing synchronized markets while making decisions. See
 [Capital and risk](capital-and-risk.md) and
 [multi-pair backtesting](../features/multi-pair-backtesting.md).
 
+## Extending Nikaido for economic and fundamental research
+
+Nikaido can be extended in application code to test systematic strategies
+using economic or company-fundamental data, but that is **not a built-in
+capability today**. The current market-data schema stores candles; the
+migration tests explicitly assert that `country_economics_data` and
+`economics_events` tables do not exist. There is no economic-data UI,
+fundamental provider, financial-statement importer, or strategy selector.
+
+The current strategy boundary receives an ordered iterable of
+[`MarketPrice`](../user-guide/strategies.md) candles and a
+`StrategyExecutionContext`. Adding a table alone will therefore not make
+economic or fundamental values available to a backtest. A custom implementation
+would need to provide at least these pieces:
+
+1. **Define and persist the observations.** Add migrations and typed models
+   for the data being researched, plus identifiers that map each observation
+   to its country, issuer, security, or instrument. A possible observation
+   shape is: subject ID, metric/series ID, observation period, value, unit,
+   publication/availability timestamp, source, and revision/vintage. This is
+   a design example, not an existing Nikaido schema.
+2. **Ingest and validate the source.** Implement an importer for the chosen
+   provider or for data you own. Normalize units, identifiers, timestamps,
+   missing values, and revisions before persistence. The existing external
+   candle-provider contract returns only OHLC candles, so a non-price data
+   source needs an appropriate importer/contract rather than being forced
+   through `MarketPriceRepository`.
+3. **Load observations as of each decision.** Extend the backtest input path
+   so the strategy can receive the historical observations that were
+   available at that decision time. The relevant current path is
+   `RunSpecificPairBacktestAction` → `MarketPairRepository` →
+   `SpecificPairBacktestProcess` → `Strategy::execute`; the strategy contract
+   and these callers would need to change to pass additional data.
+4. **Test and explain the timing rules.** Add fixtures and tests for release
+   dates, missing observations, revisions, identifier mapping, and decisions
+   before and after publication. Document the new inputs, supported sources,
+   and limits for users.
+
+For example, a macro strategy could use an inflation or policy-rate release
+only after its publication became available, or an equity strategy could use
+reported revenue only after the filing/release timestamp. Do not align an
+observation to its economic period end and expose it to the strategy from
+that date if the information was published later. For revised series and
+restated financial statements, preserve historical vintages or otherwise
+prevent later revisions from leaking into earlier decisions. Without
+point-in-time availability data, a backtest can contain look-ahead bias even
+when its price candles are correctly ordered.
+
+This extension could support systematic macro, fundamental, or combined
+price/fundamental research and investment analysis. It would not by itself
+make results investable or predictive: source coverage, survivorship and
+selection bias, publication delays, corporate actions, instrument mapping,
+currency/units, and execution assumptions still need explicit handling. For
+the existing market-data schema and request boundary, see
+[Data models](../reference/data-models.md),
+[Data ingestion and validation](../features/data-ingestion-and-validation.md),
+and [Strategies](../user-guide/strategies.md).
+
 The resulting statistics describe the selected historical sample under the
 implemented model. They do not establish that a strategy has a durable edge,
 prove that data is complete or representative, or forecast future returns.

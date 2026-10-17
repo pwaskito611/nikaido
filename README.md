@@ -97,6 +97,14 @@ strategy as profitable. A positive baseline backtest is only one observation;
 research should also examine data quality, execution assumptions, costs, and
 sensitivity to adverse conditions.
 
+The current built-in backtest consumes market-price candles. Developers can
+extend the data model, ingestion, and strategy input path with their own
+economic or company-fundamental datasets for systematic research, but
+fundamental data ingestion and point-in-time strategy support are not included
+out of the box. See the
+[fundamental research extension notes](docs/concepts/backtesting-fundamentals.md#extending-nikaido-for-economic-and-fundamental-research)
+before treating such data as available to historical decisions.
+
 ## Requirements
 
 - PHP version satisfying Composer's `^8.2` requirement (PHP 8.2 through 8.x)

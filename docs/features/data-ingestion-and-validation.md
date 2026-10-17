@@ -73,6 +73,126 @@ runtime errors. The UI displays normal validation errors; malformed
 unexpected response shapes may be reported as server errors and should be
 diagnosed from Laravel logs.
 
+### Example: Alpha Vantage daily EUR/USD
+
+For a stored `EUR/USD` pair and a timeframe record named `1d`, the provider
+adapter makes an HTTPS GET request equivalent to the following. Supply the
+credential through the Data Import form; do not put a real key in source code,
+logs, or documentation.
+
+```text
+GET https://www.alphavantage.co/query
+    ?function=FX_DAILY
+    &from_symbol=EUR
+    &to_symbol=USD
+    &outputsize=full
+    &apikey=<credential supplied for this request>
+```
+
+The adapter selects the provider's `"Time Series FX (Daily)"` response entry.
+A provider row shaped like this:
+
+```json
+{
+  "2026-10-12": {
+    "1. open": "1.100000",
+    "2. high": "1.150000",
+    "3. low": "1.090000",
+    "4. close": "1.120000"
+  }
+}
+```
+
+is normalized to the provider contract's candle shape:
+
+```php
+[
+    'time' => '2026-10-12 00:00:00',
+    'open' => 1.1,
+    'high' => 1.15,
+    'low' => 1.09,
+    'close' => 1.12,
+]
+```
+
+`ImportExternalProviderCandlesAction` adds the selected `pair_id` and
+`timeframe_type_id`, maps `time` to `price_date`, sets all bid/ask OHLC
+columns to `null`, and passes the records to
+[`MarketPriceRepository::importCandles`](../../app/Feature/MarketPrice/Repository/MarketPriceRepository.php).
+That importer inserts new pair/timeframe/timestamp keys or updates existing
+ones. The timeframe-to-Alpha-Vantage mapping and response normalization are
+implemented in
+[`AlphaVantageDataProvider`](../../app/Feature/DataImport/Provider/AlphaVantageDataProvider.php);
+the shared call and persistence mapping are in
+[`ImportExternalProviderCandlesAction`](../../app/Feature/DataImport/Action/ImportExternalProviderCandlesAction.php).
+
+## Using another provider or your own market data
+
+Alpha Vantage is the only provider currently bound to the external-provider
+form. There is no provider dropdown, provider registry, CSV/Excel uploader, or
+automatic file watcher. The generic adapter seam allows a developer to
+replace the implementation without changing the import route, provided the
+new provider follows the existing contract:
+
+```php
+interface ExternalMarketDataProvider
+{
+    /** @return list<array{time: string, open: float, high: float, low: float, close: float}> */
+    public function fetch(
+        string $credential,
+        string $baseSymbol,
+        string $quoteSymbol,
+        string $timeframe,
+    ): array;
+}
+```
+
+To replace the built-in provider:
+
+1. Implement `ExternalMarketDataProvider` for the other source. Normalize its
+   timestamps and OHLC values to the contract above, and surface transport,
+   provider, and malformed-payload failures rather than returning fabricated
+   candles.
+2. Change the binding in
+   [`AppServiceProvider`](../../app/Platform/Infrastructure/Providers/AppServiceProvider.php)
+   from `AlphaVantageDataProvider` to the new implementation.
+3. Add tests for provider parameters, response mapping, error responses, and
+   timestamp ordering. `DataImportFeatureTest` demonstrates the existing
+   HTTP-fake testing pattern.
+
+This replacement uses the same credential field and passes the selected pair
+symbols and timeframe label to the adapter. Provider-specific credential
+fields, date-window controls, bid/ask series, or multiple providers selected
+at runtime are not supported by the current contract. Supporting those
+requires changing the request/form and, as needed, the
+`ExternalMarketDataProvider` contract and
+`ImportExternalProviderCandlesAction` mapping in addition to registering the
+provider. Provider selection remains application wiring, not a user setting.
+
+For data you already own:
+
+- **Manual data:** enter or edit candles at `/workbench/market-prices`; the
+  Workbench validates the configured market pair, timeframe, timestamp, and
+  price fields.
+- **Programmatic push:** start a pair/timeframe receiver session in Data Import,
+  then send your candle batches to `POST /api/data-import/candles` using its
+  bearer token. The endpoint accepts general OHLC and optional bid/ask OHLC;
+  it does not accept arbitrary columns or infer the source timeframe.
+- **Custom file or database source:** no file upload is built in. Add an
+  importer in the DataImport feature to parse your source, validate and
+  normalize it to the market-price fields (`pair_id`, `timeframe_type_id`,
+  `price_date`, general OHLC, and optional bid/ask OHLC), then persist through
+  the feature's existing ingestion flow/repository. Add a command or UI route
+  only if that is the workflow you need. Keep orchestration in a DataImport
+  Action rather than adding cross-feature persistence calls to a controller.
+
+The central storage model and field definitions are in
+[Data models](../reference/data-models.md); user-facing steps for the existing
+manual, provider, and push workflows are in
+[Data management](../user-guide/data-management.md). Adding a source does not
+change the backtest engine: it still reads stored `MarketPrice` candles for a
+selected pair and timeframe.
+
 ## Authenticated incoming-candle API
 
 The Workbench creates an import session for one existing pair and timeframe.

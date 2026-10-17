@@ -52,7 +52,9 @@ route file requires the individual feature `routes.php` files and redirects
 `/` to `/workbench`. Laravel also exposes its configured `/up` health route.
 The application provider list is in [`bootstrap/providers.php`](../../bootstrap/providers.php);
 the platform `AppServiceProvider` binds `ExternalMarketDataProvider` to
-`AlphaVantageDataProvider`.
+`AlphaVantageDataProvider`. The provider contract, replacement binding, and
+owned-data ingestion options are described in
+[Data ingestion and validation](../features/data-ingestion-and-validation.md#using-another-provider-or-your-own-market-data).
 
 For a Workbench request, Laravel matches the feature route, resolves any
 FormRequest and controller dependencies, and dispatches the controller
@@ -126,4 +128,3 @@ for each eligible pair through Laravel's queue. Each job invokes the same
 configured single-pair Action, stores its result, and contributes to the
 parent run's completion status. It requires a non-`sync` queue connection.
 See [application flow](application-flow.md) for these paths in sequence.
-

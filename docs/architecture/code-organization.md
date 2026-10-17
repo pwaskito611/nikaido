@@ -83,6 +83,16 @@ that every operation must pass through every type of component.
   [`Strategy`](../../app/Platform/Strategy/Strategy.php) delegates to the
   current moving-average decision generator. Strategy decisions and execution
   context are passed to the Backtest process.
+- **External market-data provider integration** is represented by
+  [`ExternalMarketDataProvider`](../../app/Feature/DataImport/Contract/ExternalMarketDataProvider.php).
+  The DataImport Action consumes this contract, while
+  [`AppServiceProvider`](../../app/Platform/Infrastructure/Providers/AppServiceProvider.php)
+  currently binds it to Alpha Vantage. Replacing the provider means
+  implementing the same normalized candle contract and changing that binding;
+  the current Workbench does not offer provider selection. For owned datasets
+  or a different input format, extend the DataImport ingestion path rather
+  than changing backtest candle processing. Details are in
+  [Data ingestion and validation](../features/data-ingestion-and-validation.md#using-another-provider-or-your-own-market-data).
 
 No global Service, UseCase, or generic Repository hierarchy is present in
 these application paths. Component usage varies with the work: the dashboard

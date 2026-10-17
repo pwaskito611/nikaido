@@ -102,8 +102,8 @@ capabilities. They complement the operating procedures in the User Guide.
   event-driven candle simulation, input loading, execution order, capital
   changes, and failure behavior.
 - [Data ingestion and validation](features/data-ingestion-and-validation.md) —
-  provider and push API behavior, validation, duplicate updates, and failure
-  responses.
+  Alpha Vantage example, provider replacement points, owned-data ingestion,
+  push API behavior, validation, duplicate updates, and failure responses.
 - [Market data management](features/market-data-management.md) — CRUD,
   persistence, relationships, uniqueness, and deletion behavior.
 - [Market types and timeframes](features/market-types-and-timeframes.md) —

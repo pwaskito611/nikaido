@@ -112,6 +112,13 @@ and historical coverage are external dependencies. Successful import
 redirects to Data Import and reports the number of candles inserted or
 updated.
 
+For a concrete Alpha Vantage request and an example of how its response is
+normalized into stored candles, see
+[Data ingestion and validation](../features/data-ingestion-and-validation.md#example-alpha-vantage-daily-eurusd).
+That page also explains how a developer can replace the current provider
+binding or build an importer for privately owned data. The current application
+does not provide a CSV/Excel upload or a runtime provider selector.
+
 ## Receive candle batches through the push API
 
 On Data Import, select one pair and timeframe and choose **Start receiving**.

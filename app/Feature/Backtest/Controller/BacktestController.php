@@ -35,6 +35,8 @@ class BacktestController
         RunSpecificPairTestRequest $request,
         RunSpecificPairBacktestAction $runSpecificPairBacktest,
     ): AnonymousResourceCollection {
+        set_time_limit(0);
+
         $backtest = $runSpecificPairBacktest->execute(
             $request->toConfig(),
         );
@@ -70,6 +72,8 @@ class BacktestController
             return redirect()->route('workbench.tests.market-type-runs.show', $run)
                 ->with('status', 'Parallel backtest queued for '.$run->total_pairs.' market pair(s).');
         }
+
+        set_time_limit(0);
 
         $request->session()->put(
             'backtestResult',

@@ -23,53 +23,36 @@ development. Here, `^8.2` means PHP 8.2 or newer within the 8.x major version;
 it does not express support for PHP 9. The exact resolved framework and
 test-runner versions are recorded in `composer.lock`.
 
-## Obtain the source
+## Create a project
 
 ```sh
-git clone https://github.com/pwaskito611/nikaido.git
+composer create-project pandu/nikaido nikaido
 cd nikaido
 ```
 
-You should now be in the directory containing `artisan`, `composer.json`, and
+Composer creates the `nikaido` directory and installs the project. You should
+now be in the directory containing `artisan`, `composer.json`, and
 `package.json`. For details about settings, continue to
 [Configuration](configuration.md).
 
-## Install and initialize
+## Build the frontend
 
-The Composer `setup` script installs PHP dependencies, creates `.env` from
-`.env.example` if needed, generates the application key, runs database
-migrations, installs npm packages, and builds frontend assets.
-
-On a fresh checkout using the default SQLite path, create its empty file before
-running setup:
+Install the Node dependencies and build the Vite assets:
 
 ```sh
-touch database/database.sqlite
-composer run setup
-```
-
-The file is ignored by Git. `touch` creates it if absent and does not truncate an
-existing database. The setup script migrates the selected database but does not
-create the SQLite file, so omitting this step on a fresh checkout can cause an
-“unable to open database file” error.
-
-If you prefer to run the steps individually, this is the equivalent local
-sequence:
-
-```sh
-composer install
-cp .env.example .env
-php artisan key:generate
-touch database/database.sqlite
-php artisan migrate
 npm install
 npm run build
 ```
 
-Do not overwrite an existing `.env` when setting up a checkout that already has
-local configuration. The scripted setup only copies `.env.example` when `.env`
-does not exist. Both setup paths are intended for a local development
-environment, not production.
+The Composer create-project lifecycle initializes `.env`, generates the
+application key, creates the default SQLite database file, and runs migrations.
+If you select another database, configure its connection in `.env` and run
+`php artisan migrate` after project creation. This setup is intended for local
+development, not production.
+
+For a project that was cloned from the repository rather than created with
+Composer, run `composer run setup` from the project root; create
+`database/database.sqlite` first when using the default SQLite configuration.
 
 ## Database preparation
 
@@ -113,7 +96,8 @@ php artisan nikaido:stop
 
 ## Installation checklist
 
-- `composer run setup` completes without PHP platform or migration errors.
+- `composer create-project pandu/nikaido` completes without PHP platform or
+  migration errors.
 - `npm run build` produces the Vite assets without a missing-manifest error.
 - `php artisan nikaido:start` reports both server and worker as running.
 - `/up` responds and the Workbench loads in the browser.

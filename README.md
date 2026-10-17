@@ -14,13 +14,12 @@ Nikaido is built on Laravel. Refer to the
 [Laravel documentation](https://laravel.com/docs) for framework and infrastructure
 details.
 
-## Getting the Source Code
+## Create a Project
 
-Clone the [Nikaido repository](https://github.com/pwaskito611/nikaido) and enter
-the project directory:
+Create a Nikaido project with Composer and enter the project directory:
 
 ```sh
-git clone https://github.com/pwaskito611/nikaido.git
+composer create-project pandu/nikaido nikaido
 cd nikaido
 ```
 
@@ -114,22 +113,21 @@ before treating such data as available to historical decisions.
 
 ## Installation and quick start
 
-From the project root:
+Create the project and build the frontend assets:
 
 ```sh
-touch database/database.sqlite
-composer run setup
+composer create-project pandu/nikaido
+cd nikaido
+npm install
+npm run build
 php artisan nikaido:start
 ```
 
-Create the SQLite file before setup when cloning a fresh checkout. The setup
-script runs migrations but does not create that file itself.
-
-The setup script installs PHP and frontend dependencies, creates `.env` from
-`.env.example` if needed, generates the application key, runs migrations, and
-builds frontend assets. `nikaido:start` starts the Nikaido development server and
-queue worker together. By default, the web server listens at
-`http://127.0.0.1:8000`.
+Composer installs PHP dependencies and initializes `.env`, the application key,
+the default SQLite database file, and database migrations. `npm install` and
+`npm run build` install and build the frontend assets. `nikaido:start` starts the
+Nikaido development server and queue worker together. By default, the web server
+listens at `http://127.0.0.1:8000`.
 
 Stop both processes with:
 

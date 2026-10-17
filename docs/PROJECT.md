@@ -1,18 +1,23 @@
 # Nikaido — Project Overview
 
-## 1. Tentang Proyek
+## 1. About the Project
 
-Nikaido adalah proyek PHP untuk membangun aplikasi yang memiliki domain dan alur bisnis terstruktur, dengan pemisahan tanggung jawab yang jelas antara akses data, operasi domain, orkestrasi proses, dan antarmuka aplikasi.
+Nikaido is a PHP and Laravel-based backtesting framework for systematic trading research. It focuses on strategy performance evaluation, transaction cost and execution simulation, and robustness testing to understand how sensitive strategy results are to changes in assumptions and market conditions.
 
-Proyek ini menggunakan Laravel sebagai fondasi aplikasi dan memanfaatkan library Exact serta Gauss untuk mendukung pemodelan domain yang eksplisit dan operasi matematika yang terstruktur.
+Nikaido is designed to let users focus on developing and testing trading strategies while the backtesting engine handles simulation and result recording. It serves as a research and evaluation tool, not as a provider of trading strategies or trading bots.
 
-Pengembangan Nikaido berorientasi pada correctness, maintainability, composability, dan kesederhanaan arsitektur. Abstraksi hanya ditambahkan ketika memberikan manfaat nyata terhadap kebutuhan proyek.
+Nikaido uses Laravel as its application foundation, Exact for explicit domain type and data modeling, and Gauss for mathematical operations suited to the project's computational requirements.
 
-## 2. Tujuan
+Development prioritizes correctness, maintainability, composability, and architectural simplicity. Abstractions and dependencies are introduced only when they provide tangible benefits for the project's actual needs.
 
-- Membangun aplikasi dengan struktur kode yang mudah dipahami dan dipelihara.
-- Memisahkan akses database dari business logic dan alur aplikasi.
-- Menggunakan tipe domain yang eksplisit untuk mengurangi state ambigu dan kesalahan representasi data.
-- Menggunakan operasi matematika yang sesuai dengan kebutuhan domain tanpa mengimplementasikan ulang fungsi yang sudah tersedia.
-- Memastikan fitur dan perbaikan bug memiliki test yang relevan.
-- Menghindari overengineering, abstraksi prematur, dan dependensi yang tidak diperlukan.
+## 2. Objectives
+
+- Provide a framework for developing, running, and evaluating systematic trading strategies.
+- Evaluate strategy performance while accounting for transaction costs, execution assumptions, and relevant testing configurations.
+- Provide robustness testing to measure how sensitive strategy results are to changes in parameters, assumptions, and simulation conditions.
+- Separate strategy logic, backtesting processes, data access, and application interfaces through clearly defined responsibilities.
+- Use explicit domain types to reduce ambiguous states and data representation errors.
+- Use mathematical operations suited to domain requirements instead of reimplementing functionality that is already available.
+- Ensure that features and bug fixes have relevant tests.
+- Avoid overengineering, premature abstractions, and unnecessary dependencies.
+- Help users assess the limitations and resilience of backtest results without treating historical performance as a guarantee of future profitability.

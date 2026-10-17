@@ -2,41 +2,41 @@
 
 ## 1. Purpose
 
-Standar ini berlaku untuk seluruh pengembangan proyek PHP.
+These standards apply to all PHP development within the project.
 
-- **Exact (`pandu/exact`)** — pemodelan tipe domain, representasi hasil, pattern matching, dan koleksi immutable.
-- **Gauss (`pandu/gauss`)** — operasi matematika, statistik, probabilitas, analisis numerik, dan komputasi matematis yang relevan.
-- **Feature-Based Architecture** — mengorganisasi kode berdasarkan kapabilitas aplikasi di bawah `app/feature/`.
-- **Core Architecture** — Controller, Action, Repository, dan Model sebagai fondasi setiap feature.
-- **Optional Components** — Data, Config, Process, dan Rules sebagai komponen tambahan berdasarkan kebutuhan.
-- **Anemic Model** — menggunakan model sebagai representasi data penyimpanan tanpa business logic substantif.
-- **PHPUnit** — menguji perilaku, integrasi, dan regresi.
+- **Exact (`pandu/exact`)** — domain type modeling, result representation, pattern matching, and immutable collections.
+- **Gauss (`pandu/gauss`)** — mathematical operations, statistics, probability, numerical analysis, and relevant mathematical computation.
+- **Feature-Based Architecture** — organizes application code by capability under `app/Feature/`.
+- **Core Architecture** — Controller, Action, Repository, and Model form the architectural foundation of each feature.
+- **Optional Components** — Data, Config, Process, and Rules are additional components introduced when needed.
+- **Anemic Model** — models represent persisted data without substantial business logic.
+- **PHPUnit** — verifies behavior, integration, and regression.
 
-Prinsip utama:
+Core principles:
 
-- Correctness lebih penting daripada kenyamanan implementasi.
-- Kontrak tipe harus eksplisit.
-- Setiap komponen memiliki tanggung jawab yang jelas.
-- Setiap feature harus memiliki struktur internal yang konsisten dan bebas anomali.
-- Struktur antar-feature boleh berbeda sesuai kebutuhan dan kompleksitasnya.
-- Konsistensi tidak berarti semua feature harus memiliki direktori atau kelas yang identik.
-- Abstraksi harus memiliki kebutuhan nyata.
-- Hindari God Function, God Method, God Class, duplikasi logika, dan dependensi melingkar.
-- Jangan membuat Service atau Use Case terpisah.
-- Tidak setiap operasi membutuhkan seluruh jenis komponen.
-- Jangan menambahkan lapisan hanya untuk memenuhi pola arsitektur tertentu.
+- Correctness takes priority over implementation convenience.
+- Type contracts must be explicit.
+- Every component must have a clear responsibility.
+- Each feature must have a consistent internal structure without arbitrary structural anomalies.
+- Different features may have different structures according to their responsibilities and complexity.
+- Consistency does not require every feature to have identical directories or classes.
+- Abstractions must serve a real need.
+- Avoid God Functions, God Methods, God Classes, duplicated logic, and circular dependencies.
+- Do not introduce separate Service or Use Case layers.
+- Not every operation requires every component type.
+- Do not add layers merely to satisfy an architectural pattern.
 
 ## 2. Feature-Based Architecture
 
-Seluruh kode spesifik feature aplikasi ditempatkan di bawah `app/feature/`.
+All application-specific feature code belongs under `app/Feature/`.
 
-Feature dikelompokkan berdasarkan kapabilitas aplikasi, bukan berdasarkan jenis file secara global.
+Features are organized by application capability, not by file type globally.
 
-Contoh struktur:
+Example structure:
 
 ```text
 app/
-└── feature/
+└── Feature/
     ├── MarketTypes/
     │   ├── Controller/
     │   ├── Action/
@@ -71,57 +71,57 @@ app/
             └── Integration/
 ```
 
-Struktur tersebut hanya ilustrasi. Direktori tambahan digunakan apabila ada tanggung jawab nyata yang memerlukannya.
+This structure is illustrative. Additional directories should be introduced only when a real responsibility requires them.
 
 ### 2.1 Core Components
 
-Setiap feature mengikuti fondasi arsitektur yang sama:
+Every feature follows the same architectural foundation:
 
-- **Controller** — menangani batas transport atau entry point eksternal feature.
-- **Action** — merepresentasikan dan mengorkestrasi operasi aplikasi.
-- **Repository** — menangani akses dan persistensi data.
-- **Model** — merepresentasikan data penyimpanan, terutama model Eloquent.
+- **Controller** — handles the feature's transport boundary or external entry point.
+- **Action** — represents and orchestrates an application operation.
+- **Repository** — handles data access and persistence.
+- **Model** — represents persisted data, primarily through Eloquent models.
 
-Fondasi tersebut merupakan standar bersama. Tanggung jawab komponen harus konsisten antarf​eature meskipun implementasi dan jumlah kelasnya berbeda.
+These responsibilities are shared across features. Their implementations and class counts may differ, but their architectural meanings must remain consistent.
 
-Keberadaan empat komponen dalam standar tidak mengharuskan setiap operasi melewati semuanya. Contohnya, sebuah Action yang melakukan komputasi tanpa membaca atau menyimpan data tidak perlu memanggil Repository.
+The presence of four core components in this standard does not require every operation to pass through all four. For example, an Action that performs computation without reading or persisting data does not need to call a Repository.
 
 ### 2.2 Optional Components
 
-Komponen berikut hanya ditambahkan apabila diperlukan:
+The following components should be introduced only when needed:
 
-- **Data** — merepresentasikan kontrak input, output, atau data antara yang membutuhkan struktur eksplisit.
-- **Config** — menyimpan parameter dan pengaturan yang memang perlu dipisahkan dari implementasi.
-- **Process** — melaksanakan tugas atau kapabilitas yang memiliki tanggung jawab jelas.
-- **Rules** — mengisolasi aturan, kriteria, constraint, atau kebijakan domain yang bermakna.
+- **Data** — represents input, output, or intermediate data that benefits from an explicit structure.
+- **Config** — holds parameters and settings that should be separated from implementation.
+- **Process** — executes a task or capability with a clearly defined responsibility.
+- **Rules** — isolates meaningful domain rules, criteria, constraints, or policies.
 
-Tidak ada kewajiban untuk membuat keempat direktori tersebut di setiap feature.
+There is no requirement to create all four directories in every feature.
 
-Jangan membuat direktori kosong, kelas placeholder, atau abstraksi tanpa fungsi nyata demi menyeragamkan struktur.
+Do not create empty directories, placeholder classes, or abstractions without real functionality merely to standardize the structure.
 
 ### 2.3 Cross-Feature Consistency
 
-Aturan berikut wajib dipertahankan:
+The following rules must be maintained:
 
-- Semua feature menggunakan definisi tanggung jawab Controller, Action, Repository, dan Model yang sama.
-- Jika sebuah feature menggunakan komponen tambahan, komponen tersebut harus mengikuti aturan penamaan, lokasi, dan tanggung jawab yang berlaku.
-- Kelas dengan tanggung jawab yang sama tidak boleh ditempatkan secara berbeda di dalam feature yang sama tanpa alasan arsitektural yang jelas.
-- Jangan mencampurkan Rules dengan Repository, Config dengan algoritma, atau Controller dengan orkestrasi aplikasi.
-- Jangan membuat variasi struktur internal yang bersifat insidental, misalnya meletakkan sebagian Process langsung di root feature dan sebagian lainnya di direktori `Process/`.
-- Jika satu feature membutuhkan subdirektori tambahan, terapkan pola tersebut secara konsisten untuk seluruh komponen dengan kategori dan tanggung jawab yang sama.
-- Perbedaan struktur antar-feature harus dapat dijelaskan oleh perbedaan tanggung jawab atau kompleksitas, bukan preferensi implementasi yang berubah-ubah.
+- All features use the same definitions of Controller, Action, Repository, and Model responsibilities.
+- When a feature uses optional components, those components must follow the applicable naming, placement, and responsibility conventions.
+- Classes with the same responsibility must not be placed inconsistently within the same feature without a clear architectural reason.
+- Do not mix Rules with Repository responsibilities, Config with algorithms, or Controllers with application orchestration.
+- Avoid arbitrary internal structural variations, such as placing some Process classes in the feature root and others under `Process/`.
+- If a feature requires an additional subdirectory, apply the pattern consistently to components with the same category and responsibility.
+- Structural differences between features must be justified by differences in responsibility or complexity, not inconsistent implementation preferences.
 
 ### 2.4 Cross-Feature Dependencies
 
-- Setiap feature bertanggung jawab atas implementasi internalnya sendiri.
-- Feature lain tidak boleh bergantung secara sembarangan pada detail internal feature yang bukan miliknya.
-- Gunakan entry point atau kontrak publik yang jelas ketika operasi suatu feature diperlukan oleh feature lain.
-- Orkestrasi yang melibatkan beberapa kapabilitas ditempatkan pada Action feature pemanggil atau feature orkestrasi yang memang memiliki tanggung jawab tersebut.
-- Hindari dependensi melingkar antarf​eature.
-- Jangan menduplikasi business logic hanya untuk menghindari dependensi lintas feature.
-- Jangan membuat lapisan global untuk Action, Repository, Process, atau Rules apabila tanggung jawabnya khusus milik suatu feature.
+- Each feature owns its internal implementation.
+- Other features must not depend arbitrarily on internal details they do not own.
+- Use clear entry points or public contracts when another feature needs an operation.
+- Orchestration involving multiple capabilities belongs in the calling feature's Action or in a dedicated orchestration feature that genuinely owns that responsibility.
+- Avoid circular dependencies between features.
+- Do not duplicate business logic merely to avoid cross-feature dependencies.
+- Do not create global layers for Action, Repository, Process, or Rules when their responsibilities belong to individual features.
 
-Contoh namespace:
+Example namespaces:
 
 ```php
 App\Feature\MarketTypes\Controller\MarketTypeController
@@ -134,290 +134,290 @@ App\Feature\Backtest\Data\BacktestInput
 App\Feature\Backtest\Process\ExecuteStrategyProcess
 ```
 
-`app/feature/` merupakan konvensi proyek, bukan struktur wajib bawaan Laravel. Pertahankan kapitalisasi dan konvensi namespace yang ditetapkan proyek.
+`app/Feature/` is a project convention, not a directory structure required by Laravel. Preserve the capitalization and namespace conventions established by the project.
 
 ## 3. Core Architecture
 
 ### 3.1 Controller — Transport Boundary
 
-Controller menerima permintaan dari batas transport dan meneruskan operasi ke Action.
+A Controller receives requests at the transport boundary and delegates operations to Actions.
 
-Tanggung jawab:
+Responsibilities:
 
-- Menerima request HTTP.
-- Menggunakan FormRequest untuk validasi transport-level apabila sesuai.
-- Mengambil input yang telah divalidasi.
-- Mengonversi input menjadi kontrak input Action apabila diperlukan.
-- Memanggil Action yang relevan.
-- Membentuk respons HTTP berdasarkan hasil Action.
+- Receive HTTP requests.
+- Use FormRequest for transport-level validation when appropriate.
+- Retrieve validated input.
+- Convert input into an Action input contract when necessary.
+- Invoke the relevant Action.
+- Construct an HTTP response based on the Action result.
 
-Larangan:
+Restrictions:
 
-- Tidak mengimplementasikan business logic substantif.
-- Tidak mengorkestrasi Process secara langsung.
-- Tidak menjalankan algoritma domain atau perhitungan kompleks.
-- Tidak menulis query database.
-- Tidak mengakses Repository secara langsung.
-- Tidak menangani detail internal proses aplikasi yang semestinya menjadi tanggung jawab Action.
+- Do not implement substantial business logic.
+- Do not orchestrate Process components directly.
+- Do not execute domain algorithms or complex computations.
+- Do not write database queries.
+- Do not access Repositories directly.
+- Do not handle internal application process details that belong to an Action.
 
-Controller tetap tipis: menerima input, memanggil Action, dan mengembalikan respons.
+Controllers should remain thin: accept input, invoke an Action, and return a response.
 
 ### 3.2 Action — Application Orchestration
 
-Action merepresentasikan satu operasi aplikasi yang mempunyai tujuan jelas.
+An Action represents one application operation with a clear purpose.
 
-Contoh:
+Examples:
 
 - `CreateMarketTypeAction`
 - `RunBacktestAction`
 - `GeneratePerformanceReportAction`
 
-Tanggung jawab:
+Responsibilities:
 
-- Menjadi entry point operasi aplikasi melalui `execute()`.
-- Menentukan urutan pemanggilan komponen yang diperlukan.
-- Mengatur alur sukses, percabangan orkestrasi, dan penanganan kegagalan.
-- Meneruskan input dan hasil antartahap.
-- Menentukan kapan data perlu dibaca atau disimpan.
-- Menghasilkan output sesuai kontrak aplikasi.
+- Provide the application's operation entry point through `execute()`.
+- Determine the invocation order of required components.
+- Manage success paths, orchestration branches, and failure handling.
+- Pass inputs and results between stages.
+- Determine when data must be read or persisted.
+- Produce output according to the application contract.
 
-Aturan:
+Rules:
 
-- Satu Action memiliki satu tujuan aplikasi yang jelas.
-- `execute()` memperlihatkan alur utama, bukan seluruh detail implementasi.
-- Action boleh memanggil Rules, Process, Repository, atau komponen lain sesuai kebutuhan.
-- Action boleh melakukan tugas sederhana secara langsung.
-- Action tidak menulis query database secara langsung.
-- Action tidak menjadi tempat utama implementasi algoritma domain yang kompleks.
-- Action tidak menduplikasi aturan yang sudah dimiliki Rules atau Process.
-- Kegagalan pada tahap penting harus ditangani sebelum tahap berikutnya dijalankan.
-- Jangan membuat Service atau Use Case terpisah.
-- Jangan membuat base Action, interface, atau handler generik tanpa kebutuhan konkret.
+- Each Action must have one clear application-level purpose.
+- `execute()` should expose the main workflow rather than every implementation detail.
+- An Action may invoke Rules, Process, Repository, or other components as needed.
+- An Action may perform simple tasks directly.
+- An Action must not write database queries directly.
+- An Action must not become the primary location for complex domain algorithms.
+- An Action must not duplicate rules already owned by Rules or Process.
+- Failures at critical stages must be handled before subsequent stages execute.
+- Do not introduce separate Service or Use Case layers.
+- Do not create base Actions, interfaces, or generic handlers without a concrete need.
 
-Action boleh memiliki metode privat untuk membantu orkestrasi atau pemetaan hasil selama tanggung jawabnya tetap koheren.
+An Action may contain private methods for orchestration or result mapping, provided its overall responsibility remains coherent.
 
 ### 3.3 Repository — Data Access
 
-Repository menangani akses dan persistensi data.
+A Repository handles data access and persistence.
 
-Tanggung jawab:
+Responsibilities:
 
-- Menjalankan query database.
-- Membaca, menyimpan, memperbarui, dan menghapus data.
-- Menggunakan Eloquent atau mekanisme penyimpanan proyek.
-- Memetakan hasil penyimpanan menjadi tipe yang diperlukan pemanggil.
-- Mengonversi representasi internal ke format penyimpanan dan sebaliknya.
+- Execute database queries.
+- Read, create, update, and delete data.
+- Use Eloquent or the project's established persistence mechanism.
+- Map persisted results into types required by callers.
+- Convert between internal representations and storage formats.
 
-Aturan:
+Rules:
 
-- Repository tidak mengorkestrasi keseluruhan operasi aplikasi.
-- Repository tidak menjadi tempat business logic substantif atau algoritma domain.
-- Repository tidak mengembalikan query builder mentah jika kontraknya seharusnya menghasilkan data.
-- Jangan membuat interface Repository secara otomatis.
-- Pisahkan Repository berdasarkan tanggung jawab akses data yang nyata, bukan jumlah metode.
-- Gunakan tipe hasil yang eksplisit untuk data tunggal, opsional, jamak, atau kegagalan.
-- Repository boleh dipanggil Action atau Process sesuai kebutuhan.
-- Jangan memindahkan tanggung jawab secara artifisial hanya untuk memenuhi pola pemanggilan tertentu.
+- A Repository must not orchestrate an entire application operation.
+- A Repository must not become the home of substantial business logic or domain algorithms.
+- Do not return raw query builders when the contract should return data.
+- Do not create Repository interfaces automatically.
+- Separate Repositories according to genuine data-access responsibilities, not method count.
+- Use explicit result types for single values, optional values, collections, or failures.
+- A Repository may be called by an Action or Process when appropriate.
+- Do not artificially relocate responsibilities merely to enforce a particular invocation pattern.
 
 ### 3.4 Model — Anemic Model
 
-Model merepresentasikan data penyimpanan, terutama model Eloquent.
+A Model represents persisted data, primarily through Eloquent.
 
-Contoh:
+Examples:
 
 - `MarketPrice`
 - `BacktestRecord`
 - `TradingConfiguration`
 
-Aturan:
+Rules:
 
-- Model berfokus pada atribut, casting, relasi, dan perilaku teknis yang diperlukan Eloquent.
-- Business logic substantif berada pada Rules atau Process sesuai jenis tanggung jawabnya.
-- Orkestrasi aplikasi berada pada Action.
-- Akses penyimpanan melalui Repository sesuai konvensi proyek.
-- Model tidak mengatur keseluruhan alur aplikasi.
-- Model tidak diwajibkan menyimpan atribut dalam tipe Exact.
+- Models focus on attributes, casts, relationships, and technical behavior required by Eloquent.
+- Substantial business logic belongs in Rules or Process according to its responsibility.
+- Application orchestration belongs in Actions.
+- Persistence access follows the project's Repository conventions.
+- A Model must not orchestrate the entire application workflow.
+- A Model is not required to store attributes using Exact types.
 
-Jangan menambahkan perilaku kompleks ke Model hanya karena Eloquent menyediakan tempat untuk melakukannya.
+Do not add complex behavior to a Model merely because Eloquent provides a place for it.
 
 ## 4. Optional Components
 
 ### 4.1 Data — Data Representation
 
-Data merepresentasikan informasi yang digunakan atau dihasilkan operasi.
+Data represents information consumed or produced by an operation.
 
-Contoh:
+Examples:
 
 - `RunBacktestInput`
 - `BacktestResult`
 - `MarketCandle`
 - `PerformanceMetrics`
 
-Tanggung jawab:
+Responsibilities:
 
-- Menyatakan struktur input, output, atau data antara.
-- Menetapkan kontrak data yang eksplisit.
-- Mengurangi ketergantungan pada array asosiatif yang strukturnya tidak jelas.
-- Menggunakan tipe Exact jika sesuai dengan kontrak internal.
+- Define input, output, or intermediate data structures.
+- Establish explicit data contracts.
+- Reduce reliance on associative arrays with unclear structures.
+- Use Exact types when appropriate for internal contracts.
 
-Aturan:
+Rules:
 
-- Data tidak mengorkestrasi operasi aplikasi.
-- Data tidak menjalankan query database.
-- Data tidak menjadi tempat business logic substantif.
-- Data tidak harus selalu berupa kelas DTO.
-- Jangan membuat kelas Data hanya untuk membungkus nilai sederhana tanpa manfaat yang jelas.
-- Data tidak menggantikan Model atau Repository.
+- Data must not orchestrate application operations.
+- Data must not execute database queries.
+- Data must not contain substantial business logic.
+- Data does not always need to be implemented as a DTO class.
+- Do not create Data classes merely to wrap simple values without a clear benefit.
+- Data does not replace Models or Repositories.
 
-Perbedaan tanggung jawab:
+Responsibility boundaries:
 
-- Data menyatakan informasi yang dibutuhkan atau dihasilkan operasi.
-- Model merepresentasikan data penyimpanan.
-- Repository menangani cara data dibaca dan disimpan.
+- Data represents information an operation requires or produces.
+- Model represents persisted data.
+- Repository handles how data is read and stored.
 
-Komponen Data dapat tidak digunakan apabila tipe PHP atau tipe Exact yang tersedia sudah menyatakan kontrak dengan jelas.
+A separate Data component may be unnecessary when an existing PHP or Exact type already expresses the contract clearly.
 
 ### 4.2 Config — Configuration
 
-Config menyediakan parameter yang mengatur perilaku feature.
+Config provides parameters that control feature behavior.
 
-Contoh:
+Examples:
 
-- Parameter default eksplorasi pasar.
-- Batas dan opsi simulasi backtest.
-- Pengaturan sumber data.
-- Pengaturan perilaku proses yang dapat diubah tanpa mengubah algoritma.
+- Default market exploration parameters.
+- Backtest simulation limits and options.
+- Data-source settings.
+- Configurable process behavior that should not require changing algorithms.
 
-Aturan:
+Rules:
 
-- Config berisi parameter, opsi, dan nilai konfigurasi.
-- Config tidak menjadi tempat business logic.
-- Config tidak menjalankan query database.
-- Config tidak mengorkestrasi operasi aplikasi.
-- Jangan memindahkan seluruh nilai literal ke Config secara mekanis.
-- Pisahkan nilai konfigurasi dari konstanta internal yang memang tidak perlu diubah oleh konfigurasi.
-- Validasi parameter sesuai batas transport atau aturan domain yang berlaku.
+- Config contains parameters, options, and configuration values.
+- Config must not contain business logic.
+- Config must not execute database queries.
+- Config must not orchestrate application operations.
+- Do not mechanically move every literal into Config.
+- Distinguish configurable values from internal constants that do not need configuration.
+- Validate parameters at the appropriate transport or domain boundary.
 
-Gunakan Config ketika pengaturan tersebut memiliki kebutuhan konfigurasi nyata. Tidak setiap feature memerlukan direktori Config.
+Use Config when there is a genuine configuration requirement. Not every feature needs a Config directory.
 
 ### 4.3 Rules — Domain Rules
 
-Rules memuat aturan, kriteria, constraint, atau kebijakan domain yang mempunyai makna tersendiri.
+Rules contain meaningful domain rules, criteria, constraints, or policies.
 
-Contoh:
+Examples:
 
-- Kriteria validasi konfigurasi trading.
-- Kriteria seleksi market.
-- Batasan validitas parameter simulasi.
-- Aturan penerimaan atau penolakan kondisi domain.
+- Trading configuration validation criteria.
+- Market selection criteria.
+- Simulation parameter validity constraints.
+- Rules for accepting or rejecting domain conditions.
 
-Aturan:
+Rules:
 
-- Rules berfokus pada keputusan atau aturan yang diterapkan terhadap input.
-- Rules tidak menangani HTTP.
-- Rules tidak menulis query database.
-- Rules tidak mengorkestrasi seluruh operasi aplikasi.
-- Rules tidak menjadi tempat penyimpanan konfigurasi.
-- Rules boleh menggunakan Data atau tipe Exact sesuai kebutuhan.
-- Rules dapat digunakan oleh Action atau Process apabila penggunaannya sesuai dengan tanggung jawab feature.
-- Aturan sederhana boleh tetap berada pada Action atau Process jika pemisahan belum memberikan manfaat yang nyata.
+- Focus on decisions or constraints applied to inputs.
+- Must not handle HTTP.
+- Must not write database queries.
+- Must not orchestrate the entire application operation.
+- Must not serve as configuration storage.
+- May use Data or Exact types as needed.
+- May be used by Actions or Process when consistent with the feature's responsibilities.
+- Simple rules may remain inside an Action or Process when extracting them would not provide meaningful benefits.
 
-Pisahkan Rules ketika aturan memiliki makna domain yang jelas, kompleksitas tersendiri, kebutuhan pengujian independen, atau digunakan pada beberapa bagian internal feature.
+Separate Rules when a rule has clear domain meaning, meaningful complexity, a need for independent testing, or multiple internal consumers.
 
 ### 4.4 Process — Individual Operation
 
-Process melaksanakan tugas atau kapabilitas tertentu yang menjadi bagian dari operasi aplikasi.
+Process executes a specific task or capability as part of an application operation.
 
-Contoh:
+Examples:
 
 - `LoadMarketDataProcess`
 - `ExecuteStrategyProcess`
 - `SimulateOrderExecutionProcess`
 - `CalculatePerformanceProcess`
 
-Tanggung jawab:
+Responsibilities:
 
-- Melaksanakan tugas spesifik dengan tujuan yang dapat dijelaskan.
-- Menjalankan algoritma, transformasi, atau tahapan komputasi yang relevan.
-- Menggunakan Rules, Data, Exact, Gauss, atau Repository sesuai kebutuhan.
-- Menghasilkan output dengan kontrak eksplisit.
-- Memisahkan detail implementasi yang bermakna dari orkestrasi Action.
+- Execute a specific task with an explainable purpose.
+- Perform relevant algorithms, transformations, or computational stages.
+- Use Rules, Data, Exact, Gauss, or Repository as appropriate.
+- Produce output with an explicit contract.
+- Separate meaningful implementation details from Action orchestration.
 
-Aturan:
+Rules:
 
-- Process boleh memiliki metode privat untuk implementasi internal.
-- Process boleh menggunakan Repository jika akses data merupakan bagian dari tugasnya.
-- Process boleh memanggil Process lain jika dependensinya nyata dan tidak menimbulkan siklus.
-- Process tidak menangani HTTP.
-- Process tidak mengambil alih orkestrasi keseluruhan operasi aplikasi.
-- Jangan membuat Process hanya untuk membungkus satu pemanggilan metode tanpa manfaat nyata.
-- Jangan membuat Process untuk setiap langkah mekanis yang terlalu kecil.
-- Jangan menggabungkan kapabilitas yang tidak berkaitan ke dalam satu God Class.
+- Process may contain private methods for internal implementation.
+- Process may use Repository when data access is part of its responsibility.
+- Process may invoke another Process when the dependency is genuine and does not create a cycle.
+- Process must not handle HTTP.
+- Process must not take over orchestration of the entire application operation.
+- Do not create Process classes merely to wrap a single method call without meaningful benefit.
+- Do not create a Process for every trivial mechanical step.
+- Do not combine unrelated capabilities into a God Class.
 
-**Tidak semua feature membutuhkan Process. Tidak semua Action membutuhkan Process terpisah.** Action boleh melaksanakan operasi sederhana secara langsung. Buat Process ketika tugas mempunyai kompleksitas, tanggung jawab mandiri, atau kebutuhan pengujian dan penggunaan ulang yang membenarkannya.
+**Not every feature needs Process. Not every Action requires a separate Process.** An Action may execute a simple operation directly. Introduce Process when the task has sufficient complexity, an independent responsibility, or testing and reuse needs to justify the separation.
 
 ## 5. Component Selection and Structural Consistency
 
-Pemilihan komponen ditentukan oleh tanggung jawab, bukan oleh kewajiban memiliki seluruh direktori.
+Choose components according to responsibility, not a requirement to create every directory.
 
-| Kebutuhan | Komponen |
+| Requirement | Component |
 |---|---|
-| Menangani request dan respons HTTP | Controller |
-| Mengatur operasi aplikasi | Action |
-| Membaca atau menyimpan data | Repository |
-| Merepresentasikan data penyimpanan | Model |
-| Membawa kontrak input, output, atau data antara | Data |
-| Menyediakan parameter yang dapat dikonfigurasi | Config |
-| Menyatakan aturan dan kriteria domain | Rules |
-| Melaksanakan tugas atau kapabilitas tertentu | Process |
+| Handle HTTP requests and responses | Controller |
+| Orchestrate an application operation | Action |
+| Read or persist data | Repository |
+| Represent persisted data | Model |
+| Carry input, output, or intermediate data contracts | Data |
+| Provide configurable parameters | Config |
+| Express domain rules and criteria | Rules |
+| Execute a specific task or capability | Process |
 
 ### 5.1 Consistency Within a Feature
 
-Setiap feature wajib konsisten secara internal.
+Every feature must be internally consistent.
 
-- Gunakan konvensi direktori dan namespace yang konsisten.
-- Tempatkan komponen berdasarkan tanggung jawabnya.
-- Jangan mencampur kelas dengan tanggung jawab yang sama di beberapa lokasi tanpa alasan jelas.
-- Terapkan pola penamaan yang konsisten untuk kelas dan metode dengan peran serupa.
-- Pertahankan batas tanggung jawab yang sama sepanjang implementasi feature.
-- Jangan membuat pengecualian lokal tanpa alasan arsitektural yang dapat dijelaskan.
-- Jika struktur internal feature berubah, periksa seluruh feature agar tidak meninggalkan pola lama yang bertentangan.
-- Pastikan implementasi baru mengikuti konvensi internal feature yang telah ditetapkan.
+- Follow consistent directory and namespace conventions.
+- Place components according to their responsibilities.
+- Do not scatter classes with the same responsibility across different locations without a clear reason.
+- Apply consistent naming conventions to classes and methods with similar roles.
+- Maintain the same responsibility boundaries throughout the feature.
+- Do not introduce local exceptions without an explainable architectural reason.
+- When changing a feature's internal structure, review the feature for conflicting legacy patterns.
+- Ensure new implementations follow the feature's established internal conventions.
 
 ### 5.2 Variation Between Features
 
-Struktur antar-feature boleh berbeda.
+Different features may have different structures.
 
-Contoh:
+Examples:
 
-- Market Types dapat menggunakan Controller, Action, Repository, dan Model saja.
-- Market Exploration dapat menambahkan Rules dan Config.
-- Backtest dapat menggunakan seluruh komponen, termasuk Data dan Process.
+- Market Types may use only Controller, Action, Repository, and Model.
+- Market Exploration may add Rules and Config.
+- Backtest may use all components, including Data and Process.
 
-Perbedaan tersebut sah selama:
+These differences are acceptable provided that:
 
-1. Fondasi dan definisi tanggung jawab komponen tetap konsisten.
-2. Komponen tambahan mempunyai tujuan nyata.
-3. Struktur setiap feature konsisten secara internal.
-4. Tidak ada duplikasi business logic yang tidak diperlukan.
-5. Dependensi tetap jelas dan tidak melingkar.
+1. Core component definitions and responsibilities remain consistent.
+2. Additional components serve genuine purposes.
+3. Each feature remains internally consistent.
+4. Unnecessary business logic duplication is avoided.
+5. Dependencies remain clear and acyclic.
 
-Jangan memaksa feature sederhana menggunakan struktur feature kompleks. Sebaliknya, jangan mempertahankan struktur sederhana ketika kompleksitas nyata sudah membutuhkan pemisahan tanggung jawab.
+Do not force a simple feature to adopt the structure of a complex feature. Conversely, do not retain an overly simple structure when genuine complexity requires separation of responsibilities.
 
 ### 5.3 Refactoring Decisions
 
-Saat mengubah struktur:
+When changing structure:
 
-- Jangan merombak feature lain hanya untuk membuat jumlah direktori identik.
-- Jika pola yang sama diperlukan di beberapa feature, pertimbangkan pemisahan komponen bersama hanya ketika memang ada tanggung jawab bersama yang jelas.
-- Jika ditemukan anomali internal, perbaiki berdasarkan standar tanggung jawab dan konvensi feature.
-- Jangan memindahkan kelas hanya untuk membuat struktur tampak lebih simetris.
-- Hindari refactoring lintas feature yang tidak diperlukan oleh perubahan saat ini.
-- Periksa dampak terhadap namespace, autoloading, routing, kontrak publik, dan test.
+- Do not refactor other features merely to make their directory counts identical.
+- If a pattern is needed across multiple features, consider extracting a shared component only when it has a clear shared responsibility.
+- If an internal anomaly is found, correct it according to responsibility boundaries and feature conventions.
+- Do not move classes merely to make the structure look more symmetrical.
+- Avoid cross-feature refactoring unrelated to the current change.
+- Check the impact on namespaces, autoloading, routing, public contracts, and tests.
 
 ## 6. Execution Flow
 
-Alur HTTP yang umum:
+A typical HTTP workflow:
 
 ```text
 HTTP Request
@@ -446,324 +446,324 @@ Controller
 HTTP Response
 ```
 
-Diagram tersebut bersifat konseptual. Rules, Process, dan Data bersifat opsional. Tidak semua operasi harus melewati semua komponen.
+This diagram is conceptual. Rules, Process, and Data are optional. Not every operation must pass through every component.
 
-Aturan alur:
+Workflow rules:
 
-- Controller meneruskan input ke Action dan membentuk respons.
-- Action mengatur urutan operasi aplikasi.
-- Rules menyatakan aturan atau kriteria yang relevan.
-- Process melaksanakan tugas spesifik.
-- Data membawa informasi dengan kontrak yang jelas.
-- Repository menangani akses penyimpanan.
-- Model merepresentasikan data penyimpanan.
-- Action atau Process boleh bekerja tanpa Repository apabila tidak membutuhkan data persisten.
-- Config menyediakan parameter jika diperlukan.
-- Penanganan kegagalan harus mengikuti kontrak komponen dan mencegah operasi berikutnya berjalan secara keliru.
+- Controller passes input to an Action and constructs the response.
+- Action orchestrates the application operation.
+- Rules express relevant rules or criteria.
+- Process executes a specific task.
+- Data carries information through explicit contracts.
+- Repository handles persistence access.
+- Model represents persisted data.
+- An Action or Process may operate without a Repository when persistence is unnecessary.
+- Config supplies parameters when required.
+- Failure handling must follow component contracts and prevent subsequent operations from executing incorrectly.
 
 ## 7. Exact — Internal Type and Data Modeling
 
-Exact (`pandu/exact`) digunakan untuk pemodelan tipe dan struktur data internal apabila sesuai kebutuhan.
+Exact (`pandu/exact`) is used for internal type and data modeling when appropriate.
 
-Aturan:
+Rules:
 
-- Gunakan `Option` untuk nilai opsional yang mempunyai makna domain.
-- Gunakan `Either` untuk hasil yang membedakan keberhasilan dan kegagalan secara eksplisit.
-- Gunakan `Validated` untuk validasi yang membutuhkan akumulasi kesalahan.
-- Gunakan `Variant` dan `PatternMatch` untuk memodelkan dan menangani alternatif state domain.
-- Gunakan koleksi immutable seperti `Vec`, `Map`, dan `Set` berdasarkan semantiknya.
-- Gunakan koleksi non-empty hanya ketika invariannya memang dijamin.
-- Gunakan tipe Exact pada kontrak internal Action, Rules, Process, Data, dan Repository apabila sesuai dengan API serta tanggung jawab komponen.
-- Jangan menggunakan Exact secara mekanis untuk setiap skalar atau objek.
-- Hindari konversi berulang antara tipe Exact dan tipe PHP.
-- Jangan mengubah kegagalan menjadi nilai default secara diam-diam.
-- Jangan mengasumsikan API yang tidak tersedia pada versi Exact terpasang.
+- Use `Option` for optional values with domain meaning.
+- Use `Either` for results that explicitly distinguish success from failure.
+- Use `Validated` when validation needs to accumulate errors.
+- Use `Variant` and `PatternMatch` to model and handle alternative domain states.
+- Use immutable collections such as `Vec`, `Map`, and `Set` according to their semantics.
+- Use non-empty collections only when their invariants are guaranteed.
+- Use Exact types in internal Action, Rules, Process, Data, and Repository contracts when appropriate for the component and supported API.
+- Do not mechanically use Exact for every scalar or object.
+- Avoid repeated conversions between Exact types and native PHP types.
+- Do not silently convert failures into default values.
+- Do not assume an API exists in the installed Exact version without verification.
 
-Konversi antara representasi internal dan eksternal dilakukan pada batas yang sesuai. Repository menangani konversi penyimpanan, sedangkan Action mengatur kontrak output aplikasi. Controller membentuk respons HTTP.
+Convert between internal and external representations at appropriate boundaries. Repositories handle storage conversions, Actions coordinate application output contracts, and Controllers construct HTTP responses.
 
 ### 7.1 Exact AI Documentation
 
-Library Exact memiliki dokumentasi khusus AI bernama `EXACT.MD` di root repository/library Exact, bukan di root proyek aplikasi.
+The Exact library has dedicated AI documentation named `EXACT.MD` at the root of the Exact library repository, not at the root of the application repository.
 
-Ketika menggunakan Exact:
+When working with Exact:
 
-1. Temukan root repository Exact yang benar-benar digunakan.
-2. Baca `EXACT.MD` sebelum merancang atau mengubah penggunaan API Exact yang kompleks.
-3. Periksa implementasi dan test library jika dokumentasi tidak menjawab kebutuhan.
-4. Verifikasi API pada versi dependensi yang terpasang.
-5. Jangan menyalin seluruh dokumentasi Exact ke proyek aplikasi.
-6. Jangan membuat salinan `EXACT.MD` di root proyek aplikasi.
+1. Locate the actual root of the Exact repository being used.
+2. Read `EXACT.MD` before designing or changing complex Exact API usage.
+3. Inspect the library implementation and tests if the documentation does not answer the question.
+4. Verify the API against the installed dependency version.
+5. Do not copy the entire Exact documentation into the application project.
+6. Do not create a duplicate `EXACT.MD` at the application project root.
 
-Jika dokumentasi tidak tersedia, periksa kode library yang dapat diakses. Jangan mengarang API yang belum diverifikasi.
+If the documentation is unavailable, inspect the accessible library source. Do not invent unverified APIs.
 
 ## 8. Gauss — Mathematical Computation
 
-Gauss (`pandu/gauss`) digunakan untuk operasi matematika yang tersedia dan relevan.
+Gauss (`pandu/gauss`) is used for available and relevant mathematical operations.
 
-Area penggunaan mencakup statistik, probabilitas, aljabar linear, distribusi probabilitas, deret waktu, optimisasi, metode numerik, dan komputasi matematis lainnya yang tersedia dalam library.
+Areas include statistics, probability, linear algebra, probability distributions, time series, optimization, numerical methods, and other mathematical computation provided by the library.
 
-Aturan:
+Rules:
 
-- Gunakan Gauss ketika operasi matematisnya tersedia dan sesuai.
-- Gunakan aritmetika PHP untuk operasi sederhana jika sudah memadai.
-- Pilih floating-point atau perhitungan berpresisi tinggi berdasarkan kebutuhan numerik.
-- Jangan mengasumsikan semua operasi Gauss menggunakan presisi tinggi secara otomatis.
-- Jangan menduplikasi algoritma yang sudah tersedia dan sesuai tanpa alasan jelas.
-- Pisahkan algoritma matematis dari akses penyimpanan.
-- Pertahankan asumsi numerik, satuan, toleransi, determinisme, dan perilaku batas.
-- Jangan mengasumsikan seluruh operasi Gauss menerima atau mengembalikan tipe Exact.
-- Lakukan konversi numerik pada batas yang diperlukan dan hindari kehilangan presisi yang tidak disengaja.
+- Use Gauss when the required operation is available and appropriate.
+- Use native PHP arithmetic for simple operations when it is sufficient.
+- Choose floating-point or high-precision computation according to numerical requirements.
+- Do not assume every Gauss operation automatically uses high precision.
+- Avoid duplicating suitable existing algorithms without a clear reason.
+- Separate mathematical algorithms from persistence access.
+- Preserve numerical assumptions, units, tolerances, determinism, and boundary behavior.
+- Do not assume every Gauss operation accepts or returns Exact types.
+- Perform numerical conversions at necessary boundaries and avoid unintended precision loss.
 
 ### 8.1 Gauss AI Documentation
 
-Library Gauss memiliki dokumentasi khusus AI bernama `GAUSS.MD` di root repository/library Gauss, bukan di root proyek aplikasi.
+The Gauss library has dedicated AI documentation named `GAUSS.MD` at the root of the Gauss library repository, not at the root of the application repository.
 
-Ketika menggunakan Gauss:
+When working with Gauss:
 
-1. Temukan root repository Gauss yang benar-benar digunakan.
-2. Baca `GAUSS.MD` sebelum merancang atau mengubah penggunaan API Gauss yang kompleks.
-3. Periksa implementasi dan test library jika dokumentasi tidak menjawab kebutuhan.
-4. Verifikasi kontrak tipe, mode presisi, dan API pada versi dependensi yang terpasang.
-5. Jangan menyalin seluruh dokumentasi Gauss ke proyek aplikasi.
-6. Jangan membuat salinan `GAUSS.MD` di root proyek aplikasi.
+1. Locate the actual root of the Gauss repository being used.
+2. Read `GAUSS.MD` before designing or changing complex Gauss API usage.
+3. Inspect the library implementation and tests if the documentation does not answer the question.
+4. Verify type contracts, precision modes, and API availability against the installed dependency version.
+5. Do not copy the entire Gauss documentation into the application project.
+6. Do not create a duplicate `GAUSS.MD` at the application project root.
 
-Jika dokumentasi tidak tersedia, gunakan sumber yang dapat diperiksa. Jangan mengasumsikan API atau kemampuan yang belum diverifikasi.
+If the documentation is unavailable, use inspectable sources. Do not assume unverified APIs or capabilities exist.
 
 ## 9. Strategy Module
 
-Modul Strategy merupakan tempat pengguna mendefinisikan perilaku strategi trading.
+The Strategy module is where users define trading strategy behavior.
 
-Aturan:
+Rules:
 
-- `app/Platform/Strategy/Strategy.php` menjadi entry point strategi yang dipanggil Engine sesuai kontrak framework.
-- Implementasi strategi dan indikator berada dalam area Strategy yang ditetapkan proyek.
-- Strategy menerima rangkaian candle terurut, termasuk data pemanasan jika diwajibkan oleh kontrak Engine.
-- Strategy mengembalikan keputusan sesuai kontrak yang ditetapkan.
-- Engine bertanggung jawab atas pengambilan data, simulasi order, SL/TP, dan hasil backtest.
-- Strategy berjalan in-process, bukan melalui HTTP/API internal.
-- Konfigurasi pair, timeframe, jadwal, dan tanggal merupakan tanggung jawab Engine atau komponen konfigurasi yang sesuai.
-- Action mengorkestrasi operasi backtest; Process melaksanakan tugas spesifik yang dibutuhkan.
-- Gunakan Exact untuk data internal jika sesuai dengan kontrak Engine dan API yang tersedia.
-- Jangan mengubah kontrak Strategy publik secara sepihak hanya demi penggunaan Exact.
-- Jangan memindahkan tanggung jawab Engine ke Strategy atau sebaliknya tanpa alasan arsitektural yang jelas.
+- `app/Platform/Strategy/Strategy.php` is the strategy entry point invoked by the Engine according to the framework contract.
+- Strategy implementations and indicators belong in the project's designated Strategy area.
+- A Strategy receives an ordered sequence of candles, including warm-up data when required by the Engine contract.
+- A Strategy returns decisions according to the established contract.
+- The Engine is responsible for data retrieval, order simulation, stop-loss/take-profit handling, and backtest results.
+- Strategies run in-process, not through an internal HTTP/API layer.
+- Pair, timeframe, schedule, and date configuration belong to the Engine or appropriate configuration components.
+- Actions orchestrate backtest operations; Process executes the specific tasks they require.
+- Use Exact for internal data when appropriate for the Engine contract and available API.
+- Do not unilaterally change the public Strategy contract merely to use Exact.
+- Do not transfer Engine responsibilities to Strategy, or vice versa, without a clear architectural reason.
 
 ## 10. Error Handling and Result Contracts
 
-Penanganan kegagalan harus eksplisit dan konsisten.
+Failure handling must be explicit and consistent.
 
-Aturan:
+Rules:
 
-- Gunakan `Either` atau tipe hasil yang sesuai ketika kontrak perlu membedakan sukses dan gagal.
-- Gunakan `Option` untuk ketiadaan nilai yang valid, bukan untuk menyembunyikan kegagalan.
-- Gunakan `Validated` ketika beberapa kesalahan validasi perlu dikumpulkan.
-- Gunakan exception untuk kondisi luar biasa sesuai kontrak komponen.
-- Jangan menangkap exception tanpa menanganinya secara bermakna.
-- Jangan mengganti kegagalan dengan hasil kosong, nol, atau default tanpa dasar domain yang jelas.
-- Action memastikan kegagalan tahap penting tidak menyebabkan tahap berikutnya dijalankan secara keliru.
-- Repository membedakan ketiadaan data, hasil kosong, dan kegagalan penyimpanan apabila penting bagi pemanggil.
-- Controller memetakan hasil aplikasi ke status dan respons HTTP sesuai kontrak eksternal.
-- Jangan mengekspos detail exception internal atau stack trace melalui respons HTTP.
+- Use `Either` or another appropriate result type when the contract must distinguish success from failure.
+- Use `Option` for valid absence, not to conceal failures.
+- Use `Validated` when multiple validation errors need to be accumulated.
+- Use exceptions for exceptional conditions according to the component contract.
+- Do not catch exceptions without handling them meaningfully.
+- Do not replace failures with empty results, zero, or defaults without a clear domain justification.
+- Actions must ensure failures at critical stages do not allow subsequent stages to execute incorrectly.
+- Repositories should distinguish missing data, empty results, and persistence failures when that distinction matters to callers.
+- Controllers map application results to HTTP statuses and responses according to the external contract.
+- Do not expose internal exception details or stack traces in HTTP responses.
 
 ## 11. Testing Standards
 
-Gunakan PHPUnit untuk unit test, integration test, dan regression test.
+Use PHPUnit for unit, integration, and regression tests.
 
 ### 11.1 Controller Tests
 
-Uji validasi request, konversi input, pemanggilan Action, format respons, dan pemetaan kegagalan ke HTTP.
+Test request validation, input conversion, Action invocation, response formatting, and mapping of failures to HTTP responses.
 
-Jangan menempatkan test algoritma domain di Controller test.
+Do not place domain algorithm tests in Controller tests.
 
 ### 11.2 Action Tests
 
-Uji orkestrasi operasi aplikasi, urutan pemanggilan komponen jika relevan, penanganan hasil sukses dan gagal, penghentian alur, serta kontrak output.
+Test application orchestration, component invocation order when relevant, success and failure handling, workflow termination, and output contracts.
 
 ### 11.3 Repository Tests
 
-Uji query, pemetaan hasil penyimpanan, konversi tipe, persistensi, perilaku data tidak ditemukan, dan penanganan kegagalan penyimpanan.
+Test queries, persisted-result mapping, type conversion, persistence behavior, missing-data behavior, and persistence failure handling.
 
-Gunakan integration test untuk memverifikasi perilaku database sesungguhnya apabila diperlukan.
+Use integration tests to verify actual database behavior when necessary.
 
 ### 11.4 Model Tests
 
-Uji casting, relasi, dan perilaku teknis Model apabila perilaku tersebut memerlukan verifikasi tersendiri.
+Test casts, relationships, and technical Model behavior when that behavior requires independent verification.
 
-Jangan membuat test hanya untuk membuktikan bahwa kelas Model yang tidak memiliki perilaku tambahan dapat diinstansiasi.
+Do not create tests merely to prove that a Model without additional behavior can be instantiated.
 
 ### 11.5 Optional Component Tests
 
-- **Data** — uji validasi, invariants, dan value semantics apabila memiliki perilaku bermakna.
-- **Config** — uji validasi atau pemetaan konfigurasi apabila diperlukan.
-- **Rules** — uji keputusan, kondisi batas, invariants, dan kombinasi aturan.
-- **Process** — uji algoritma, transformasi, percabangan, determinisme, dan penanganan hasil yang relevan.
+- **Data** — test validation, invariants, and value semantics when meaningful behavior exists.
+- **Config** — test configuration validation or mapping when needed.
+- **Rules** — test decisions, boundary conditions, invariants, and rule combinations.
+- **Process** — test algorithms, transformations, branching, determinism, and relevant result handling.
 
-Tidak perlu membuat test kelas terpisah untuk setiap komponen jika perilakunya sudah teruji secara memadai pada level yang tepat.
+Separate tests for every component class are unnecessary when its behavior is already adequately tested at the appropriate level.
 
 ### 11.6 Exact and Gauss Tests
 
-- Uji penggunaan Exact berdasarkan kontrak dan semantik API yang benar-benar tersedia.
-- Uji perhitungan Gauss terhadap nilai acuan yang dapat dipercaya.
-- Gunakan toleransi numerik yang sesuai untuk floating-point.
-- Verifikasi presisi dan perilaku batas ketika presisi tinggi dibutuhkan.
-- Jangan mengasumsikan kesamaan eksak untuk hasil floating-point tanpa dasar.
+- Test Exact usage against the actual API contract and semantics.
+- Test Gauss calculations against trustworthy reference values.
+- Use appropriate numerical tolerances for floating-point calculations.
+- Verify precision and boundary behavior when high precision is required.
+- Do not assume exact equality for floating-point results without justification.
 
 ### 11.7 Strategy and Backtest Tests
 
-Uji keputusan Strategy, data pemanasan, urutan candle, determinisme, eksekusi order, SL/TP, perhitungan performa, spread, slippage, partial fill, stress test, dan regresi yang relevan dengan perubahan.
+Test Strategy decisions, warm-up data, candle ordering, determinism, order execution, stop-loss/take-profit behavior, performance calculations, spread, slippage, partial fills, stress tests, and regressions relevant to the change.
 
 ### 11.8 General Testing Rules
 
-- Gunakan data deterministik.
-- Pisahkan unit test dari integration test sesuai kebutuhan.
-- Tambahkan regression test untuk bug yang dapat direproduksi.
-- Jangan melemahkan test agar implementasi tampak berhasil.
-- Utamakan perilaku dan kontrak publik daripada detail implementasi yang tidak relevan.
-- Jalankan test yang relevan dan seluruh test suite jika memungkinkan.
-- Laporkan test yang dijalankan, hasil aktual, kegagalan, dan test yang belum dijalankan.
+- Use deterministic test data.
+- Separate unit and integration tests as appropriate.
+- Add regression tests for reproducible bugs.
+- Do not weaken tests merely to make an implementation pass.
+- Prefer behavior and public contracts over irrelevant implementation details.
+- Run relevant tests and the full suite when feasible.
+- Report the tests executed, actual results, failures, and tests not run.
 
 ## 12. General PHP Standards
 
-- Gunakan PHP 8.2+ dan `declare(strict_types=1);`.
-- Gunakan deklarasi tipe eksplisit.
-- Hindari `mixed` jika tipe yang lebih tepat dapat dinyatakan.
-- Pilih nama Action berdasarkan tujuan operasi aplikasi.
-- Pilih nama Repository berdasarkan tanggung jawab akses data.
-- Pilih nama Data berdasarkan informasi yang direpresentasikan.
-- Pilih nama Rules berdasarkan aturan atau kebijakan domain.
-- Pilih nama Process berdasarkan tugas atau kapabilitas yang dikerjakan.
-- Hindari duplikasi aturan domain.
-- Jangan membuat Service atau Use Case terpisah.
-- Jangan membuat abstraksi hanya demi mengikuti pola desain.
-- Pertahankan penanganan error, perubahan state, dan urutan operasi agar mudah ditelusuri.
-- Gunakan metode privat untuk memisahkan detail implementasi apabila itu sudah cukup.
-- Buat kelas baru ketika pemisahan memberi manfaat nyata bagi tanggung jawab, pengujian, atau pemeliharaan.
+- Use PHP 8.2+ and `declare(strict_types=1);`.
+- Declare types explicitly.
+- Avoid `mixed` when a more precise type can be expressed.
+- Name Actions according to their application operation.
+- Name Repositories according to their data-access responsibility.
+- Name Data classes according to the information they represent.
+- Name Rules according to their domain rule or policy.
+- Name Process classes according to the task or capability they execute.
+- Avoid duplicating domain rules.
+- Do not introduce separate Service or Use Case layers.
+- Do not create abstractions merely to follow a design pattern.
+- Keep error handling, state changes, and operation ordering easy to trace.
+- Use private methods to separate implementation details when that is sufficient.
+- Introduce new classes when separation provides a real benefit to responsibility, testing, or maintainability.
 
-### 12.1 Avoid God Function, God Method, and God Class
+### 12.1 Avoid God Functions, God Methods, and God Classes
 
-- Setiap fungsi dan metode memiliki tanggung jawab yang jelas.
-- Action tidak mengambil alih algoritma kompleks yang semestinya berada dalam Process.
-- Process tidak menggabungkan kapabilitas yang tidak berkaitan.
-- Repository tidak menjadi tempat penampungan business logic.
-- Controller tidak menjadi tempat logika aplikasi.
-- Jangan mengukur kualitas hanya berdasarkan panjang kode, jumlah metode, atau jumlah kelas.
-- Algoritma panjang dapat dipertahankan jika koheren dan lebih mudah dipahami sebagai satu unit.
-- Pecah metode ketika pemisahan memperjelas tanggung jawab, meningkatkan testability, atau memudahkan pemeliharaan.
-- Hindari metode privat terlalu kecil yang tidak memberikan makna tambahan.
-- Jangan memindahkan tanggung jawab hanya untuk memperpendek fungsi.
-- Pertahankan alur utama agar dapat dipahami tanpa terlalu banyak lapisan delegasi.
+- Every function and method must have a clear responsibility.
+- Actions must not absorb complex algorithms that belong in Process.
+- Process must not combine unrelated capabilities.
+- Repositories must not become repositories of business logic in the broader sense.
+- Controllers must not contain application logic.
+- Do not measure quality solely by code length, method count, or class count.
+- A long algorithm may remain intact when it is coherent and easier to understand as one unit.
+- Split methods when doing so clarifies responsibility, improves testability, or simplifies maintenance.
+- Avoid excessively small private methods that add no meaningful abstraction.
+- Do not move responsibilities merely to shorten a function.
+- Keep the main workflow understandable without excessive delegation layers.
 
 ### 12.2 Avoid Overengineering
 
-- Gunakan metode privat jika pemisahan hanya dibutuhkan untuk memperjelas implementasi dalam satu kelas.
-- Buat Process ketika ada tugas atau kapabilitas bermakna dan mandiri.
-- Buat Rules ketika aturan mempunyai tanggung jawab yang layak dipisahkan.
-- Buat Data ketika kontrak data memperoleh manfaat dari representasi eksplisit.
-- Gunakan Config ketika parameter memang perlu dikonfigurasi.
-- Buat Action ketika ada operasi aplikasi dengan tujuan dan kontrak yang jelas.
-- Buat Repository ketika ada tanggung jawab akses data yang nyata.
-- Jangan membuat kelas untuk setiap baris atau langkah mekanis.
-- Jangan membuat interface, base class, atau abstraksi generik tanpa kebutuhan konkret.
-- Hindari siklus dependensi antarkomponen dan antar-feature.
-- Jika dependensi dua arah muncul, evaluasi kembali batas tanggung jawabnya.
-- Jangan memaksakan setiap operasi melewati seluruh lapisan.
+- Use private methods when separation is needed only to clarify implementation within one class.
+- Create Process when a meaningful, independent task or capability exists.
+- Create Rules when rules have responsibilities worth isolating.
+- Create Data when explicit data representation provides a clear benefit.
+- Create Config when genuine configuration needs exist.
+- Create Action when an application operation has a clear purpose and contract.
+- Create Repository when a real data-access responsibility exists.
+- Do not create a class for every line or mechanical step.
+- Do not introduce interfaces, base classes, or generic abstractions without concrete needs.
+- Avoid circular dependencies between components and features.
+- If bidirectional dependencies emerge, reassess the responsibility boundaries.
+- Do not force every operation through every layer.
 
 ### 12.3 Readability
 
-- `execute()` pada Action memperlihatkan alur utama operasi aplikasi.
-- Entry point Process memperlihatkan alur utama tugasnya.
-- Nama kelas, variabel, dan metode mencerminkan makna domain.
-- Hindari nesting berlebihan dan duplikasi aturan.
-- Pertahankan kontrak tipe dan batas konversi secara konsisten.
-- Pilih implementasi yang mudah dipahami tanpa mengorbankan correctness.
+- An Action's `execute()` method should reveal the operation's main workflow.
+- A Process entry point should reveal the main workflow of its task.
+- Class, variable, and method names should reflect domain meaning.
+- Avoid excessive nesting and duplicated rules.
+- Keep type contracts and conversion boundaries consistent.
+- Prefer implementations that are easy to understand without compromising correctness.
 
 ## 13. Development Procedure
 
-1. Periksa struktur proyek dan konvensi yang sudah berlaku.
-2. Identifikasi feature yang menjadi tanggung jawab perubahan.
-3. Periksa struktur internal feature tersebut sebelum menambah atau memindahkan kelas.
-4. Identifikasi kebutuhan, kontrak input-output, dan aturan domain.
-5. Tentukan operasi aplikasi yang menjadi tanggung jawab Action.
-6. Tentukan apakah Rules, Process, Data, dan Config diperlukan berdasarkan tanggung jawab nyata.
-7. Tentukan Repository yang diperlukan untuk akses penyimpanan.
-8. Pertahankan Model sesuai tanggung jawab representasi penyimpanan.
-9. Periksa `EXACT.MD` pada root library Exact sebelum menggunakan atau mengubah API Exact yang kompleks.
-10. Periksa `GAUSS.MD` pada root library Gauss sebelum menggunakan atau mengubah API Gauss yang kompleks.
-11. Verifikasi API terhadap kode library dan versi dependensi terpasang.
-12. Implementasikan perubahan sesuai struktur dan konvensi internal feature.
-13. Tambahkan atau perbarui test pada perilaku yang berubah.
-14. Periksa konsistensi internal feature, dependensi lintas feature, dan potensi duplikasi.
-15. Jalankan test serta pemeriksaan kualitas yang tersedia.
-16. Periksa regresi, kontrak publik, dan dampak lintas feature.
-17. Laporkan perubahan, test yang dijalankan, hasil aktual, dan keterbatasan yang diketahui.
+1. Inspect the project structure and established conventions.
+2. Identify the feature responsible for the change.
+3. Inspect that feature's internal structure before adding or moving classes.
+4. Identify requirements, input/output contracts, and domain rules.
+5. Determine which application operation belongs in an Action.
+6. Decide whether Rules, Process, Data, and Config are necessary based on actual responsibilities.
+7. Identify any Repository needed for persistence access.
+8. Keep Models aligned with their persistence-representation responsibilities.
+9. Consult `EXACT.MD` at the Exact library root before using or changing complex Exact API usage.
+10. Consult `GAUSS.MD` at the Gauss library root before using or changing complex Gauss API usage.
+11. Verify APIs against the library source and installed dependency versions.
+12. Implement changes according to the feature's internal structure and conventions.
+13. Add or update tests for changed behavior.
+14. Check internal feature consistency, cross-feature dependencies, and potential duplication.
+15. Run relevant tests and available quality checks.
+16. Check for regressions, public contract changes, and cross-feature impact.
+17. Report the changes, tests executed, actual results, and known limitations.
 
-Jangan merombak struktur feature lain hanya demi keseragaman visual. Lakukan perubahan lintas feature jika memang diperlukan untuk menjaga kontrak, konsistensi tanggung jawab, atau mencegah dependensi yang keliru.
+Do not restructure other features merely for visual uniformity. Make cross-feature changes when necessary to preserve contracts, consistent responsibilities, or correct dependency boundaries.
 
-Jangan menyalin dokumentasi khusus AI Exact atau Gauss ke root proyek aplikasi.
+Do not copy Exact or Gauss AI documentation into the application project's root.
 
 ## 14. Decision Rules
 
-| Pertanyaan | Komponen |
+| Question | Component |
 |---|---|
-| Bagaimana request HTTP diterima dan respons dikirim? | Controller |
-| Operasi aplikasi apa yang harus dijalankan? | Action |
-| Bagaimana urutan beberapa langkah aplikasi diatur? | Action |
-| Bagaimana tugas atau kapabilitas tertentu dilaksanakan? | Process |
-| Bagaimana aturan atau kriteria domain diterapkan? | Rules |
-| Informasi apa yang harus dibawa atau dihasilkan? | Data |
-| Parameter apa yang perlu dikonfigurasi? | Config |
-| Bagaimana data dibaca atau disimpan? | Repository |
-| Bagaimana data penyimpanan direpresentasikan oleh Eloquent? | Model |
-| Bagaimana tipe domain dan koleksi internal dimodelkan? | Exact |
-| Bagaimana komputasi matematika dilakukan? | Gauss |
-| Bagaimana perilaku diverifikasi dan regresi dicegah? | PHPUnit |
+| How are HTTP requests received and responses returned? | Controller |
+| What application operation must be executed? | Action |
+| How should multiple application steps be coordinated? | Action |
+| How is a specific task or capability executed? | Process |
+| How are domain rules or criteria applied? | Rules |
+| What information must be carried or produced? | Data |
+| What parameters need configuration? | Config |
+| How is data read or persisted? | Repository |
+| How is persisted data represented through Eloquent? | Model |
+| How are internal domain types and collections modeled? | Exact |
+| How is mathematical computation performed? | Gauss |
+| How is behavior verified and regression prevented? | PHPUnit |
 
-Aturan keputusan:
+Decision rules:
 
-- Jika kode menangani HTTP, gunakan Controller.
-- Jika kode mengatur operasi aplikasi, gunakan Action.
-- Jika kode menerapkan aturan domain yang mandiri, pertimbangkan Rules.
-- Jika kode melaksanakan tugas atau kapabilitas yang mandiri, pertimbangkan Process.
-- Jika kode hanya membawa informasi, gunakan Data atau tipe yang sesuai.
-- Jika kode menyediakan parameter yang perlu dikonfigurasi, gunakan Config.
-- Jika kode mengakses penyimpanan, gunakan Repository.
-- Jika kode merepresentasikan data penyimpanan, gunakan Model.
-- Jika proses tidak membutuhkan akses data, jangan menambahkan Repository hanya demi konsistensi struktur.
-- Jika Action hanya memiliki satu tugas sederhana, Process terpisah tidak wajib.
-- Jika aturan sederhana masih jelas di dalam Action atau Process, Rules terpisah tidak wajib.
-- Jika tipe yang tersedia sudah menyatakan kontrak data dengan jelas, Data terpisah tidak wajib.
-- Jika konfigurasi tidak mempunyai kebutuhan khusus, Config terpisah tidak wajib.
+- If code handles HTTP, use Controller.
+- If code orchestrates an application operation, use Action.
+- If code applies an independent domain rule, consider Rules.
+- If code executes an independent task or capability, consider Process.
+- If code only carries information, use Data or an appropriate existing type.
+- If code supplies parameters that need configuration, use Config.
+- If code accesses persistence, use Repository.
+- If code represents persisted data, use Model.
+- If a process does not require data access, do not add Repository merely for structural consistency.
+- If an Action performs one simple task, a separate Process is not mandatory.
+- If a rule remains clear within an Action or Process, a separate Rules component is not mandatory.
+- If an existing type already expresses the data contract clearly, a separate Data class is not mandatory.
+- If configuration has no specific need, a separate Config component is not mandatory.
 
 ## 15. Priority Order
 
-Prioritas pengembangan:
+Development priorities:
 
-1. Correctness dan ketepatan aturan domain.
-2. Kontrak tipe eksplisit.
-3. Pemisahan tanggung jawab yang jelas.
-4. Konsistensi internal feature.
-5. Testability dan pencegahan regresi.
-6. Composability dan maintainability.
-7. Keterbacaan alur serta keterlacakan error.
-8. Kesederhanaan implementasi.
-9. Efisiensi yang relevan dan dapat dibuktikan.
+1. Correctness and domain-rule accuracy.
+2. Explicit type contracts.
+3. Clear separation of responsibilities.
+4. Internal feature consistency.
+5. Testability and regression prevention.
+6. Composability and maintainability.
+7. Readable workflows and traceable errors.
+8. Implementation simplicity.
+9. Relevant, demonstrable efficiency.
 
-Konsistensi struktur penting, tetapi tidak boleh dicapai dengan memaksakan komponen yang tidak diperlukan.
+Structural consistency matters, but must not be achieved by forcing unnecessary components into the design.
 
 ## 16. Core Principles Summary
 
-- **Controller** — menangani transport HTTP dan meneruskan operasi ke Action.
-- **Action** — mengorkestrasi satu operasi aplikasi.
-- **Repository** — mengakses, memetakan, dan mempersistenkan data.
-- **Model** — merepresentasikan data penyimpanan dengan pendekatan Anemic Model.
-- **Data** — merepresentasikan informasi dengan kontrak eksplisit jika diperlukan.
-- **Config** — menyediakan parameter dan pengaturan jika diperlukan.
-- **Rules** — mengisolasi aturan atau kriteria domain jika diperlukan.
-- **Process** — melaksanakan tugas atau kapabilitas tertentu jika diperlukan.
-- **Strategy** — mendefinisikan perilaku strategi trading sesuai kontrak Engine.
-- **Exact** — menyediakan pemodelan tipe dan struktur data internal.
-- **Gauss** — menyediakan komputasi matematika yang relevan.
-- **PHPUnit** — memverifikasi perilaku dan mencegah regresi.
+- **Controller** — handles HTTP transport and delegates operations to Actions.
+- **Action** — orchestrates one application operation.
+- **Repository** — accesses, maps, and persists data.
+- **Model** — represents persisted data using the Anemic Model approach.
+- **Data** — represents information through explicit contracts when needed.
+- **Config** — provides parameters and settings when needed.
+- **Rules** — isolates domain rules or criteria when needed.
+- **Process** — executes a specific task or capability when needed.
+- **Strategy** — defines trading strategy behavior according to the Engine contract.
+- **Exact** — provides internal type and data-structure modeling.
+- **Gauss** — provides relevant mathematical computation.
+- **PHPUnit** — verifies behavior and prevents regressions.
 
-**Fondasi arsitektur harus seragam; struktur internal harus konsisten per feature; kompleksitas antar-feature boleh berbeda.**
+**The architectural foundation must be uniform; each feature's internal structure must be consistent; complexity may vary between features.**
 
-Setiap feature harus memiliki struktur yang terprediksi dan bebas anomali. Namun, feature sederhana tidak perlu meniru struktur feature kompleks. Tambahkan komponen hanya ketika tanggung jawabnya nyata, pertahankan batas yang jelas, dan hindari abstraksi yang tidak diperlukan.
+Every feature should have a predictable, anomaly-free structure. However, simple features do not need to imitate complex ones. Introduce components only when their responsibilities are real, preserve clear boundaries, and avoid unnecessary abstractions.

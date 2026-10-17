@@ -2,7 +2,7 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "pandu/nikaido",
     "type": "project",
-    "description": "Pandu/Nikaido — a Laravel-based framework for backtesting systematic trading and investment strategies.",
+    "description": "Pandu/Nikaido — A Laravel-based framework for systematic trading and investment strategy research, backtesting, and robustness analysis.",
     "keywords": ["laravel", "framework", "trading", "backtest", "systematic-trading", "quant", "quantitative-finance"],
     "license": "MIT",
     "require": {

@@ -1,238 +1,231 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Nikaido
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+**A research workbench for testing systematic trading strategies and evaluating
+how sensitive their results are to execution assumptions and market conditions.**
 
-## Application structure
+## Project overview
 
-Application code is grouped under two top-level parents:
+Nikaido is a framework for experimenting with and researching trading strategies
+using historical market data. It combines backtest execution with analysis tools
+so researchers can inspect not only a strategy's baseline results, but also how
+those results respond to selected changes in assumptions.
 
-- `app/Features/` contains user-facing capabilities. `Engine`, `Workbench`, and
-  `DataImport` own their use cases and the Laravel adapters they need, such as
-  controllers, requests, jobs, and routes.
-- `app/Platform/` contains shared or technical capabilities. `Strategy` provides
-  strategy logic used by Engine, `Console` contains Artisan commands, and
-  `Infrastructure` contains framework wiring and external-system adapters.
+Nikaido is built on Laravel. Refer to the
+[Laravel documentation](https://laravel.com/docs) for framework and infrastructure
+details.
 
-Feature modules may depend on Platform capabilities; Platform code should not
-depend on a specific Feature. A module only needs the layers it actually uses.
-For example, Strategy does not need controllers or routes.
+## Getting the Source Code
 
-## Monte Carlo simulation
-
-The Workbench results page can run trade-sequence Monte Carlo simulations from the
-closed trades already stored in the backtest result. It does not rerun the strategy
-or modify the source order history. The input P/L is the backtest's `profit_loss`;
-this repository does not currently calculate separate commissions or fees.
-
-Choose `shuffle` to sample every historical trade exactly once in a randomized
-order, or `bootstrap` to sample with replacement. Bootstrap may use a configured
-number of trades per simulation and treats trades as independent observations; it
-does not preserve temporal or market-regime dependencies. Shuffle changes order
-only and does not change the historical P/L distribution.
-
-Simulation configuration defaults to 1,000 simulations, all historical trades per
-simulation, shuffle, the original backtest initial capital, fixed monetary P/L,
-and a 20% drawdown threshold. The optional seed can be set from 0 to 2,147,483,647;
-without a seed, a fresh random seed is generated. A configured trade count other
-than the historical count is accepted only for bootstrap. Requests are limited to
-10,000,000 simulated trade steps.
-
-Equity can use fixed monetary P/L or compounded return. The compounded return for
-each historical trade is derived from its stored `profit_loss / capital_at_open`;
-it is rejected when the denominator is missing or invalid. Equity reaching zero
-or below is floored at zero and the simulation stops processing remaining trades.
-Fixed monetary P/L preserves each nominal trade P/L; compounded-return simulations
-preserve each trade's derived return instead.
-Maximum drawdown is measured from the running equity peak and reported both as a
-percentage of peak equity and as a monetary amount. Drawdown probability uses a
-configurable percentage threshold. Percentiles use linear interpolation between
-the adjacent sorted simulation outcomes.
-
-The report includes final-equity and maximum-drawdown distributions, percentiles,
-loss and drawdown probabilities. A 95th-percentile drawdown is a simulation
-distribution statistic, not a guaranteed loss bound. Neither method models future
-changes in spread, slippage, liquidity, volatility, or market regime, guarantees
-future performance, or removes overfitting risk.
-
-## Parallel market-type backtests
-
-The Workbench supports both the original synchronous specific-pair test and a
-parallel market-type test. The latter selects pairs with at least one candle in
-the requested timeframe and date range, stores a parent run plus one status/result
-row per pair, then dispatches one queue job per eligible pair. Each job invokes
-the same `RunConfiguredPairBacktestAction` used by the specific-pair workflow. Empty
-eligible sets complete immediately. Pair failures are recorded independently and
-do not stop other queued jobs; the run becomes `completed_with_failures` after
-all pair records reach a terminal state.
-
-Backtest execution, parallel-run coordination, queue jobs, result persistence,
-Fluctuation Stress Test, and Monte Carlo calculations live in the Engine module.
-Workbench remains the HTTP/form and presentation layer and delegates calculations
-to Engine actions.
-
-Each entry strategy response supplies a positive quantity along with the signal
-and SL/TP levels. The moving-average example sizes positions to risk 1% of the
-current realized capital, updated after each candle as exits are filled. Strategies
-receive a mutable execution context containing that capital and the selected pair's
-quantity unit and multiplier. Each market pair defines how strategy quantity is
-interpreted: `units` (including shares or quantity) pass through directly;
-`contract` retains the number of contracts and uses the configured contract point
-value to scale P/L and stop risk; `lot` converts lots to underlying units using the
-configured units per lot. Realized P/L and stop risk use actual filled quantities.
-Futures point value is assumed to be denominated in the pair's quote currency; the
-engine does not convert settlement currencies or model margin. The pair editor
-defaults new pairs to `units`; pairs created before the unit setting was introduced
-are treated as lots to preserve their existing multiplier.
-
-Strategies can request a limit entry by passing `limitPrice` to a long or short
-`StrategyDecision`. A long limit buys when a later candle's ask-low reaches the
-limit; a short limit sells when its bid-high reaches the limit. The signal candle
-is never used to fill its own limit order. If the next candle opens through the
-limit, the simulated fill uses that better open price, with slippage applied but
-never beyond the requested limit. Unfilled limits stay pending until filled, a
-`Close` decision cancels them, or the test period ends. Pending orders do not
-create positions or incur fees; result decisions expose `pending`,
-`partially_filled`, `filled`, or `cancelled` status. Shared-capital allocation
-uses the actual fill timestamp.
-
-For local development on Linux, start the Laravel development server and one
-queue worker together:
+Clone the [Nikaido repository](https://github.com/pwaskito611/nikaido) and enter
+the project directory:
 
 ```sh
+git clone https://github.com/pwaskito611/nikaido.git
+cd nikaido
+```
+
+Continue with the [installation guide](docs/getting-started/installation.md).
+
+## AI-assisted development notice
+
+AI coding assistants may be used to help explore or change this codebase. Their
+suggestions are not authoritative: review generated changes and run relevant tests
+before relying on them.
+
+## Featured capabilities
+
+- **Robustness-oriented research** — assess how selected price excursions and
+  execution assumptions affect completed backtest trades; use optional Monte Carlo
+  analysis to explore trade-sequence outcomes.
+- **Configurable execution costs** — model bid/ask-aware fills, slippage, partial
+  fills, and configurable transaction, holding, and financing costs.
+- **Limit entries** — request buy or sell limit entries and evaluate them against
+  subsequent historical candles, with pending, partial-fill, fill, and cancellation
+  outcomes recorded.
+- **Parallel multi-market testing** — run pair backtests as separate queued jobs
+  and review pair-level or combined results.
+- **Shared-capital simulation** — evaluate multi-pair entries against one capital
+  budget, synchronized by the actual event timestamps rather than pair completion
+  order.
+- **Event-driven backtesting** — process market candles chronologically and
+  apply simulated order, fill, exit, and capital changes in sequence.
+- **Strategy-centered workflow** — supply strategy decisions and sizing while the
+  backtest engine handles historical execution, trade records, and analysis.
+
+## How it works
+
+The primary workflow runs a backtest first. Robustness and Monte Carlo analyses
+are optional follow-up analyses over the stored backtest result; they do not rerun
+the strategy.
+
+```mermaid
+flowchart LR
+    A["1. Configure backtest<br/>Market data, strategy, capital,<br/>costs, dates, and parameters"]
+    B["2. Execute simulation<br/>Chronological candles, signals,<br/>orders, positions, and fills"]
+    C["3. Analyze results<br/>Trades, performance metrics,<br/>and equity history"]
+    D["4. Optional robustness evaluation<br/>Stress scenarios and<br/>Monte Carlo trade sequences"]
+    A --> B --> C
+    C -. "optional" .-> D
+```
+
+1. **Configure backtest** — select available market data, pair or market type,
+   timeframe, date range, initial capital, and execution settings. The strategy
+   supplies signal, stop/target, and sizing decisions; the included example
+   strategy is a moving-average crossover.
+2. **Execute simulation** — process strategy decisions against chronological
+   historical candles. At each candle, the engine evaluates applicable orders,
+   fills, exits, and new entries, then records the resulting position and
+   capital changes. In shared-capital market-type runs, pair simulations run
+   independently before their recorded events are replayed in timestamp order.
+3. **Analyze results** — inspect completed trades, equity and capital changes,
+   performance metrics, and available signal-cluster analysis.
+4. **Evaluate robustness (optional)** — run supported stress scenarios or Monte
+   Carlo analysis on the stored results to examine sensitivity and trade-sequence
+   variation.
+
+Here, “event-driven” describes the simulation's time-ordered processing of
+candles and resulting order/fill events. It does not mean that Nikaido uses a
+general event bus or event-sourced application architecture. See the
+[backtest engine](docs/features/backtest-engine.md) for the single-pair
+lifecycle and [shared-capital simulation](docs/features/shared-capital.md)
+for multi-pair event ordering.
+
+## Design philosophy
+
+Nikaido is intended to help investigate strategy behavior, not to certify a
+strategy as profitable. A positive baseline backtest is only one observation;
+research should also examine data quality, execution assumptions, costs, and
+sensitivity to adverse conditions.
+
+## Requirements
+
+- PHP version satisfying Composer's `^8.2` requirement (PHP 8.2 through 8.x)
+- Composer
+- Node.js and npm for frontend assets
+- SQLite by default, or another database supported by the application and Laravel
+
+## Installation and quick start
+
+From the project root:
+
+```sh
+touch database/database.sqlite
+composer run setup
 php artisan nikaido:start
 ```
 
-The server listens on `127.0.0.1:8000` by default. Override its address with
-`--host` and `--port`, for example `php artisan nikaido:start --port=8080`.
-Stop both managed processes with:
+Create the SQLite file before setup when cloning a fresh checkout. The setup
+script runs migrations but does not create that file itself.
+
+The setup script installs PHP and frontend dependencies, creates `.env` from
+`.env.example` if needed, generates the application key, runs migrations, and
+builds frontend assets. `nikaido:start` starts the Nikaido development server and
+queue worker together. By default, the web server listens at
+`http://127.0.0.1:8000`.
+
+Stop both processes with:
 
 ```sh
 php artisan nikaido:stop
 ```
 
-The commands track their own process IDs under
-`storage/framework/nikaido-processes` and write output to
-`storage/logs/nikaido-server.log` and `storage/logs/nikaido-worker.log`.
-They require Linux and PHP's POSIX extension. The worker consumes the
-application's configured default queue connection.
+Open [http://localhost:8000/workbench/tests/create](http://localhost:8000/workbench/tests/create)
+to configure a backtest. If using a database other than the default SQLite
+configuration, set its connection details in `.env` before running setup.
 
-The Market Exploration page displays historical OHLC candles for a selected pair,
-timeframe, and inclusive date range. Its naked candlestick chart has no indicators
-and supports horizontal scrolling and drag navigation.
+## Getting Started
 
-Workbench date, date-time, and time fields use Flatpickr with Indonesian display
-formatting. Submitted values retain the existing `Y-m-d`, `Y-m-dTH:i`, and `H:i`
-formats expected by the application.
+- [Installation](docs/getting-started/installation.md) — prepare a local
+  development environment.
+- [Configuration](docs/getting-started/configuration.md) — understand local
+  settings, backtest options, and market-data prerequisites.
+- [First backtest](docs/getting-started/first-backtest.md) — run a reproducible
+  synthetic smoke test or prepare imported data for research.
+- [Running tests](docs/getting-started/running-tests.md) — run and troubleshoot
+  the PHPUnit suites.
 
-Parallel runs require an asynchronous Laravel queue connection; the `sync`
-driver is rejected so the request never executes all pairs inline. Database is
-the default connection. Run workers against the configured queue, for example:
+## Example research workflow
+
+1. Add or import historical market data, then configure the relevant market pair
+   and timeframe.
+2. Configure the test period, capital mode, strategy decisions and sizing, and
+   execution costs.
+3. Run a single-pair test or queue a market-type run for multiple eligible pairs.
+4. Inspect the trade history, equity results, and pair or portfolio-level output.
+5. Optionally run a stress test or Monte Carlo analysis and compare it with the
+   baseline. Record the assumptions used when interpreting the comparison.
+
+Market data can be managed from the Workbench. The application includes an
+external Alpha Vantage FX import provider and an incoming-candle import workflow;
+availability and coverage depend on the selected source and its limits.
+
+## Research limitations
+
+Backtests depend on the quality and coverage of the input data and on the
+assumptions encoded by the engine. Candle OHLC data does not reveal the sequence
+of all intrabar price movements, so it cannot establish which of multiple touched
+levels occurred first. Bid/ask candle fields are used when available; the engine
+falls back to generic OHLC fields when a required quote is missing. These
+approximations may differ from live execution.
+
+Stress tests and Monte Carlo analysis are scenario and trade-sequence tools, not
+forecasts. Monte Carlo bootstrap treats sampled trades as independent and does
+not preserve market-regime or temporal dependencies. Nikaido does not guarantee
+future performance, model every market condition, or replace independent review
+of strategy assumptions and results.
+
+Nikaido is for research and experimentation, not financial or investment advice.
+Users are responsible for validating data, assumptions, and results before making
+decisions. To the extent permitted by applicable law, the project and its
+contributors disclaim responsibility for trading losses or other damages arising
+from use of the framework, including losses related to software defects or
+incorrect evaluations.
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Project overview](docs/PROJECT.md)
+- [Coding standards](docs/coding-standar.md)
+- [Laravel documentation](https://laravel.com/docs)
+
+## Testing
+
+Run the test suite with:
 
 ```sh
-php artisan queue:work database --queue=default --tries=3 --timeout=60
+php artisan test --compact
 ```
 
-To increase parallelism, run multiple worker processes or configure the process
-count in the deployment's worker supervisor. Each process can claim a different
-pair job. The job uses three attempts, short backoff intervals, a 60-second
-timeout, and per-pair overlap protection. The queue connection's `retry_after`
-must remain greater than the worker timeout; adjust it if the job timeout is
-changed. Run progress and each saved pair result are available at the run page
-returned immediately after submission.
+Format or check PHP code with Laravel Pint:
 
-Completed market-type runs provide pair detail pages and an overall result page.
-The overall page combines candle decisions and trades from successful pairs in
-time order and supports the same cluster, fluctuation stress, and Monte Carlo
-analysis as a specific-pair result. Runs offer two capital modes. Shared portfolio
-capital starts from one configured balance and synchronizes candidate trades
-chronologically after pair workers complete, using each pair's original candle
-timestamps. Exits release reserved stop-loss risk and realize P/L before entries at
-the same time. Entry quantities are rescaled from the pair-local equity used during
-parallel calculation to the shared equity at that timestamp; simultaneous entries
-that exceed available risk capital are then reduced proportionally. Separate
-capital per pair keeps each pair's
-backtest independent and reports aggregate capital as the sum across successful
-pairs, including average initial and ending capital per pair. Both modes combine
-P/L as reported and do not perform FX conversion, so results must use a common
-account unit. Runs with failures include only successful pair results in the
-overall analysis.
+```sh
+vendor/bin/pint
+vendor/bin/pint --test
+```
 
-## Data import
+## AI-assisted development notice
 
-Workbench Data Import provides an on-demand external-provider pull and an API
-receiver that is off unless an incoming session is active. The selected pair and
-timeframe are passed to the configured provider connector along with a credential
-entered for that request; the credential is not saved. The connector is selected
-by the `ExternalMarketDataProvider` binding in `AppServiceProvider`, so a project
-can replace it with an adapter for another provider. Provider-specific symbol
-mapping, authentication, response parsing, available history, and timeframe
-support belong inside that adapter. The included example adapter returns general
-OHLC only, so bid/ask columns remain null instead of being synthesized. The
-backtest falls back to general OHLC when bid/ask is missing, including using
-general open for entry; this does not model a spread.
+AI coding assistants may be used to help explore, document, test, or change this codebase.
 
-Starting an incoming session scopes it to one pair and timeframe and generates a
-random bearer token. Only the token's SHA-256 hash is stored, and the raw token is
-shown once. Stop the session when the sender is done. Send a JSON POST to
-`/api/data-import/candles` with the token in the Authorization header and a
-`candles` list of `time`, `open`, `high`, `low`, and `close`. Timestamps use
-`Y-m-d H:i:s`; each request accepts up to 1,000 candles, and repeated timestamps
-update the existing pair/timeframe candle. Bid/ask fields remain null when not
-provided; send optional `bid_open/high/low/close` and `ask_open/high/low/close`
-fields on each candle when quote-specific values are available.
+Before starting any task, AI assistants must read the repository's `AGENTS.md` file and follow its instructions. They must also check for applicable `AGENTS.md` files in relevant subdirectories before modifying files within those areas.
 
-## About Laravel
+AI assistants should read relevant documentation and inspect the actual implementation before making changes. They must follow the project's coding standards, architecture, and established workflows, avoid unrelated modifications, and never assume that undocumented features or behavior exist.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Review AI-generated changes and run relevant tests or validation commands before relying on them. If a required check cannot be completed, explicitly report that limitation.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
-
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
-
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-## Laravel Sponsors
-
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
-
-### Premium Partners
-
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+Repository instructions do not override higher-priority system or developer instructions.
 
 ## Contributing
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Contributions that improve research correctness, explainability, and reliability
+are welcome. Please include focused tests for behavior changes and describe any
+new execution or market-data assumptions in the pull request.
 
-## Code of Conduct
+## Project status
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Nikaido is an evolving research framework. Features, supported data workflows,
+and simulation assumptions may change as the project develops.
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+The package metadata currently declares the MIT license in `composer.json`.

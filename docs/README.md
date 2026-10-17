@@ -31,6 +31,8 @@ surfaces, persisted schemas, and result structures.
 - [Metrics and results](reference/metrics-and-results.md) — API, Workbench,
   and persisted result structures; formulas remain in the canonical
   [Performance metrics](features/performance-metrics.md) page.
+- [PHP research ecosystem](reference/php-research-ecosystem.md) — optional
+  libraries for quantitative research and choices for production PHP frameworks.
 
 Installation and environment configuration are already covered by
 [Installation](getting-started/installation.md) and
@@ -67,6 +69,11 @@ Exact metric formulas and edge cases are documented in
    synthetic smoke test and learn how to prepare historical data for research.
 4. [Running tests](getting-started/running-tests.md) — run the Unit and Feature
    PHPUnit suites and diagnose common failures.
+
+After installation, run pending database migrations from the project root with
+`php artisan migrate`. Composer's create-project setup and `composer run setup`
+run migrations automatically; use this command if they have not run yet or
+after changing the configured database.
 
 ## User Guide
 

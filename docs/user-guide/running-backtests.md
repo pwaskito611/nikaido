@@ -21,11 +21,13 @@ Stop it with:
 php artisan nikaido:stop
 ```
 
-The single-pair backtest runs in the web request. Market-type runs are queued,
-so the jobs worker started by the engine must remain available. Check that the
-configured database is reachable and migrations are complete before opening
-the Workbench. Database connection errors are infrastructure errors, not
-empty-history results.
+The single-pair backtest runs in the web request without a PHP execution time
+limit; the request may therefore remain open for a long run. Web server,
+reverse-proxy, client, and other infrastructure timeouts may still apply.
+Market-type runs are queued, so the jobs worker started by the engine must
+remain available. Check that the configured database is reachable and
+migrations are complete before opening the Workbench. Database connection
+errors are infrastructure errors, not empty-history results.
 
 ## Prepare data and run a single pair
 

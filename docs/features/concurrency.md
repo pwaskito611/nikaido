@@ -2,12 +2,15 @@
 
 ## What can execute concurrently
 
-Single-pair backtests execute synchronously in the web request. A market-type
-run creates one queued job for each eligible pair. With multiple queue
-workers, separate pairs may run concurrently; each individual pair simulation
-still walks its own candles sequentially. Nikaido does not parallelize candles
-within one pair or run a single strategy instance concurrently across
-instruments.
+Single-pair backtests execute synchronously in the web request. The Workbench
+and specific-pair API controller actions disable PHP's execution time limit
+for these runs, so PHP does not terminate a long backtest due to
+`max_execution_time`. This does not disable timeouts imposed by the web server,
+reverse proxy, client, or other infrastructure. A market-type run creates one
+queued job for each eligible pair. With multiple queue workers, separate pairs
+may run concurrently; each individual pair simulation still walks its own
+candles sequentially. Nikaido does not parallelize candles within one pair or
+run a single strategy instance concurrently across instruments.
 
 The market-type initiator refuses the `sync` queue driver. The configured
 queue must be asynchronous and a worker must be available. The default

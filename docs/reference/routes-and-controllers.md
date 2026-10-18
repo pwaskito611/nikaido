@@ -64,7 +64,7 @@ The following non-resource Workbench routes are also registered:
 | `POST /workbench/data-import/incoming-sessions/{sessionId}/stop` | `workbench.data-import.incoming-sessions.stop` | `DataImportController@stopIncoming` | `sessionId` must be numeric; stops the active session and redirects back. |
 | `POST /workbench/data-import/external-provider` | `workbench.data-import.external-provider` | `DataImportController@importExternalProvider` | Requires existing pair/timeframe IDs and `external_provider_credential` (string, max 255); the request keeps the credential separately while excluding it from the ordinary input bag. Redirects back with an import count. |
 | `GET /workbench/tests/create` | `workbench.tests.create` | `BacktestController@createTest` | Renders the setup form. |
-| `POST /workbench/tests` | `workbench.tests.run` | `BacktestController@runTest` | Validated by `RunWorkbenchBacktestRequest`; runs a single pair synchronously or creates queued market-type pair runs. Redirects to the corresponding result page. |
+| `POST /workbench/tests` | `workbench.tests.run` | `BacktestController@runTest` | Validated by `RunWorkbenchBacktestRequest`; runs a single pair synchronously without a PHP execution time limit, or creates queued market-type pair runs. Redirects to the corresponding result page. |
 | `GET /workbench/tests/results` | `workbench.tests.results` | `BacktestController@results` | Reads the single-pair result from the session; redirects to the setup page with a status message if none is present. Accepts result-analysis query parameters. |
 | `GET /workbench/tests/market-type-runs/{marketTypeBacktestRun}` | `workbench.tests.market-type-runs.show` | `BacktestController@marketTypeRun` | Renders the persisted run overview. |
 | `GET /workbench/tests/market-type-runs/{marketTypeBacktestRun}/pairs/{pairRun}` | `workbench.tests.market-type-runs.pairs.show` | `BacktestController@marketTypePairResult` | Loads one persisted pair result and renders its analysis page; analysis query parameters use `BacktestResultsRequest`. |
@@ -83,13 +83,15 @@ by `BacktestResultsRequest`; their meanings are covered by
 
 | Method and path | Middleware | Controller action | Input and response |
 |---|---|---|---|
-| `POST /api/engine/specific-pair-test` | `api` | `BacktestController@runSpecificPairTest` | `RunSpecificPairTestRequest` validates pair base/quote, date range, activity hours, excluded weekdays, and optional execution configuration. Returns a JSON resource collection of per-candle decisions plus order history, capital values, quantity metadata, and execution configuration. No authentication middleware is registered. |
+| `POST /api/engine/specific-pair-test` | `api` | `BacktestController@runSpecificPairTest` | `RunSpecificPairTestRequest` validates pair base/quote, date range, activity hours, excluded weekdays, and optional execution configuration. Runs synchronously without a PHP execution time limit; infrastructure-level request timeouts may still apply. Returns a JSON resource collection of per-candle decisions plus order history, capital values, quantity metadata, and execution configuration. No authentication middleware is registered. |
 | `POST /api/data-import/candles` | `api`, `throttle:120,1` | `DataImportApiController@receive` | Requires the bearer token of an active import session and a `candles` array of 1–1000 entries. Each entry requires distinct `time` (`Y-m-d H:i:s`) and OHLC numeric values from 0 through 999999.999999; bid/ask OHLC are optional nullable values in the same range. Returns `{"imported": count}`; no matching active token returns JSON `401`. |
 
 The pushed-candle payload's price bounds and details are documented in
 [Data ingestion and validation](../features/data-ingestion-and-validation.md).
 The specific-pair request's complete validation rules are implemented by
 [`RunSpecificPairTestRequest`](../../app/Feature/Backtest/Request/RunSpecificPairTestRequest.php).
+The PHP execution-time behavior and the separate timeout for queued market-type
+pair jobs are described in [Queued execution and concurrency](../features/concurrency.md).
 
 ## Framework-provided routes
 

@@ -1,7 +1,7 @@
 # Nikaido
 
 **A research workbench for testing systematic trading strategies and evaluating
-how sensitive their results are to execution assumptions and market conditions.**
+how sensitive their results are to execution assumptions and market conditions. Designed to be modified and extended.**
 
 ## Project overview
 

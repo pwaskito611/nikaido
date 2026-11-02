@@ -1,0 +1,39 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Feature\Evaluation\Data;
+
+use App\Feature\Evaluation\Data\Analysis\BacktestAnalysisDecision;
+use App\Feature\Evaluation\Data\Analysis\BacktestAnalysisOrder;
+use App\Feature\Evaluation\Data\Analysis\BacktestCapitalChart;
+use App\Feature\Evaluation\Data\Analysis\BacktestClusterSummary;
+use Exact\Collection\Vec;
+use Exact\Type\Option\Option;
+
+final readonly class BacktestResultsAnalysis
+{
+    /**
+     * @param  Vec<BacktestAnalysisDecision>  $decisions
+     * @param  Vec<BacktestAnalysisOrder>  $orders
+     * @param  Option<int>  $clusterCount
+     * @param  Option<int>  $selectedCluster
+     * @param  Option<FluctuationStressTestResult>  $stressTest
+     * @param  Option<MonteCarloSimulationResult>  $monteCarlo
+     */
+    public function __construct(
+        public Vec $decisions,
+        public Vec $orders,
+        public Option $clusterCount,
+        public Option $selectedCluster,
+        public BacktestClusterSummary $clusterAnalysis,
+        public BacktestCapitalChart $capitalChart,
+        public ?float $profitFactor,
+        public int $closedTradeCount,
+        public float $averageDrawdownPercent,
+        public float $maximumDrawdownPercent,
+        public float $medianDrawdownPercent,
+        public Option $stressTest,
+        public Option $monteCarlo,
+    ) {}
+}

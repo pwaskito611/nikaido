@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Engine\Domain;
 
-use App\Feature\Backtest\Data\StressTestInput;
-use App\Feature\Backtest\Process\FluctuationStressTestProcess;
+use App\Feature\Evaluation\Data\StressTestInput;
+use App\Feature\Evaluation\Process\FluctuationStressTestProcess;
 use InvalidArgumentException;
 use Tests\TestCase;
 use UnexpectedValueException;

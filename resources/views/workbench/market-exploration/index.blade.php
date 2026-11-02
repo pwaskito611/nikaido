@@ -54,7 +54,7 @@
             <div class="panel-top">
                 <div>
                     <span class="eyebrow">NAKED CANDLESTICK CHART</span>
-                    <h2>{{ $marketPairs->firstWhere('id', $selectedPairId)?->base }}/{{ $marketPairs->firstWhere('id', $selectedPairId)?->quote }} · {{ $timeframes->firstWhere('id', $selectedTimeframeId)?->name }}</h2>
+                    <h2>{{ $selectedPair?->base }}/{{ $selectedPair?->quote }} · {{ $selectedTimeframe?->name }}</h2>
                 </div>
                 <span class="record-count">{{ number_format(count($candles)) }} CANDLES</span>
             </div>

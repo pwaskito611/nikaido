@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "7379bf6e35d10c826290e89aec255112",
+    "content-hash": "9e1a5d4f1a74e68bd27cdaac1dd3741b",
     "packages": [
         {
             "name": "brick/math",
@@ -2541,16 +2541,16 @@
         },
         {
             "name": "pandu/exact",
-            "version": "v2.0.0",
+            "version": "v2.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/pwaskito611/exact.git",
-                "reference": "21dd09115236afc6f8d64d20ace6d64bfceae739"
+                "reference": "408d21e4c79c2a0ab87cf803d75f85541857dd96"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/pwaskito611/exact/zipball/21dd09115236afc6f8d64d20ace6d64bfceae739",
-                "reference": "21dd09115236afc6f8d64d20ace6d64bfceae739",
+                "url": "https://api.github.com/repos/pwaskito611/exact/zipball/408d21e4c79c2a0ab87cf803d75f85541857dd96",
+                "reference": "408d21e4c79c2a0ab87cf803d75f85541857dd96",
                 "shasum": ""
             },
             "require": {
@@ -2572,22 +2572,22 @@
             "description": "A lightweight type-safe data modeling library for PHP",
             "support": {
                 "issues": "https://github.com/pwaskito611/exact/issues",
-                "source": "https://github.com/pwaskito611/exact/tree/v2.0.0"
+                "source": "https://github.com/pwaskito611/exact/tree/v2.2.0"
             },
-            "time": "2026-10-07T10:50:31+00:00"
+            "time": "2026-11-02T05:37:07+00:00"
         },
         {
             "name": "pandu/gauss",
-            "version": "0.3",
+            "version": "v0.3.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/pwaskito611/gauss.git",
-                "reference": "7985a8388c0d21de8cbf9d5261556e482ffca57e"
+                "reference": "b33287462fcf187247d9b60d24d01d5081c18fee"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/pwaskito611/gauss/zipball/7985a8388c0d21de8cbf9d5261556e482ffca57e",
-                "reference": "7985a8388c0d21de8cbf9d5261556e482ffca57e",
+                "url": "https://api.github.com/repos/pwaskito611/gauss/zipball/b33287462fcf187247d9b60d24d01d5081c18fee",
+                "reference": "b33287462fcf187247d9b60d24d01d5081c18fee",
                 "shasum": ""
             },
             "require": {
@@ -2624,9 +2624,9 @@
             ],
             "support": {
                 "issues": "https://github.com/pwaskito611/gauss/issues",
-                "source": "https://github.com/pwaskito611/gauss/tree/0.3"
+                "source": "https://github.com/pwaskito611/gauss/tree/v0.3.1"
             },
-            "time": "2026-10-09T08:31:45+00:00"
+            "time": "2026-10-15T06:13:05+00:00"
         },
         {
             "name": "phpoption/phpoption",
@@ -4310,16 +4310,16 @@
         },
         {
             "name": "symfony/mime",
-            "version": "v7.4.19",
+            "version": "v7.4.22",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/mime.git",
-                "reference": "f8ac7d0a800bcabbcd1f7de56594cf05e6cd5693"
+                "reference": "94a4c017435bc515f5ac80421a2c555fb9ca3676"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/mime/zipball/f8ac7d0a800bcabbcd1f7de56594cf05e6cd5693",
-                "reference": "f8ac7d0a800bcabbcd1f7de56594cf05e6cd5693",
+                "url": "https://api.github.com/repos/symfony/mime/zipball/94a4c017435bc515f5ac80421a2c555fb9ca3676",
+                "reference": "94a4c017435bc515f5ac80421a2c555fb9ca3676",
                 "shasum": ""
             },
             "require": {
@@ -4375,7 +4375,7 @@
                 "mime-type"
             ],
             "support": {
-                "source": "https://github.com/symfony/mime/tree/v7.4.19"
+                "source": "https://github.com/symfony/mime/tree/v7.4.22"
             },
             "funding": [
                 {
@@ -4395,7 +4395,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-09-04T10:45:44+00:00"
+            "time": "2026-10-28T17:57:58+00:00"
         },
         {
             "name": "symfony/polyfill-ctype",
@@ -4736,16 +4736,16 @@
         },
         {
             "name": "symfony/polyfill-mbstring",
-            "version": "v1.43.0",
+            "version": "v1.43.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/polyfill-mbstring.git",
-                "reference": "4d5d331bf731e0aedbc6b2f5e61135b7b7996a72"
+                "reference": "122889ed24dc000165bcbfd77ec412f15cbdfc6a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/polyfill-mbstring/zipball/4d5d331bf731e0aedbc6b2f5e61135b7b7996a72",
-                "reference": "4d5d331bf731e0aedbc6b2f5e61135b7b7996a72",
+                "url": "https://api.github.com/repos/symfony/polyfill-mbstring/zipball/122889ed24dc000165bcbfd77ec412f15cbdfc6a",
+                "reference": "122889ed24dc000165bcbfd77ec412f15cbdfc6a",
                 "shasum": ""
             },
             "require": {
@@ -4797,7 +4797,7 @@
                 "shim"
             ],
             "support": {
-                "source": "https://github.com/symfony/polyfill-mbstring/tree/v1.43.0"
+                "source": "https://github.com/symfony/polyfill-mbstring/tree/v1.43.3"
             },
             "funding": [
                 {
@@ -4817,7 +4817,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-09-24T15:19:04+00:00"
+            "time": "2026-10-28T09:35:49+00:00"
         },
         {
             "name": "symfony/polyfill-php80",

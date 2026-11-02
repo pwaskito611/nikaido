@@ -10,7 +10,7 @@ use App\Feature\MarketTypes\Action\ListAllMarketTypesAction;
 use App\Feature\MarketTypes\Model\MarketType;
 use App\Feature\Timeframes\Action\ListAllTimeframeTypesAction;
 use App\Feature\Timeframes\Model\TimeframeType;
-use Illuminate\Database\Eloquent\Collection;
+use Exact\Collection\Vec;
 
 class LoadBacktestSetupPageAction
 {
@@ -22,9 +22,9 @@ class LoadBacktestSetupPageAction
 
     /**
      * @return array{
-     *     marketPairs: Collection<int, MarketPair>,
-     *     marketTypes: Collection<int, MarketType>,
-     *     timeframes: Collection<int, TimeframeType>
+     *     marketPairs: Vec<MarketPair>,
+     *     marketTypes: Vec<MarketType>,
+     *     timeframes: Vec<TimeframeType>
      * }
      */
     public function execute(): array

@@ -8,6 +8,7 @@ use App\Feature\Backtest\Action\MarketTypeBacktests\CombineMarketTypeBacktestRes
 use App\Feature\Backtest\Model\MarketTypeBacktestPairRun;
 use App\Feature\Backtest\Model\MarketTypeBacktestRun;
 use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioCapitalSynchronizationProcess;
+use Exact\Collection\Vec;
 use InvalidArgumentException;
 use Tests\TestCase;
 use UnexpectedValueException;
@@ -26,17 +27,17 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
         ]);
 
         try {
-            $combiner->execute($run, []);
+            $combiner->execute($run, Vec::empty());
             $this->fail('Expected empty pair results to be rejected.');
         } catch (InvalidArgumentException $exception) {
             $this->assertSame('At least one successful pair result is required for aggregation.', $exception->getMessage());
         }
 
         try {
-            $combiner->execute($run, [new MarketTypeBacktestPairRun([
+            $combiner->execute($run, Vec::of(new MarketTypeBacktestPairRun([
                 'pair_name' => 'EUR/USD',
                 'result' => ['results' => [], 'order_history' => []],
-            ])]);
+            ])));
             $this->fail('Expected an unknown capital mode to be rejected.');
         } catch (UnexpectedValueException $exception) {
             $this->assertSame('The market-type run has an unsupported capital mode.', $exception->getMessage());
@@ -115,7 +116,7 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
         }
 
         $result = (new CombineMarketTypeBacktestResultsAction(new PortfolioCapitalSynchronizationProcess))
-            ->execute($run, $pairRuns);
+            ->execute($run, Vec::fromArray($pairRuns));
 
         $this->assertSame(100.0, $result['initial_capital']);
         $this->assertSame(152.0, $result['ending_capital']);
@@ -216,7 +217,7 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
         ];
 
         $result = (new CombineMarketTypeBacktestResultsAction(new PortfolioCapitalSynchronizationProcess))
-            ->execute($run, $pairRuns);
+            ->execute($run, Vec::fromArray($pairRuns));
 
         $this->assertSame('Overall · Forex', $result['pair']);
         $this->assertSame(['EUR/USD', 'GBP/USD'], array_column($result['results'], 'pair'));

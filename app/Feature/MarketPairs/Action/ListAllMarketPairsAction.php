@@ -6,7 +6,7 @@ namespace App\Feature\MarketPairs\Action;
 
 use App\Feature\MarketPairs\Model\MarketPair;
 use App\Feature\MarketPairs\Repository\MarketPairRepository;
-use Illuminate\Database\Eloquent\Collection;
+use Exact\Collection\Vec;
 
 class ListAllMarketPairsAction
 {
@@ -15,9 +15,9 @@ class ListAllMarketPairsAction
     ) {}
 
     /**
-     * @return Collection<int, MarketPair>
+     * @return Vec<MarketPair>
      */
-    public function execute(): Collection
+    public function execute(): Vec
     {
         return $this->marketPairRepository->all();
     }

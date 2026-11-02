@@ -472,12 +472,18 @@ Rules:
 - Use `Validated` when validation needs to accumulate errors.
 - Use `Variant` and `PatternMatch` to model and handle alternative domain states.
 - Use immutable collections such as `Vec`, `Map`, and `Set` according to their semantics.
+- When a repository returns multiple records for application processing, return an Exact collection (`Vec` or `LazySeq`) rather than exposing an Eloquent Collection. Convert Eloquent results once at the repository boundary.
+- Use `Query` for in-memory filtering, projection, grouping, joins, ordering, and aggregation when its installed API expresses the operation clearly. Keep SQL filtering, sorting, aggregation, and pagination in Eloquent when they belong in the database.
+- Prefer Exact Query pipelines and reducers over native loops and nested branching for in-memory collection transformations. Use `fold`/`scan` for sequential state that can be represented as an accumulator; retain explicit loops only when the available collection API cannot preserve the required semantics or clarity.
+- Preserve Laravel paginator metadata and infrastructure contracts. Paginated Eloquent items, HTTP/JSON payloads, serialized persistence records, and provider payloads may remain framework-native or array-shaped at those boundaries.
+- Prefer Exact collections for lists passed between application components. Convert to arrays only when crossing a serialization, storage, or framework boundary.
 - Use non-empty collections only when their invariants are guaranteed.
 - Use Exact types in internal Action, Rules, Process, Data, and Repository contracts when appropriate for the component and supported API.
 - Do not mechanically use Exact for every scalar or object.
 - Avoid repeated conversions between Exact types and native PHP types.
 - Do not silently convert failures into default values.
 - Do not assume an API exists in the installed Exact version without verification.
+- Keep explicit loops for sequential simulation state, side effects, bounded database batches, external payload decoding, or other cases where the imperative form is clearer; do not mechanically replace them.
 
 Convert between internal and external representations at appropriate boundaries. Repositories handle storage conversions, Actions coordinate application output contracts, and Controllers construct HTTP responses.
 

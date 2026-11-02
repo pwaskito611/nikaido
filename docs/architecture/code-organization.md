@@ -24,7 +24,8 @@ uses `app/Feature/`; the test tree retains some of those older group names.
 | [`MarketPrice`](../../app/Feature/MarketPrice/) | Candle CRUD, listing/filtering, model relations, and candle queries/import persistence. |
 | [`DataImport`](../../app/Feature/DataImport/) | Provider ingestion, incoming-session lifecycle, push API, and request validation. |
 | [`MarketExploration`](../../app/Feature/MarketExploration/) | Selection and presentation-data preparation for market candles. |
-| [`Backtest`](../../app/Feature/Backtest/) | Workbench/API backtest entry points, input/configuration, simulation and analysis, multi-pair jobs, and saved market-type run records. |
+| [`Backtest`](../../app/Feature/Backtest/) | Workbench/API backtest entry points, input/configuration, simulation and execution, multi-pair jobs, and saved market-type run records. |
+| [`Evaluation`](../../app/Feature/Evaluation/) | Workbench backtest-result pages, performance metrics, clustering, Monte Carlo simulation, and fluctuation stress testing. |
 
 ## Component roles as implemented
 
@@ -38,9 +39,9 @@ that every operation must pass through every type of component.
 - **Controllers** are HTTP boundary classes. They resolve validated input,
   call Actions, and return Blade views, redirects, or JSON resources. For
   example, MarketPriceController delegates CRUD operations, while
-  BacktestController also selects a run branch, saves a single-pair result
-  in the session, and maps analysis results to the page/API representation.
-  DashboardController directly renders its landing page.
+  BacktestController runs tests and saves single-pair results in the session.
+  EvaluationController handles result pages and delegates analysis to
+  Evaluation Actions. DashboardController directly renders its landing page.
 - **FormRequests** define request authorization and input rules. Some also
   normalize HTTP values or create typed Backtest configuration objects, as in
   [`RunWorkbenchBacktestRequest`](../../app/Feature/Backtest/Request/RunWorkbenchBacktestRequest.php).
@@ -65,12 +66,13 @@ that every operation must pass through every type of component.
   represent saved market-type run and pair-run state.
 - **Data and Config classes** represent structured values passed between
   operations or hold validated simulation settings. They are used
-  extensively in Backtest and in pair definition/market-data code; they are
-  not universal wrappers around every input.
-- **Processes and Rules** occur primarily in Backtest. Processes contain
-  calculations and transformations such as pair simulation, Monte Carlo,
-  stress testing, and portfolio capital synchronization. The current Rules
-  area includes trading-schedule policy. The principal
+  extensively in Backtest and Evaluation and in pair definition/market-data
+  code; they are not universal wrappers around every input.
+- **Processes and Rules** occur primarily in Backtest and Evaluation.
+  Backtest Processes contain pair simulation and portfolio capital
+  synchronization; Evaluation Processes contain cluster analysis, Monte
+  Carlo, and stress testing. The Backtest Rules area includes trading-schedule
+  policy. The principal
   [`SpecificPairBacktestProcess`](../../app/Feature/Backtest/Process/SpecificPairBacktestProcess.php)
   receives prepared candle input rather than performing an HTTP request or
   repository query.
@@ -113,9 +115,10 @@ Cross-feature collaboration is visible in Action-level orchestration:
 Backtest setup uses market-pair/type/timeframe listing Actions, and the
 Backtest execution path uses pair/timeframe repositories. The DataImport
 feature uses market-pair/timeframe repositories to resolve import targets and
-the MarketPrice repository to persist candles. Controller methods do not
-coordinate these feature integrations through direct cross-feature
-repository calls in the inspected paths.
+the MarketPrice repository to persist candles. Evaluation Actions load
+Backtest results and coordinate them with Evaluation analysis. Controllers do
+not coordinate these feature integrations through direct cross-feature
+Actions or repositories.
 
 Validation is distributed by boundary and purpose:
 
@@ -134,10 +137,10 @@ Validation is distributed by boundary and purpose:
 
 The code separates feature ownership and commonly keeps transport,
 orchestration, persistence, and computation in different classes. Backtest
-is the most decomposed feature, with dedicated Config, Data, Execution, Job,
-Process, Repository, Request, Resource, and Rules areas. Simpler features
-have fewer component types. This is an observation of current organization,
-not a claim that every class is small or that every feature uses all layers.
+and Evaluation own separate execution and result-analysis responsibilities;
+each uses only the component areas needed for its work. Simpler features have
+fewer component types. This is an observation of current organization, not a
+claim that every class is small or that every feature uses all layers.
 
 Some existing PHPUnit namespaces and directories retain names such as
 `Tests\Unit\Engine`, `Tests\Unit\Workbench`, or `Tests\Unit\Strategy`, while

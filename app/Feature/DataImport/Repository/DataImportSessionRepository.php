@@ -5,26 +5,30 @@ declare(strict_types=1);
 namespace App\Feature\DataImport\Repository;
 
 use App\Feature\DataImport\Model\DataImportSession;
-use Illuminate\Database\Eloquent\Collection;
+use Exact\Collection\Vec;
 
 class DataImportSessionRepository
 {
-    public function allActive(): Collection
+    /** @return Vec<DataImportSession> */
+    public function allActive(): Vec
     {
-        return DataImportSession::query()
+        return Vec::fromArray(DataImportSession::query()
             ->with(['pair', 'timeframeType'])
             ->where('status', 'active')
             ->orderByDesc('started_at')
-            ->get();
+            ->get()
+            ->all());
     }
 
-    public function recent(int $limit): Collection
+    /** @return Vec<DataImportSession> */
+    public function recent(int $limit): Vec
     {
-        return DataImportSession::query()
+        return Vec::fromArray(DataImportSession::query()
             ->with(['pair', 'timeframeType'])
             ->orderByDesc('started_at')
             ->limit($limit)
-            ->get();
+            ->get()
+            ->all());
     }
 
     public function findActiveByToken(string $token): ?DataImportSession

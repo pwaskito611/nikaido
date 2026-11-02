@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Workbench\Domain\Backtests;
 
-use App\Feature\Backtest\Config\MonteCarloSimulationConfig;
-use App\Feature\Backtest\Data\Analysis\BacktestAnalysisOptions;
+use App\Feature\Evaluation\Config\MonteCarloSimulationConfig;
+use App\Feature\Evaluation\Data\Analysis\BacktestAnalysisOptions;
 use PHPUnit\Framework\TestCase;
 use UnexpectedValueException;
 

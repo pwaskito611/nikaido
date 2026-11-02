@@ -9,7 +9,7 @@ use App\Feature\MarketPairs\Model\MarketPair;
 use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Feature\Timeframes\Action\ListAllTimeframeTypesAction;
 use App\Feature\Timeframes\Model\TimeframeType;
-use Illuminate\Database\Eloquent\Collection;
+use Exact\Collection\Vec;
 
 class LoadMarketPriceFormPageAction
 {
@@ -22,8 +22,8 @@ class LoadMarketPriceFormPageAction
     /**
      * @return array{
      *     marketPrice: MarketPrice,
-     *     marketPairs: Collection<int, MarketPair>,
-     *     timeframes: Collection<int, TimeframeType>
+     *     marketPairs: Vec<MarketPair>,
+     *     timeframes: Vec<TimeframeType>
      * }
      */
     public function execute(?int $marketPriceId = null): array

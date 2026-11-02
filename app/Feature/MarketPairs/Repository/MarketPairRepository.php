@@ -9,10 +9,9 @@ use App\Feature\MarketPairs\Data\MarketPairMarketData;
 use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
 use App\Feature\MarketPairs\Model\MarketPair;
 use DateTimeInterface;
+use Exact\Collection\LazySeq;
 use Exact\Collection\Vec;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\LazyCollection;
 use UnexpectedValueException;
 
 class MarketPairRepository
@@ -51,13 +50,15 @@ class MarketPairRepository
             ->paginate($perPage);
     }
 
-    public function all(): Collection
+    /** @return Vec<MarketPair> */
+    public function all(): Vec
     {
-        return $this->model->newQuery()
+        return Vec::fromArray($this->model->newQuery()
             ->with('marketType')
             ->orderBy('base')
             ->orderBy('quote')
-            ->get();
+            ->get()
+            ->all());
     }
 
     public function hasPrices(int $id): bool
@@ -131,8 +132,8 @@ class MarketPairRepository
             $pricesQuery->where('timeframe_type_id', $timeframeTypeId);
         }
 
-        $warmupPrices = $warmupQuery->get()->reverse()->values();
-        $prices = $pricesQuery->get();
+        $warmupPrices = Vec::fromArray($warmupQuery->get()->all())->reverse();
+        $prices = Vec::fromArray($pricesQuery->get()->all());
 
         $quantityUnitValue = $pair->quantity_unit ?? MarketPairQuantityUnit::Units->value;
         $quantityUnit = MarketPairQuantityUnit::tryFrom($quantityUnitValue);
@@ -140,7 +141,7 @@ class MarketPairRepository
             throw new UnexpectedValueException("Unsupported market pair quantity unit: {$quantityUnitValue}.");
         }
         $contractSize = is_numeric($pair->contract_size) ? (string) $pair->contract_size : '1';
-        $candles = Vec::fromArray($warmupPrices->concat($prices)->all());
+        $candles = $warmupPrices->concat($prices);
 
         return new MarketPairMarketData(
             candles: $candles,
@@ -150,7 +151,7 @@ class MarketPairRepository
     }
 
     /**
-     * @return LazyCollection<int, MarketPair>
+     * @return LazySeq<MarketPair>
      */
     public function eligibleForMarketTypeBacktest(
         int $marketTypeId,
@@ -158,8 +159,8 @@ class MarketPairRepository
         string $from,
         string $to,
         array $excludedPairIds = [],
-    ): LazyCollection {
-        return $this->model->newQuery()
+    ): LazySeq {
+        return LazySeq::from($this->model->newQuery()
             ->where('market_type_id', $marketTypeId)
             ->when($excludedPairIds !== [], fn ($query) => $query->whereNotIn('id', $excludedPairIds))
             ->whereHas('prices', static function ($query) use ($timeframeTypeId, $from, $to): void {
@@ -168,6 +169,6 @@ class MarketPairRepository
             })
             ->select(['id', 'base', 'quote'])
             ->orderBy('id')
-            ->lazyById(250);
+            ->lazyById(250));
     }
 }

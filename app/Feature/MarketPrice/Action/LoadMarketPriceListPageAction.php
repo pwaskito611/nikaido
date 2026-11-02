@@ -8,8 +8,8 @@ use App\Feature\MarketPairs\Action\ListAllMarketPairsAction;
 use App\Feature\MarketPairs\Model\MarketPair;
 use App\Feature\Timeframes\Action\ListAllTimeframeTypesAction;
 use App\Feature\Timeframes\Model\TimeframeType;
+use Exact\Collection\Vec;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Eloquent\Collection;
 
 class LoadMarketPriceListPageAction
 {
@@ -22,8 +22,8 @@ class LoadMarketPriceListPageAction
     /**
      * @return array{
      *     marketPrices: LengthAwarePaginator,
-     *     marketPairs: Collection<int, MarketPair>,
-     *     timeframes: Collection<int, TimeframeType>,
+     *     marketPairs: Vec<MarketPair>,
+     *     timeframes: Vec<TimeframeType>,
      *     selectedPairId: ?int,
      *     selectedTimeframeId: ?int
      * }

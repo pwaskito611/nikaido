@@ -96,10 +96,10 @@ adverse intratrade movement. Historical profitability does not establish
 future profitability or robustness.
 
 Metric formulas are implemented in
-[`AnalyzeBacktestResultsAction`](../../app/Feature/Backtest/Action/AnalyzeBacktestResultsAction.php),
-[`BacktestClusterAnalysisProcess`](../../app/Feature/Backtest/Process/BacktestClusterAnalysisProcess.php),
+[`AnalyzeBacktestResultsAction`](../../app/Feature/Evaluation/Action/AnalyzeBacktestResultsAction.php),
+[`BacktestClusterAnalysisProcess`](../../app/Feature/Evaluation/Process/BacktestClusterAnalysisProcess.php),
 and
-[`FluctuationStressTestProcess`](../../app/Feature/Backtest/Process/FluctuationStressTestProcess.php).
+[`FluctuationStressTestProcess`](../../app/Feature/Evaluation/Process/FluctuationStressTestProcess.php).
 Related tests include
 [`AnalyzeBacktestResultsActionTest`](../../tests/Unit/Workbench/Actions/Backtests/AnalyzeBacktestResultsActionTest.php)
 and

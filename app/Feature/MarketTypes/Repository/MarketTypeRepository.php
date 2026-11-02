@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Feature\MarketTypes\Repository;
 
 use App\Feature\MarketTypes\Model\MarketType;
+use Exact\Collection\Vec;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Eloquent\Collection;
 
 class MarketTypeRepository
 {
@@ -34,14 +34,13 @@ class MarketTypeRepository
             ->paginate($perPage);
     }
 
-    /**
-     * @return Collection<int, MarketType>
-     */
-    public function all(): Collection
+    /** @return Vec<MarketType> */
+    public function all(): Vec
     {
-        return $this->model->newQuery()
+        return Vec::fromArray($this->model->newQuery()
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->all());
     }
 
     public function hasMarketPairs(int $id): bool

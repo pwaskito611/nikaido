@@ -10,7 +10,9 @@ use App\Feature\Backtest\Data\MarketTypeBacktests\PortfolioManagedOrder;
 use App\Feature\Backtest\Model\MarketTypeBacktestPairRun;
 use App\Feature\Backtest\Model\MarketTypeBacktestRun;
 use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioCapitalSynchronizationProcess;
+use Exact\Collection\Map;
 use Exact\Collection\Vec;
+use Exact\Query\Query;
 use InvalidArgumentException;
 use UnexpectedValueException;
 
@@ -21,67 +23,52 @@ class CombineMarketTypeBacktestResultsAction
     ) {}
 
     /**
-     * @param  list<MarketTypeBacktestPairRun>  $pairRuns
+     * @param  Vec<MarketTypeBacktestPairRun>  $pairRuns
      * @return array<string, mixed>
      */
-    public function execute(MarketTypeBacktestRun $run, array $pairRuns): array
+    public function execute(MarketTypeBacktestRun $run, Vec $pairRuns): array
     {
-        if ($pairRuns === []) {
+        if ($pairRuns->isEmpty()) {
             throw new InvalidArgumentException('At least one successful pair result is required for aggregation.');
         }
 
-        $results = [];
-        $orders = [];
-        foreach ($pairRuns as $pairRun) {
-            $pairResult = $pairRun->result;
-            foreach ($pairResult['results'] as $decision) {
-                $decision['pair'] = $pairRun->pair_name;
-                $results[] = $decision;
-            }
-            foreach ($pairResult['order_history'] as $order) {
-                $order['pair'] = $pairRun->pair_name;
-                $orders[] = $order;
-            }
-        }
+        $results = Query::from($pairRuns)->flatMap(
+            static fn (MarketTypeBacktestPairRun $pairRun): Vec => Vec::fromArray($pairRun->result['results'])
+                ->map(static function (array $decision) use ($pairRun): array {
+                    $decision['pair'] = $pairRun->pair_name;
 
-        usort(
-            $results,
-            static fn (array $left, array $right): int => [
-                $left['candle']['price_date'],
-                $left['pair'],
-            ] <=> [
-                $right['candle']['price_date'],
-                $right['pair'],
-            ],
-        );
-        usort(
-            $orders,
-            static fn (array $left, array $right): int => [
-                $left['close_date'] ?? '9999-12-31 23:59:59',
-                $left['pair'],
-                $left['id'],
-            ] <=> [
-                $right['close_date'] ?? '9999-12-31 23:59:59',
-                $right['pair'],
-                $right['id'],
-            ],
-        );
+                    return $decision;
+                }),
+        )->sortBy(static fn (array $decision): array => [
+            $decision['candle']['price_date'],
+            $decision['pair'],
+        ])->execute();
+        $orders = Query::from($pairRuns)->flatMap(
+            static fn (MarketTypeBacktestPairRun $pairRun): Vec => Vec::fromArray($pairRun->result['order_history'])
+                ->map(static function (array $order) use ($pairRun): array {
+                    $order['pair'] = $pairRun->pair_name;
+
+                    return $order;
+                }),
+        )->sortBy(static fn (array $order): array => [
+            $order['close_date'] ?? '9999-12-31 23:59:59',
+            $order['pair'],
+            $order['id'],
+        ])->execute();
 
         $capitalMode = $run->configuration['capital_mode'] ?? 'separate';
-        $pairInitialCapitals = array_map(
+        $pairInitialCapitals = $pairRuns->map(
             static fn (MarketTypeBacktestPairRun $pairRun): float => (float) (
                 $pairRun->result['initial_capital'] ?? $run->configuration['initial_capital']
             ),
-            $pairRuns,
         );
-        $pairEndingCapitals = array_map(
+        $pairEndingCapitals = $pairRuns->map(
             static fn (MarketTypeBacktestPairRun $pairRun): float => (float) (
                 $pairRun->result['ending_capital'] ?? $pairRun->result['initial_capital'] ?? $run->configuration['initial_capital']
             ),
-            $pairRuns,
         );
-        $averageInitialCapital = array_sum($pairInitialCapitals) / count($pairInitialCapitals);
-        $averageEndingCapital = array_sum($pairEndingCapitals) / count($pairEndingCapitals);
+        $averageInitialCapital = Query::from($pairInitialCapitals)->average()->getOrElse(0.0);
+        $averageEndingCapital = Query::from($pairEndingCapitals)->average()->getOrElse(0.0);
 
         if (! in_array($capitalMode, ['shared', 'separate'], true)) {
             throw new UnexpectedValueException('The market-type run has an unsupported capital mode.');
@@ -90,15 +77,12 @@ class CombineMarketTypeBacktestResultsAction
         if ($capitalMode === 'shared') {
             $initialCapital = (float) $run->configuration['initial_capital'];
         } else {
-            $initialCapital = array_sum($pairInitialCapitals);
+            $initialCapital = Query::from($pairInitialCapitals)->sum();
         }
 
-        $managedPortfolioOrders = Vec::empty();
-        foreach ($orders as $index => $order) {
-            $managedPortfolioOrders = $managedPortfolioOrders->append(
-                PortfolioManagedOrder::fromPersistedArray($order, $index),
-            );
-        }
+        $managedPortfolioOrders = $orders->enumerate()->map(
+            static fn (array $entry): PortfolioManagedOrder => PortfolioManagedOrder::fromPersistedArray($entry[1], $entry[0]),
+        );
         $managedPortfolio = $capitalMode === 'shared'
             ? $this->portfolioCapital->execute(
                 $initialCapital,
@@ -108,8 +92,7 @@ class CombineMarketTypeBacktestResultsAction
             )
             : $this->portfolioCapital->applySeparateCapitalTimeline($initialCapital, $managedPortfolioOrders);
         $orders = $managedPortfolio->orders
-            ->map(static fn (PortfolioManagedOrder $order): array => $order->toArray())
-            ->toArray();
+            ->map(static fn (PortfolioManagedOrder $order): array => $order->toArray());
         $capital = $managedPortfolio->endingCapital;
 
         return [
@@ -119,7 +102,7 @@ class CombineMarketTypeBacktestResultsAction
             'to' => $run->configuration['to'],
             'initial_capital' => $initialCapital,
             'capital_mode' => $capitalMode,
-            'successful_pair_count' => count($pairRuns),
+            'successful_pair_count' => $pairRuns->count(),
             'average_initial_capital_per_pair' => $averageInitialCapital,
             'average_ending_capital_per_pair' => $averageEndingCapital,
             'execution_config' => [
@@ -134,8 +117,8 @@ class CombineMarketTypeBacktestResultsAction
                 'trade_costs' => TradeCostConfig::fromArray($run->configuration['trade_costs'] ?? [])->toArray(),
             ],
             'ending_capital' => $capital,
-            'results' => $results,
-            'order_history' => $orders,
+            'results' => $results->toArray(),
+            'order_history' => $orders->toArray(),
         ];
     }
 
@@ -150,15 +133,15 @@ class CombineMarketTypeBacktestResultsAction
             return [];
         }
 
-        $perOrder = [];
-        foreach ($components as $name => $component) {
-            if (is_string($name) && is_array($component)
-                && filter_var($component['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)
-                && ($component['method'] ?? null) === 'per_order') {
-                $perOrder[] = $name;
-            }
-        }
-
-        return $perOrder;
+        return Query::from(Map::fromArray($components)->entries())
+            ->filter(
+                static fn (array $entry): bool => is_string($entry[0])
+                    && is_array($entry[1])
+                    && filter_var($entry[1]['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)
+                    && ($entry[1]['method'] ?? null) === 'per_order',
+            )
+            ->select(static fn (array $entry): string => $entry[0])
+            ->execute()
+            ->toArray();
     }
 }

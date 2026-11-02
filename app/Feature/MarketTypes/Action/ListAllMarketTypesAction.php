@@ -6,7 +6,7 @@ namespace App\Feature\MarketTypes\Action;
 
 use App\Feature\MarketTypes\Model\MarketType;
 use App\Feature\MarketTypes\Repository\MarketTypeRepository;
-use Illuminate\Database\Eloquent\Collection;
+use Exact\Collection\Vec;
 
 class ListAllMarketTypesAction
 {
@@ -15,9 +15,9 @@ class ListAllMarketTypesAction
     ) {}
 
     /**
-     * @return Collection<int, MarketType>
+     * @return Vec<MarketType>
      */
-    public function execute(): Collection
+    public function execute(): Vec
     {
         return $this->marketTypeRepository->all();
     }

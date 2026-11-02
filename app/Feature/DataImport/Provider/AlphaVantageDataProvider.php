@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Feature\DataImport\Provider;
 
 use App\Feature\DataImport\Contract\ExternalMarketDataProvider;
+use Exact\Query\Query;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
@@ -63,8 +64,10 @@ class AlphaVantageDataProvider implements ExternalMarketDataProvider
             }
         }
 
-        $seriesKey = collect(array_keys($payload))
-            ->first(static fn (string $key): bool => str_starts_with($key, 'Time Series FX ('));
+        $seriesKey = Query::from(array_keys($payload))
+            ->filter(static fn (string $key): bool => str_starts_with($key, 'Time Series FX ('))
+            ->firstOrNone()
+            ->getOrNull();
         if (! is_string($seriesKey) || ! is_array($payload[$seriesKey])) {
             throw new RuntimeException('The external data provider response did not contain an FX time series.');
         }
@@ -108,7 +111,10 @@ class AlphaVantageDataProvider implements ExternalMarketDataProvider
             ]);
         }
 
-        usort($candles, static fn (array $left, array $right): int => $left['time'] <=> $right['time']);
+        $candles = Query::from($candles)
+            ->sortBy(static fn (array $candle): string => $candle['time'])
+            ->execute()
+            ->toArray();
 
         return $aggregateHours > 1 ? $this->aggregateHourlyCandles($candles, $aggregateHours) : $candles;
     }
@@ -175,23 +181,32 @@ class AlphaVantageDataProvider implements ExternalMarketDataProvider
      */
     private function aggregateHourlyCandles(array $candles, int $hours): array
     {
-        $aggregated = [];
-        foreach ($candles as $candle) {
+        $bucketFor = static function (array $candle) use ($hours): string {
             $date = new \DateTimeImmutable($candle['time']);
             $bucketHour = intdiv((int) $date->format('G'), $hours) * $hours;
-            $bucket = $date->setTime($bucketHour, 0)->format('Y-m-d H:i:s');
 
-            if (! isset($aggregated[$bucket])) {
-                $aggregated[$bucket] = [...$candle, 'time' => $bucket];
+            return $date->setTime($bucketHour, 0)->format('Y-m-d H:i:s');
+        };
+        $aggregated = Query::from($candles)->groupFold(
+            static fn (array $candle): string => $bucketFor($candle),
+            null,
+            static function (?array $current, array $candle) use ($bucketFor): array {
+                if ($current === null) {
+                    return [...$candle, 'time' => $bucketFor($candle)];
+                }
 
-                continue;
-            }
+                return [
+                    ...$current,
+                    'high' => max($current['high'], $candle['high']),
+                    'low' => min($current['low'], $candle['low']),
+                    'close' => $candle['close'],
+                ];
+            },
+        );
 
-            $aggregated[$bucket]['high'] = max($aggregated[$bucket]['high'], $candle['high']);
-            $aggregated[$bucket]['low'] = min($aggregated[$bucket]['low'], $candle['low']);
-            $aggregated[$bucket]['close'] = $candle['close'];
-        }
-
-        return array_values($aggregated);
+        return Query::from($aggregated->values())
+            ->sortBy(static fn (array $candle): string => $candle['time'])
+            ->execute()
+            ->toArray();
     }
 }

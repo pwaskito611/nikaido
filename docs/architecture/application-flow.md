@@ -144,12 +144,14 @@ sequenceDiagram
     Controller-->>Browser: Redirect to /workbench/tests/results
 ```
 
-`GET /workbench/tests/results` retrieves that session value and uses
-`AnalyzeBacktestResultsAction` to prepare presentation data. The API endpoint
+`GET /workbench/tests/results` retrieves that session value through
+`EvaluationController` and uses `AnalyzeBacktestResultsAction` to prepare
+presentation data. The API endpoint
 `POST /api/engine/specific-pair-test` uses a separate
 `RunSpecificPairTestRequest` and response resource, but calls the same
 `RunSpecificPairBacktestAction`; it does not use the Workbench session-result
-flow. See [`BacktestController`](../../app/Feature/Backtest/Controller/BacktestController.php)
+flow. See [`BacktestController`](../../app/Feature/Backtest/Controller/BacktestController.php),
+[`EvaluationController`](../../app/Feature/Evaluation/Controller/EvaluationController.php),
 and [`RunSpecificPairBacktestAction`](../../app/Feature/Backtest/Action/RunSpecificPairBacktestAction.php).
 The API payload, session result keys, persisted run shape, and analysis
 outputs are summarized in

@@ -7,10 +7,10 @@ namespace App\Feature\DataImport\Action;
 use App\Feature\DataImport\Model\DataImportSession;
 use App\Feature\DataImport\Repository\DataImportSessionRepository;
 use App\Feature\MarketPairs\Model\MarketPair;
-use App\Feature\Timeframes\Model\TimeframeType;
 use App\Feature\MarketPairs\Repository\MarketPairRepository;
+use App\Feature\Timeframes\Model\TimeframeType;
 use App\Feature\Timeframes\Repository\TimeframeTypeRepository;
-use Illuminate\Database\Eloquent\Collection;
+use Exact\Collection\Vec;
 
 class LoadDataImportPageAction
 {
@@ -22,10 +22,10 @@ class LoadDataImportPageAction
 
     /**
      * @return array{
-     *     marketPairs: Collection<int, MarketPair>,
-     *     timeframes: Collection<int, TimeframeType>,
-     *     activeSessions: Collection<int, DataImportSession>,
-     *     recentSessions: Collection<int, DataImportSession>
+     *     marketPairs: Vec<MarketPair>,
+     *     timeframes: Vec<TimeframeType>,
+     *     activeSessions: Vec<DataImportSession>,
+     *     recentSessions: Vec<DataImportSession>
      * }
      */
     public function execute(): array

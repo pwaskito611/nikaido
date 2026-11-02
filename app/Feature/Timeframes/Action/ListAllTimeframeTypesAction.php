@@ -6,7 +6,7 @@ namespace App\Feature\Timeframes\Action;
 
 use App\Feature\Timeframes\Model\TimeframeType;
 use App\Feature\Timeframes\Repository\TimeframeTypeRepository;
-use Illuminate\Database\Eloquent\Collection;
+use Exact\Collection\Vec;
 
 class ListAllTimeframeTypesAction
 {
@@ -15,9 +15,9 @@ class ListAllTimeframeTypesAction
     ) {}
 
     /**
-     * @return Collection<int, TimeframeType>
+     * @return Vec<TimeframeType>
      */
-    public function execute(): Collection
+    public function execute(): Vec
     {
         return $this->timeframeTypeRepository->all();
     }

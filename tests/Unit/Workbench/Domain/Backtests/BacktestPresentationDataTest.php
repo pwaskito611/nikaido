@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Workbench\Domain\Backtests;
 
-use App\Feature\Backtest\Data\Analysis\BacktestPresentationData;
+use App\Feature\Evaluation\Data\Analysis\BacktestPresentationData;
 use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 use UnexpectedValueException;

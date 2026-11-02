@@ -14,22 +14,6 @@
             <p class="analysis-note">Separate capital per pair · {{ $successfulPairCount }} successful pair(s). Each pair is backtested independently with its own starting capital and does not share or reserve capital with other pairs. Overall initial and ending capital are sums across successful pairs; the average starting and ending capital per pair are shown below. Ending capital includes realized P/L only; floating P/L is not included. P/L is combined as reported, without FX conversion, so all pair results must use the same account unit.</p>
         @endif
     @endif
-    @php
-        $executionConfig = $backtest['execution_config'] ?? null;
-        $tradeCostConfig = $executionConfig['trade_costs'] ?? ['enabled' => false, 'components' => []];
-        $tradeCostTotals = collect($backtest['order_history'])->reduce(function (array $totals, array $order): array {
-            foreach (($order['trade_costs'] ?? []) as $component => $amount) {
-                $totals[$component] = ($totals[$component] ?? 0) + (float) $amount;
-            }
-            return $totals;
-        }, []);
-        $totalAdditionalTradeCosts = array_sum($tradeCostTotals);
-        $modeledCostLabels = collect($tradeCostConfig['components'] ?? [])
-            ->filter(fn (array $component) => $tradeCostConfig['enabled'] && ($component['enabled'] ?? false))
-            ->keys()
-            ->map(fn (string $component) => str_replace('_', ' ', $component))
-            ->join(', ');
-    @endphp
     @if ($executionConfig !== null)
         <p class="analysis-note">
             Execution assumptions:
@@ -56,8 +40,8 @@
     @endif
     <div class="metric-grid">
         <div class="metric-card"><span class="eyebrow">CANDLES EVALUATED</span><strong>{{ count($backtest['results']) }}</strong><span class="metric-note">strategy decisions returned</span></div>
-        <div class="metric-card"><span class="eyebrow">ORDERS OPENED</span><strong>{{ collect($backtest['order_history'])->reject(fn ($order) => ! empty($order['portfolio_entry_rejected']))->count() }}</strong><span class="metric-note">excludes entries rejected for insufficient portfolio risk capital</span></div>
-        <div class="metric-card"><span class="eyebrow">CLOSED ORDERS</span><strong>{{ collect($backtest['order_history'])->whereNotNull('close_date')->count() }}</strong><span class="metric-note">closed by SL, TP, or strategy</span></div>
+        <div class="metric-card"><span class="eyebrow">ORDERS OPENED</span><strong>{{ $openedOrderCount }}</strong><span class="metric-note">excludes entries rejected for insufficient portfolio risk capital</span></div>
+        <div class="metric-card"><span class="eyebrow">CLOSED ORDERS</span><strong>{{ $closedOrderCount }}</strong><span class="metric-note">closed by SL, TP, or strategy</span></div>
         <div class="metric-card"><span class="eyebrow">PROFIT FACTOR</span><strong>{{ $closedTradeCount === 0 ? '—' : ($profitFactor === null ? '—' : (is_infinite($profitFactor) ? '∞' : number_format($profitFactor, 2))) }}</strong><span class="metric-note">profitable net P/L ÷ losing net P/L across closed trades</span></div>
         <div class="metric-card"><span class="eyebrow">AVERAGE DRAWDOWN</span><strong>{{ number_format($averageDrawdownPercent, 2) }}%</strong><span class="metric-note">mean realized-equity drawdown below all-time high</span></div>
         <div class="metric-card"><span class="eyebrow">MEDIAN DRAWDOWN</span><strong>{{ number_format($medianDrawdownPercent, 2) }}%</strong><span class="metric-note">median realized-equity drawdown below all-time high</span></div>

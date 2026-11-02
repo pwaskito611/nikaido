@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Feature\Timeframes\Repository;
 
 use App\Feature\Timeframes\Model\TimeframeType;
+use Exact\Collection\Vec;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Eloquent\Collection;
 
 class TimeframeTypeRepository
 {
@@ -34,9 +34,10 @@ class TimeframeTypeRepository
             ->paginate($perPage);
     }
 
-    public function all(): Collection
+    /** @return Vec<TimeframeType> */
+    public function all(): Vec
     {
-        return $this->model->newQuery()->orderBy('name')->get();
+        return Vec::fromArray($this->model->newQuery()->orderBy('name')->get()->all());
     }
 
     public function hasMarketPrices(int $id): bool

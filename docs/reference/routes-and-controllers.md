@@ -12,7 +12,7 @@ The main request and execution paths are diagrammed in
 - Workbench endpoints use Laravel's `web` middleware group.
 - API endpoints use Laravel's `api` middleware group. The pushed-candle
   endpoint adds `throttle:120,1`.
-- The Backtest and ordinary Workbench FormRequests return `true` from
+- The Backtest, Evaluation, and ordinary Workbench FormRequests return `true` from
   `authorize()`; no authentication or policy middleware is registered for
   these routes. The pushed-candle request instead authorizes a bearer token
   against an active import session and returns JSON `401` if it does not match.
@@ -65,16 +65,16 @@ The following non-resource Workbench routes are also registered:
 | `POST /workbench/data-import/external-provider` | `workbench.data-import.external-provider` | `DataImportController@importExternalProvider` | Requires existing pair/timeframe IDs and `external_provider_credential` (string, max 255); the request keeps the credential separately while excluding it from the ordinary input bag. Redirects back with an import count. |
 | `GET /workbench/tests/create` | `workbench.tests.create` | `BacktestController@createTest` | Renders the setup form. |
 | `POST /workbench/tests` | `workbench.tests.run` | `BacktestController@runTest` | Validated by `RunWorkbenchBacktestRequest`; runs a single pair synchronously without a PHP execution time limit, or creates queued market-type pair runs. Redirects to the corresponding result page. |
-| `GET /workbench/tests/results` | `workbench.tests.results` | `BacktestController@results` | Reads the single-pair result from the session; redirects to the setup page with a status message if none is present. Accepts result-analysis query parameters. |
+| `GET /workbench/tests/results` | `workbench.tests.results` | `EvaluationController@results` | Reads the single-pair result from the session; redirects to the setup page with a status message if none is present. Accepts result-analysis query parameters. |
 | `GET /workbench/tests/market-type-runs/{marketTypeBacktestRun}` | `workbench.tests.market-type-runs.show` | `BacktestController@marketTypeRun` | Renders the persisted run overview. |
-| `GET /workbench/tests/market-type-runs/{marketTypeBacktestRun}/pairs/{pairRun}` | `workbench.tests.market-type-runs.pairs.show` | `BacktestController@marketTypePairResult` | Loads one persisted pair result and renders its analysis page; analysis query parameters use `BacktestResultsRequest`. |
-| `GET /workbench/tests/market-type-runs/{marketTypeBacktestRun}/overall` | `workbench.tests.market-type-runs.overall` | `BacktestController@marketTypeOverallResult` | Combines persisted pair results and renders overall analysis; analysis query parameters use `BacktestResultsRequest`. |
+| `GET /workbench/tests/market-type-runs/{marketTypeBacktestRun}/pairs/{pairRun}` | `workbench.tests.market-type-runs.pairs.show` | `EvaluationController@marketTypePairResult` | Loads one persisted pair result and renders its analysis page; analysis query parameters use `BacktestResultsRequest`. |
+| `GET /workbench/tests/market-type-runs/{marketTypeBacktestRun}/overall` | `workbench.tests.market-type-runs.overall` | `EvaluationController@marketTypeOverallResult` | Combines persisted pair results and renders overall analysis; analysis query parameters use `BacktestResultsRequest`. |
 
 Backtest form fields and detailed execution settings are described in
 [Configuration](../getting-started/configuration.md) and
 [Running backtests](../user-guide/running-backtests.md). Result filters,
 including cluster, stress, pagination, and Monte Carlo options, are validated
-by `BacktestResultsRequest`; their meanings are covered by
+by `Evaluation\Request\BacktestResultsRequest`; their meanings are covered by
 [Performance metrics](../features/performance-metrics.md),
 [Stress testing](../features/stress-testing.md), and
 [Monte Carlo](../features/monte-carlo.md).

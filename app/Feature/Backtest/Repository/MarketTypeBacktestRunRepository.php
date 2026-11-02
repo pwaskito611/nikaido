@@ -7,10 +7,10 @@ namespace App\Feature\Backtest\Repository;
 use App\Feature\Backtest\Model\MarketTypeBacktestPairRun;
 use App\Feature\Backtest\Model\MarketTypeBacktestRun;
 use DateTimeInterface;
+use Exact\Collection\LazySeq;
+use Exact\Collection\Vec;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\LazyCollection;
 
 class MarketTypeBacktestRunRepository
 {
@@ -44,15 +44,15 @@ class MarketTypeBacktestRunRepository
     }
 
     /**
-     * @return LazyCollection<int, int>
+     * @return LazySeq<int>
      */
-    public function pendingPairRunIds(int $runId): LazyCollection
+    public function pendingPairRunIds(int $runId): LazySeq
     {
-        return MarketTypeBacktestPairRun::query()
+        return LazySeq::from(MarketTypeBacktestPairRun::query()
             ->where('run_id', $runId)
             ->select('id')
             ->orderBy('id')
-            ->lazyById(250)
+            ->lazyById(250))
             ->map(static fn (MarketTypeBacktestPairRun $pairRun): int => $pairRun->id);
     }
 
@@ -168,15 +168,16 @@ class MarketTypeBacktestRunRepository
     }
 
     /**
-     * @return Collection<int, MarketTypeBacktestPairRun>
+     * @return Vec<MarketTypeBacktestPairRun>
      */
-    public function successfulPairRuns(int $runId): Collection
+    public function successfulPairRuns(int $runId): Vec
     {
-        return MarketTypeBacktestPairRun::query()
+        return Vec::fromArray(MarketTypeBacktestPairRun::query()
             ->where('run_id', $runId)
             ->where('status', 'succeeded')
             ->forceIndex('market_type_backtest_pair_run_run_id_id_index')
             ->orderBy('id')
-            ->get();
+            ->get()
+            ->all());
     }
 }

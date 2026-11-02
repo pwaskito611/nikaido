@@ -7,7 +7,7 @@ namespace App\Feature\Backtest\Action\MarketTypeBacktests;
 use App\Feature\Backtest\Model\MarketTypeBacktestPairRun;
 use App\Feature\Backtest\Model\MarketTypeBacktestRun;
 use App\Feature\Backtest\Repository\MarketTypeBacktestRunRepository;
-use Illuminate\Database\Eloquent\Collection;
+use Exact\Collection\Vec;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class LoadMarketTypeOverallResultAction
@@ -17,7 +17,7 @@ class LoadMarketTypeOverallResultAction
     ) {}
 
     /**
-     * @return array{run: MarketTypeBacktestRun, pairRuns: Collection<int, MarketTypeBacktestPairRun>}
+     * @return array{run: MarketTypeBacktestRun, pairRuns: Vec<MarketTypeBacktestPairRun>}
      */
     public function execute(int $runId): array
     {

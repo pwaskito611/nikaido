@@ -7,7 +7,7 @@ Use this guide as an initial orientation. For coding tasks, go directly to the o
 - Nikaido is a PHP 8.2 and Laravel 12 trading backtesting application. Tests use PHPUnit.
 - Feature code lives in `app/Feature/`, under the `App\Feature\` namespace. Autoloading is defined in `composer.json`.
 - `app/Platform/` contains cross-feature and technical capabilities, including Strategy, Console, and Infrastructure.
-- Modules: `Dashboard`, `MarketTypes`, `MarketPairs`, `Timeframes`, `MarketPrice`, `DataImport`, `MarketExploration`, and `Backtest`.
+- Modules: `Dashboard`, `MarketTypes`, `MarketPairs`, `Timeframes`, `MarketPrice`, `DataImport`, `MarketExploration`, `Backtest`, and `Evaluation`.
 - The actual directory uses `app/Feature/` (capital `F`). Some older documentation may refer to `app/feature/` or the former `Engine`/`Workbench` structure. Follow the current source code, Composer autoload configuration, and this guide when determining the current structure.
 
 ## Module Map
@@ -20,7 +20,8 @@ Use this guide as an initial orientation. For coding tasks, go directly to the o
 | `MarketPrice` | `/workbench/market-prices` |
 | `DataImport` | `/workbench/data-import` |
 | `MarketExploration` | `/workbench/market-exploration` |
-| `Backtest` | `/workbench/tests/...` and API `/api/engine/specific-pair-test` |
+| `Backtest` | Backtest setup/run routes and API `/api/engine/specific-pair-test` |
+| `Evaluation` | `/workbench/tests/results` and market-type pair/overall result analysis |
 | `Dashboard` | Application dashboard |
 
 Each web module's routes are defined in `app/Feature/<Module>/routes.php`. API routes are defined in the `api.php` file of the module that owns them. Web and API route registration is handled through `routes/web.php` and `bootstrap/app.php`.

@@ -65,17 +65,41 @@ the requested start and end. A pair with fewer than 200 earlier candles can
 still run, but the supplied strategy returns no signals until it has enough
 indicator history. No rows are synthesized for missing timestamps.
 
-Market pairs can be configured with directional related-pair dependencies,
-and each dependency can select its own timeframe. A blank timeframe follows
-the primary backtest timeframe. This also allows the primary pair to be
-selected as a related series at a different timeframe (for example, EUR/GBP
-1h with EUR/GBP 1d and GBP/USD 1d). Each related series is loaded once for the
-requested date range, with its own up-to-200-candle warm-up. Related candles
-remain keyed by their actual timestamps in the strategy context; an exact
-timestamp lookup returns `null` when the related pair has no candle at that
-time. Different sessions and holidays are not forward-filled or resampled.
-Related pairs provide strategy data only and do not run additional backtests
-or create additional orders.
+## Related market-pair data
+
+The Market Pair create/edit form lets you select directional related-pair
+dependencies and choose a timeframe for each selected pair. Leave the
+timeframe as **Use backtest timeframe** to follow the primary backtest
+timeframe. For example, configure EUR/GBP as the primary pair and select:
+
+- EUR/GBP at 1d as an additional series (the same pair can be selected when a
+  related timeframe is explicitly chosen);
+- GBP/USD at 1d.
+
+A backtest of EUR/GBP at 1h then provides the primary EUR/GBP 1h candles and
+the two configured 1d series to the strategy. A selected related pair is a
+data dependency, not another backtest target: it does not produce extra
+strategy decisions, orders, or result rows. Relationships are directional;
+configuring A → B does not configure B → A. Each related pair entry has one
+selected timeframe.
+
+The loader uses the same requested date range for each series, orders each
+series by its own candle timestamps, and includes up to 200 earlier candles
+for warm-up. It does not convert or resample between timeframes. The actual
+timeframe IDs are available in the strategy context; the display names are
+configured separately in the Timeframes feature.
+
+Related candles retain their actual timestamps. A strategy can request an
+exact observation for a primary candle's timestamp; if no related candle
+exists at that timestamp, the lookup returns `null`. Different sessions,
+holidays, or timeframe boundaries are not forward-filled, nearest-matched,
+or otherwise synchronized. Check data coverage for every configured
+pair/timeframe combination.
+
+Related-pair loading uses the same candle source and price fields described
+above. It does not certify that observations are complete or suitable as
+executable prices. See [Strategies](strategies.md#related-pair-data-in-a-strategy)
+for the strategy access contract and example.
 
 Manual market-price validation rejects a duplicate pair/timeframe/timestamp
 key, and the push API updates an existing candle for that key. The database

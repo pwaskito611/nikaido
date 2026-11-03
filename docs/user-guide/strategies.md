@@ -33,6 +33,12 @@ invariant and raises an error if the strategy stops early. The current
 implementation materializes close values before producing decisions, so
 strategy evaluation is not an incremental streaming callback.
 
+[`src/main.php`](../../src/main.php) contains an illustrative moving-average
+strategy, not a required strategy for the application. Replace its logic and
+adjust the `src/` structure to fit your strategy while preserving the existing
+`main(iterable $candles, StrategyExecutionContext $context)` entry point and
+one-decision-per-primary-candle contract.
+
 The signal is a `StrategySignal` enum: `Long`, `Short`, `None`, or `Close`.
 An entry (`Long` or `Short`) must supply a positive quantity and both a stop
 and a take-profit price. A non-null `limitPrice` requests a limit entry; if it
@@ -45,26 +51,50 @@ The context exposes `currentCapital`, `quantityUnit`, and
 `quantityMultiplier`. Configured pair backtests also expose
 `primaryMarketPairId`, `primaryMarketPairSymbol`, and a `relatedMarketPairs`
 map keyed by related pair ID. `primaryTimeframeTypeId` identifies the selected
-backtest timeframe. Each related series has `base`, `quote`,
-`timeframeTypeId`, `candlesByTimestamp`, and `candleAt($timestamp)`. Related
-series are keyed by market pair ID; a pair configured at another timeframe
-can include the primary pair ID as well. For example:
+backtest timeframe. Each related series is a
+[`RelatedMarketPairData`](../../src/Strategy/Models/RelatedMarketPairData.php)
+with `marketPairId`, `base`, `quote`, `timeframeTypeId`,
+`candlesByTimestamp`, and `candleAt($timestamp)`. The map key is the related
+market pair ID, not its symbol or timeframe. A pair configured at another
+timeframe can include the primary pair ID as a related series. For example:
 
 ```php
 $gbpUsd = $context->relatedMarketPairs[$relatedPairId] ?? null;
 $alignedGbpUsdCandle = $gbpUsd?->candleAt($primaryCandle->price_date);
 ```
 
+For an example configuration, a backtest can use EUR/GBP at 1h as its primary
+series while the Market Pair form configures EUR/GBP at 1d and GBP/USD at 1d
+as related series. The corresponding 1d candles can be retrieved separately:
+
+```php
+$eurGbpDaily = $context->relatedMarketPairs[$eurGbpPairId] ?? null;
+$gbpUsdDaily = $context->relatedMarketPairs[$gbpUsdPairId] ?? null;
+
+$eurGbpDailyCandle = $eurGbpDaily?->candleAt($primaryCandle->price_date);
+$gbpUsdDailyCandle = $gbpUsdDaily?->candleAt($primaryCandle->price_date);
+```
+
 `candleAt()` returns `null` when that pair has no observation at the requested
-timestamp. It never substitutes the nearest candle. Each related series contains its configured timeframe's candles within the
-backtest range plus up to 200 preceding warm-up candles, and retains each
-candle's own timestamp. A null related timeframe uses the primary backtest
-timeframe.
+timestamp. It never substitutes the nearest candle. Each related series
+contains its configured timeframe's candles within the backtest range plus
+up to 200 preceding warm-up candles, and retains each candle's own timestamp.
+A null related timeframe uses the primary backtest timeframe.
+
 Related pairs are directional data dependencies only; their candles do not
 produce additional strategy decisions or orders. `currentCapital` is updated
 by the backtest as its simulation proceeds; the strategy uses it to size each
 new risk request. The engine does not automatically cap the strategy's
 quantity to a notional, margin, or maximum-position limit.
+
+The context makes related data available; it does not automatically combine,
+align, or apply that data to strategy decisions. The example `main()` currently
+uses only primary-pair candles for its moving-average decisions. To use related
+series, add explicit logic to your strategy and handle `null` lookups when
+observations do not share an exact timestamp. Each pair can be configured with
+one related timeframe; related data is never forward-filled or resampled.
+See [Market data](market-data.md#related-market-pair-data) for configuration
+and data-loading behavior.
 
 ## Example: execute the strategy that is actually provided
 

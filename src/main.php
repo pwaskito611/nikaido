@@ -20,6 +20,9 @@ const TREND_MA_PERIOD = 200;
 const TAKE_PROFIT_RISK_MULTIPLE = 2.0;
 
 /**
+ * Illustrative strategy only: replace this logic and adjust the src/ structure
+ * to fit your strategy while preserving the established backtest contract.
+ *
  * @param  iterable<object>  $candles  Chronological candles including warm-up data.
  * @return Generator<int, StrategyDecision>
  */

@@ -159,53 +159,37 @@ avoid overwriting revised historical values if point-in-time vintages matter.
 See [Backtesting fundamentals](../concepts/backtesting-fundamentals.md) for
 the release-time policy and schema details.
 
-## Example: execute the strategy that is actually provided
+## Application data and tests
 
-This example uses the actual Laravel adapter and strategy types; it does not create
-a new extension point. In application code, `$candles` must be a chronological
-iterable of candles for one pair and timeframe, including sufficient
-pre-window warm-up data. The example reads a complete series for clarity; a
-production test should select only the required history.
+For an application backtest, the loader reads the configured data before it
+calls `main(iterable $candles, StrategyExecutionContext $context)`. Strategy
+code in `src/main.php` consumes those arguments; it should not query Eloquent
+models or repositories. Context lookups use preloaded data, so they do not
+issue database queries per candle.
+
+| Workbench setting | Data supplied to the strategy |
+|---|---|
+| Selected primary pair, timeframe, and range | Chronological primary candles through `$candles`, including up to 200 earlier warm-up candles. |
+| Primary pair's **Related Market Pairs** selections | Each configured pair/timeframe candle series in `$context->relatedMarketPairs`, keyed by pair ID. Use `candleAt()` for exact timestamp lookups. |
+| Fundamental's **Related market pairs** selections | Released observations for Fundamental entities linked directly to the primary pair, accessed through `$context->fundamentals()`. |
+
+Related candle series and Fundamental observations do not produce additional
+decisions. `main()` still returns one decision per primary candle. The
+relationship behavior and timestamp limitations are described in
+[Market data](market-data.md) and
+[Backtesting fundamentals](../concepts/backtesting-fundamentals.md).
+
+For a unit test, call the pure strategy entry point with in-memory candle
+fixtures and a constructed context; no database setup is needed:
 
 ```php
-use App\Feature\MarketPrice\Model\MarketPrice;
-use App\Platform\Strategy\Strategy;
-use Nikaido\Strategy\Models\StrategyExecutionContext;
-
-$pairId = 1;
-$timeframeTypeId = 1;
-
-$candles = MarketPrice::query()
-    ->where('pair_id', $pairId)
-    ->where('timeframe_type_id', $timeframeTypeId)
-    ->orderBy('price_date')
-    ->orderBy('id')
-    ->get();
-
-$strategy = new Strategy();
-$context = new StrategyExecutionContext(
-    currentCapital: 10_000.00,
-    quantityUnit: 'units',
-    quantityMultiplier: 1.0,
-);
-
-foreach ($strategy->execute($candles, $context) as $index => $decision) {
-    printf(
-        "%d %s quantity=%s stop=%s target=%s limit=%s\n",
-        $index,
-        $decision->signal->value,
-        $decision->quantity ?? '-',
-        $decision->stopLoss ?? '-',
-        $decision->takeProfit ?? '-',
-        $decision->limitPrice ?? '-',
-    );
-}
+$decisions = \Nikaido\Strategy\main($fixtureCandles, $fixtureContext);
 ```
 
-For `contract` or `lot` pairs, pass the pair's configured contract-size
-multiplier rather than `1.0`. A missing or non-numeric close is rejected by
-`src/main.php`. Fewer than 200 closes produce `None` decisions; no trade
-is created merely because the data is too short.
+The application adapter and backtest process supply these arguments during a
+real run. A missing or non-numeric close is rejected by `src/main.php`, and
+fewer than 200 closes produce `None` decisions with the current example
+strategy.
 
 ## Performance and native acceleration
 

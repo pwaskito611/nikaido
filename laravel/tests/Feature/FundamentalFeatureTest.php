@@ -30,6 +30,20 @@ class FundamentalFeatureTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_fundamental_form_can_search_related_market_pairs(): void
+    {
+        $type = MarketType::create(['name' => 'Forex']);
+        $pair = $this->pair($type, 'EUR', 'USD');
+
+        $this->get('/workbench/fundamentals/create')
+            ->assertOk()
+            ->assertSee('id="fundamental-related-pair-search"', false)
+            ->assertSee('data-fundamental-pair-row', false)
+            ->assertSee('EUR/USD')
+            ->assertSee('data-fundamental-pair-empty', false)
+            ->assertSee('fundamentalPairSearch.addEventListener', false);
+    }
+
     public function test_fundamental_and_indicator_observations_support_crud_and_pair_relationships(): void
     {
         $type = MarketType::create(['name' => 'Equities']);

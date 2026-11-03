@@ -28,14 +28,26 @@
                     );
                     $selectedPairIds = array_map('strval', $selectedPairIds);
                 @endphp
-                <div class="fundamental-pair-list">
+                <label class="field-label" for="fundamental-related-pair-search">Search pairs</label>
+                <input
+                    class="text-input related-pair-search"
+                    id="fundamental-related-pair-search"
+                    type="search"
+                    placeholder="Search by pair or market type..."
+                    autocomplete="off"
+                    aria-controls="fundamental-related-pair-list"
+                >
+                <div class="fundamental-pair-list" id="fundamental-related-pair-list">
                     @foreach ($marketPairs as $marketPair)
-                        <label>
-                            <input type="checkbox" name="pair_ids[]" value="{{ $marketPair->id }}" @checked(in_array((string) $marketPair->id, $selectedPairIds, true))>
-                            {{ $marketPair->base }}/{{ $marketPair->quote }} · {{ $marketPair->marketType?->name ?? 'Unclassified' }}
-                        </label>
+                        <div data-fundamental-pair-row>
+                            <label>
+                                <input type="checkbox" name="pair_ids[]" value="{{ $marketPair->id }}" @checked(in_array((string) $marketPair->id, $selectedPairIds, true))>
+                                {{ $marketPair->base }}/{{ $marketPair->quote }} · {{ $marketPair->marketType?->name ?? 'Unclassified' }}
+                            </label>
+                        </div>
                     @endforeach
                 </div>
+                <p class="related-pair-empty" data-fundamental-pair-empty hidden>No market pairs match your search.</p>
                 <small class="field-hint">Only fundamentals linked to a pair are loaded for that pair's backtest. The relationship does not start another backtest.</small>
                 @error('pair_ids') <div class="field-error">{{ $message }}</div> @enderror
                 @error('pair_ids.*') <div class="field-error">{{ $message }}</div> @enderror
@@ -43,4 +55,21 @@
         </div>
         <div class="form-actions"><a class="button button-secondary" href="{{ $fundamental->exists ? route('workbench.fundamentals.show', $fundamental) : route('workbench.fundamentals.index') }}">Cancel</a><button class="button button-primary" type="submit">{{ $fundamental->exists ? 'Save changes' : 'Create fundamental' }} <span>→</span></button></div>
     </form>
+    <script>
+        const fundamentalPairSearch = document.getElementById('fundamental-related-pair-search');
+        const fundamentalPairRows = [...document.querySelectorAll('[data-fundamental-pair-row]')];
+        const fundamentalPairEmpty = document.querySelector('[data-fundamental-pair-empty]');
+        fundamentalPairSearch.addEventListener('input', () => {
+            const query = fundamentalPairSearch.value.trim().toLocaleLowerCase();
+            let visibleRows = 0;
+
+            fundamentalPairRows.forEach((row) => {
+                const matches = row.textContent.toLocaleLowerCase().includes(query);
+                row.hidden = !matches;
+                visibleRows += Number(matches);
+            });
+
+            fundamentalPairEmpty.hidden = visibleRows > 0;
+        });
+    </script>
 @endsection

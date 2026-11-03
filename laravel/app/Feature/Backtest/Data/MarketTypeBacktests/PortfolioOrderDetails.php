@@ -39,6 +39,8 @@ final readonly class PortfolioOrderDetails
         public Option $closestToTakeProfit,
         public Option $adverseExtreme,
         public Option $favorableExtreme,
+        public string $entryStatus,
+        public string $exitStatus,
         public int|float|string $strategyQuantity,
         public MarketPairQuantityUnit $quantityUnit,
         public float $quantityMultiplier,
@@ -82,6 +84,12 @@ final readonly class PortfolioOrderDetails
         if (($entryOrderType->getOrNull() === 'limit') !== $requestedEntryPrice->isSome()) {
             throw new UnexpectedValueException('Portfolio limit entry type and requested price must be supplied together.');
         }
+        $entryStatus = $order['entry_status'] ?? 'filled';
+        $exitStatus = $order['exit_status'] ?? 'not_requested';
+        if (! is_string($entryStatus) || ! in_array($entryStatus, ['pending', 'partially_filled', 'filled', 'cancelled'], true)
+            || ! is_string($exitStatus) || ! in_array($exitStatus, ['not_requested', 'pending', 'partially_filled', 'filled', 'cancelled'], true)) {
+            throw new UnexpectedValueException('Portfolio order execution statuses are unsupported.');
+        }
 
         return new self(
             signal: StrategySignal::from($signal),
@@ -103,6 +111,8 @@ final readonly class PortfolioOrderDetails
             ),
             adverseExtreme: PortfolioOrderExtreme::fromPersistedValue($order['adverse_extreme'] ?? null, 'adverse_extreme'),
             favorableExtreme: PortfolioOrderExtreme::fromPersistedValue($order['favorable_extreme'] ?? null, 'favorable_extreme'),
+            entryStatus: $entryStatus,
+            exitStatus: $exitStatus,
             strategyQuantity: $strategyQuantity,
             quantityUnit: MarketPairQuantityUnit::from($quantityUnit),
             quantityMultiplier: $quantityMultiplier,
@@ -118,7 +128,8 @@ final readonly class PortfolioOrderDetails
             'signal' => $this->signal->value,
             'entry_price' => $this->entryPrice->getOrNull(),
             'entry_order_type' => $this->entryOrderType->getOrNull(),
-            'entry_status' => 'filled',
+            'entry_status' => $this->entryStatus,
+            'exit_status' => $this->exitStatus,
             'requested_entry_price' => $this->requestedEntryPrice->getOrNull(),
             'entry_price_source' => $this->entryPriceSource->getOrNull(),
             'stop_loss' => $this->stopLoss->getOrNull(),

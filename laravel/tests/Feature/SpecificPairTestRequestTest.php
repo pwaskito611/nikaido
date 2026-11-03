@@ -115,6 +115,67 @@ class SpecificPairTestRequestTest extends TestCase
             ->assertJsonValidationErrors(['slippage_pips', 'partial_fill_ratio']);
     }
 
+    public function test_it_accepts_and_serializes_volume_based_fill_configuration(): void
+    {
+        $marketType = MarketType::create(['name' => 'Forex']);
+        $pair = MarketPair::create([
+            'market_type_id' => $marketType->id,
+            'base' => 'EUR',
+            'quote' => 'USD',
+            'quantity_unit' => 'units',
+        ]);
+        MarketPrice::create([
+            'pair_id' => $pair->id,
+            'price_date' => '2026-10-09 09:00:00',
+            'timeframe_type_id' => 1,
+            'open' => '1.100000',
+            'close' => '1.200000',
+            ...$this->quotes('1.100000', '1.200000'),
+        ]);
+
+        $this->postJson('/api/engine/specific-pair-test', [
+            'base' => 'EUR',
+            'quote' => 'USD',
+            'from' => '2026-10-09 00:00:00',
+            'to' => '2026-10-09 23:59:59',
+            'active_from' => false,
+            'active_until' => false,
+            'partial_fill_enabled' => true,
+            'partial_fill_mode' => 'volume',
+            'max_participation_rate' => 0.25,
+            'volume_source' => 'traded_volume',
+            'execution_volume_period' => 'candle',
+        ])
+            ->assertOk()
+            ->assertJsonPath('execution_config.partial_fill_mode', 'volume')
+            ->assertJsonPath('execution_config.max_participation_rate', 0.25)
+            ->assertJsonPath('execution_config.volume_source', 'traded_volume')
+            ->assertJsonPath('execution_config.execution_volume_period', 'candle');
+    }
+
+    public function test_it_rejects_invalid_volume_fill_configuration(): void
+    {
+        $this->postJson('/api/engine/specific-pair-test', [
+            'base' => 'EUR',
+            'quote' => 'USD',
+            'from' => '2026-10-09 00:00:00',
+            'to' => '2026-10-09 23:59:59',
+            'active_from' => false,
+            'active_until' => false,
+            'partial_fill_enabled' => true,
+            'partial_fill_mode' => 'volume',
+            'max_participation_rate' => 1.01,
+            'volume_source' => 'tick_volume',
+            'execution_volume_period' => 'week',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'max_participation_rate',
+                'volume_source',
+                'execution_volume_period',
+            ]);
+    }
+
     public function test_it_rejects_unsupported_trade_cost_methods_and_negative_rates(): void
     {
         $this->postJson('/api/engine/specific-pair-test', [

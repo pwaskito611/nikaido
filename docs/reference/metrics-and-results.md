@@ -46,7 +46,7 @@ The JSON object also includes these root-level fields:
 | `initial_capital`, `ending_capital` | number | Capital values for the simulation. |
 | `quantity_unit` | string | Pair quantity unit. |
 | `units_per_lot`, `quantity_multiplier` | number | Pair sizing multipliers. |
-| `execution_config` | object | `slippage_enabled`, `slippage_pips`, nullable `slippage_pip_size`, `partial_fill_enabled`, `partial_fill_ratio`, `unfilled_order_policy`, and `trade_costs`. |
+| `execution_config` | object | `slippage_enabled`, `slippage_pips`, nullable `slippage_pip_size`, `partial_fill_enabled`, `partial_fill_mode`, `partial_fill_ratio`, `max_participation_rate`, `volume_source`, `execution_volume_period`, `unfilled_order_policy`, and `trade_costs`. |
 
 Within `execution_config.trade_costs`, `enabled` is a boolean and `components`
 contains `commission`, `exchange_fee`, `clearing_fee`, `regulatory_fee`,
@@ -55,18 +55,19 @@ containing boolean `enabled`, string `method`, numeric `rate`, and string
 `applies_to`.
 
 An order-history object includes identity and signal, `open_date` and nullable
-`close_date`, `entry_order_type`, entry/exit prices and price sources,
-stop/target and close reason, price-extreme observations, risk and quantity
-fields, remaining/cancelled/closed quantities, entry/exit fill lists, gross
-and net realized P&L, cost totals, capital at open, nullable completed
-`profit_loss`, and nullable `capital_after_close`.
+`close_date`, entry/exit statuses, requested/filled/remaining quantities,
+aggregate fill ratios, entry/exit prices and price sources, stop/target and
+close reason, price-extreme observations, risk and quantity fields,
+remaining/cancelled/closed quantities, entry/exit fill lists, gross and net
+realized P&L, cost totals, capital at open, nullable completed `profit_loss`,
+and nullable `capital_after_close`. Each fill includes its requested quantity,
+executed quantity, remaining quantity, fill ratio, status, execution price,
+timestamp, and source.
 
-**Serialization caveat:** `BacktestOrderHistoryEntry::jsonSerialize()` emits
-`entry_status: "filled"` for every order. It is not a reliable indicator of a
-pending or partially filled limit entry. Use the decision-level
-`entry_order_status`, fill arrays, and remaining/cancelled quantities to
-inspect those cases; see [Order types](../features/order-types.md) and
-[Limit orders](../features/limit-orders.md).
+Volume-mode settings are stored alongside fixed-mode settings. The
+`max_participation_rate` is a decimal from zero through one;
+`volume_source` currently supports explicitly marked traded candle volume,
+and `execution_volume_period` is the candle at the selected timeframe.
 
 The API response is a simulation result, not a persisted backtest resource.
 It does not include the ordinary analysis metrics listed below.

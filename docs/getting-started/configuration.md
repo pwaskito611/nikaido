@@ -132,10 +132,12 @@ Backtest settings are submitted per run through
   trend average, requests risk of 1% of current capital per entry, and targets
   twice the entry-to-stop distance. A strategy decision supplies the requested
   quantity, stop, and target.
-- **Execution assumptions:** fixed slippage and synthetic partial fills are
-  optional and default off. Partial-fill ratio must be greater than zero and
-  at most one; the unfilled remainder can be kept or cancelled. This is not a
-  liquidity model and does not use candle volume or an order book.
+- **Execution assumptions:** fixed slippage and partial fills are optional
+  and default off. Partial fills can use the backward-compatible fixed ratio
+  or a per-candle traded-volume participation cap. Volume mode requires
+  explicitly typed traded volume; missing volume provides no capacity and
+  tick volume is not substituted. The unfilled remainder can be kept or
+  cancelled. This does not model an order book or market impact.
 - **Additional costs:** commission, exchange, clearing, regulatory, and
   transaction-tax charges can be configured per order, as a percentage of
   transaction value, or per quantity. Borrow and financing costs use a daily

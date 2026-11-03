@@ -107,6 +107,7 @@ class BacktestOrderHistoryEntry implements JsonSerializable
 
     public function recordEntryFill(float $quantity, float $price, string $date, string $source): void
     {
+        $requestedQuantity = $this->remainingEntryQuantity;
         $previousQuantity = $this->positionSize;
         $this->entryPrice = $previousQuantity === 0.0
             ? $price
@@ -124,13 +125,22 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             ->mul($this->positionSize)
             ->mul($this->pnlMultiplier)
             ->value();
-        $this->remainingEntryQuantity = max(0.0, $this->remainingEntryQuantity - $quantity);
+        $this->remainingEntryQuantity = max(0.0, $requestedQuantity - $quantity);
         $this->entryLots[] = [
             'quantity' => $quantity,
             'price' => $price,
             'timestamp' => $this->timestamp($date),
         ];
-        $this->entryFills = $this->entryFills->append(new BacktestEntryFill($quantity, $price, $date, $source));
+        $this->entryFills = $this->entryFills->append(new BacktestEntryFill(
+            quantity: $quantity,
+            price: $price,
+            date: $date,
+            source: $source,
+            requestedQuantity: $requestedQuantity,
+            remainingQuantity: $this->remainingEntryQuantity,
+            fillRatio: $requestedQuantity > 0 ? $quantity / $requestedQuantity : 0.0,
+            status: $this->remainingEntryQuantity <= 0.000000000001 ? 'filled' : 'partially_filled',
+        ));
     }
 
     /** @param array<string, float> $tradeCosts */
@@ -142,7 +152,8 @@ class BacktestOrderHistoryEntry implements JsonSerializable
         string $reason,
         array $tradeCosts = [],
     ): float {
-        $quantity = min($quantity, $this->remainingPositionSize);
+        $requestedQuantity = $this->remainingPositionSize;
+        $quantity = min($quantity, $requestedQuantity);
         $isLong = $this->signal === 'long';
         $priceMove = $isLong
             ? Number::of($price)->sub($this->entryPrice)
@@ -160,15 +171,19 @@ class BacktestOrderHistoryEntry implements JsonSerializable
         $this->remainingPositionSize = max(0.0, $this->remainingPositionSize - $quantity);
         $this->closedPositionSize += $quantity;
         $this->exitFills = $this->exitFills->append(new BacktestExitFill(
-            $quantity,
-            $price,
-            $date,
-            $source,
-            $reason,
-            $netProfitLoss,
-            Option::none(),
-            $fillProfitLoss,
-            array_filter($tradeCosts, static fn (float $cost): bool => $cost > 0),
+            quantity: $quantity,
+            price: $price,
+            date: $date,
+            source: $source,
+            reason: $reason,
+            profitLoss: $netProfitLoss,
+            capitalAfter: Option::none(),
+            grossProfitLoss: $fillProfitLoss,
+            tradeCosts: array_filter($tradeCosts, static fn (float $cost): bool => $cost > 0),
+            requestedQuantity: $requestedQuantity,
+            remainingQuantity: $this->remainingPositionSize,
+            fillRatio: $requestedQuantity > 0 ? $quantity / $requestedQuantity : 0.0,
+            status: $this->remainingPositionSize <= 0.000000000001 ? 'filled' : 'partially_filled',
         ));
         $this->closePrice = $this->closedPositionSize === $quantity
             ? $price
@@ -201,6 +216,10 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             $fill->date,
             $fill->source,
             array_filter($tradeCosts, static fn (float $cost): bool => $cost > 0),
+            $fill->requestedQuantity,
+            $fill->remainingQuantity,
+            $fill->fillRatio,
+            $fill->status,
         );
         $this->entryFills = $this->entryFills->slice(0, $lastIndex)->concat(Vec::of($updatedFill));
     }
@@ -291,6 +310,37 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             ->concat(Vec::of($updatedFill));
     }
 
+    public function entryStatus(): string
+    {
+        $filledQuantity = max(0.0, $this->requestedPositionSize - $this->remainingEntryQuantity - $this->cancelledEntryQuantity);
+        if ($this->remainingEntryQuantity > 0.000000000001) {
+            return $filledQuantity > 0 ? 'partially_filled' : 'pending';
+        }
+        if ($this->cancelledEntryQuantity > 0.000000000001) {
+            return $filledQuantity > 0 ? 'partially_filled' : 'cancelled';
+        }
+
+        return 'filled';
+    }
+
+    public function exitStatus(): string
+    {
+        if ($this->remainingPositionSize <= 0.000000000001 && $this->closedPositionSize > 0) {
+            return 'filled';
+        }
+        if ($this->pendingExitReason->isSome()) {
+            return $this->closedPositionSize > 0 ? 'partially_filled' : 'pending';
+        }
+        if ($this->cancelledExitQuantity > 0) {
+            return $this->closedPositionSize > 0 ? 'partially_filled' : 'cancelled';
+        }
+        if ($this->closedPositionSize > 0) {
+            return 'partially_filled';
+        }
+
+        return 'not_requested';
+    }
+
     /**
      * @return array{
      *     id: int,
@@ -298,6 +348,14 @@ class BacktestOrderHistoryEntry implements JsonSerializable
      *     open_date: string,
      *     entry_order_type: string,
      *     entry_status: string,
+     *     entry_requested_quantity: float,
+     *     entry_filled_quantity: float,
+     *     entry_remaining_quantity: float,
+     *     entry_fill_ratio: float,
+     *     exit_filled_quantity: float,
+     *     exit_remaining_quantity: float,
+     *     exit_fill_ratio: float,
+     *     exit_status: string,
      *     requested_entry_price: ?float,
      *     close_date: ?string,
      *     entry_price: float,
@@ -340,7 +398,19 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             'signal' => $this->signal,
             'open_date' => $this->openDate,
             'entry_order_type' => $this->requestedEntryPrice === null ? 'market' : 'limit',
-            'entry_status' => 'filled',
+            'entry_status' => $this->entryStatus(),
+            'entry_requested_quantity' => $this->requestedPositionSize,
+            'entry_filled_quantity' => $this->positionSize,
+            'entry_remaining_quantity' => $this->remainingEntryQuantity,
+            'entry_fill_ratio' => $this->requestedPositionSize > 0
+                ? $this->positionSize / $this->requestedPositionSize
+                : 0.0,
+            'exit_filled_quantity' => $this->closedPositionSize,
+            'exit_remaining_quantity' => $this->remainingPositionSize,
+            'exit_fill_ratio' => $this->positionSize > 0
+                ? $this->closedPositionSize / $this->positionSize
+                : 0.0,
+            'exit_status' => $this->exitStatus(),
             'requested_entry_price' => $this->requestedEntryPrice,
             'close_date' => $this->closeDate,
             'entry_price' => $this->entryPrice,

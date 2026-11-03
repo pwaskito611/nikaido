@@ -61,7 +61,23 @@
         </div>
         <label class="field-label" for="price_at_8">Price at 8 <span class="muted">(optional)</span></label>
         <input class="text-input" id="price_at_8" name="price_at_8" type="number" min="0.000001" step="0.000001" value="{{ old('price_at_8', $marketPrice->price_at_8) }}">
-        <div class="field-hint">The pair, timeframe, and timestamp must be unique. Prices support up to 6 decimal places. Bid/ask OHLC, general OHLC (except close), and price at 8 are optional.</div>
+        <h3 class="eyebrow" style="margin:24px 0 12px">CANDLE VOLUME <span class="muted">(optional)</span></h3>
+        <div class="field-row">
+            <div>
+                <label class="field-label" for="volume">Volume</label>
+                <input class="text-input" id="volume" name="volume" type="number" min="0" step="0.00000001" value="{{ old('volume', $marketPrice->volume) }}">
+            </div>
+            <div>
+                <label class="field-label" for="volume_type">Volume type</label>
+                <select class="text-input" id="volume_type" name="volume_type">
+                    <option value="">Select a type</option>
+                    <option value="traded" @selected(old('volume_type', $marketPrice->volume_type) === 'traded')>Traded volume</option>
+                    <option value="tick" @selected(old('volume_type', $marketPrice->volume_type) === 'tick')>Tick volume (not traded quantity)</option>
+                </select>
+            </div>
+        </div>
+        <div class="field-hint">Mark volume according to its provider and use the pair's execution quantity units. Lot quantities are normalized using contract size. Tick volume is not used as traded liquidity by volume-based fills.</div>
+        <div class="field-hint">The pair, timeframe, and timestamp must be unique. Prices support up to 6 decimal places. Bid/ask OHLC, general OHLC (except close), price at 8, and volume are optional.</div>
         <div class="form-actions"><a class="button button-secondary" href="{{ route('workbench.market-prices.index') }}">Cancel</a><button class="button button-primary" type="submit" @disabled($marketPairs->isEmpty() || $timeframes->isEmpty())>{{ $marketPrice->exists ? 'Save changes' : 'Create market price' }} <span>→</span></button></div>
     </form>
 @endsection

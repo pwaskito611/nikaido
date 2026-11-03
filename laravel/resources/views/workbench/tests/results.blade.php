@@ -21,8 +21,17 @@
             @if ($executionConfig['slippage_enabled'])
                 (pip size {{ $executionConfig['slippage_pip_size'] === null ? 'FX convention: 0.0001; JPY quote: 0.01' : number_format($executionConfig['slippage_pip_size'], 8) }})
             @endif
-            · partial fills {{ $executionConfig['partial_fill_enabled'] ? number_format($executionConfig['partial_fill_ratio'] * 100, 2).'% per attempt; '.$executionConfig['unfilled_order_policy'].' remainder' : 'off' }}.
-            Synthetic fills do not use candle volume or order-book liquidity.
+            · partial fills
+            @if (! $executionConfig['partial_fill_enabled'])
+                off.
+            @elseif (($executionConfig['partial_fill_mode'] ?? 'fixed') === 'volume')
+                volume-based at {{ number_format(($executionConfig['max_participation_rate'] ?? 0) * 100, 2) }}% of explicitly marked traded candle volume; {{ $executionConfig['unfilled_order_policy'] }} remainder.
+            @else
+                {{ number_format($executionConfig['partial_fill_ratio'] * 100, 2) }}% per attempt; {{ $executionConfig['unfilled_order_policy'] }} remainder.
+            @endif
+            @if (($executionConfig['partial_fill_mode'] ?? 'fixed') === 'volume')
+                Tick volume, missing volume, and order-book liquidity are not used.
+            @endif
         </p>
     @endif
     @if ($tradeCostConfig !== null)

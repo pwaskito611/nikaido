@@ -26,7 +26,8 @@ class DataImportFeatureTest extends TestCase
             ->assertSee('Select pair')
             ->assertSee('bid_open', false)
             ->assertSee('ask_close', false)
-            ->assertSee('bid/ask fields are optional', false)
+            ->assertSee('Bid/ask fields are optional.', false)
+            ->assertSee('volume_type', false)
             ->assertSee('Pull from data provider')
             ->assertSee('Provider credential')
             ->assertDontSee('Alpha Vantage');
@@ -47,8 +48,11 @@ class DataImportFeatureTest extends TestCase
         $this->assertSame(hash('sha256', $token), $session->token_hash);
         $this->get('/workbench/data-import')->assertOk()->assertSee($token);
 
+        $tradedVolumeCandle = $this->candle();
+        $tradedVolumeCandle['volume'] = 2500.5;
+        $tradedVolumeCandle['volume_type'] = 'traded';
         $this->withToken($token)->postJson('/api/data-import/candles', [
-            'candles' => [$this->candle()],
+            'candles' => [$tradedVolumeCandle],
         ])->assertOk()->assertExactJson(['imported' => 1]);
 
         $price = MarketPrice::query()->sole();
@@ -56,6 +60,8 @@ class DataImportFeatureTest extends TestCase
         $this->assertSame($timeframe->id, $price->timeframe_type_id);
         $this->assertNull($price->bid_open);
         $this->assertNull($price->ask_close);
+        $this->assertSame('2500.50000000', $price->volume);
+        $this->assertSame('traded', $price->volume_type);
 
         $updatedCandle = $this->candle();
         $updatedCandle['close'] = 1.13;
@@ -67,6 +73,8 @@ class DataImportFeatureTest extends TestCase
         $updatedCandle['ask_high'] = 1.151;
         $updatedCandle['ask_low'] = 1.091;
         $updatedCandle['ask_close'] = 1.131;
+        $updatedCandle['volume'] = 900;
+        $updatedCandle['volume_type'] = 'tick';
         $this->withToken($token)->postJson('/api/data-import/candles', [
             'candles' => [$updatedCandle],
         ])->assertOk()->assertExactJson(['imported' => 1]);
@@ -75,6 +83,8 @@ class DataImportFeatureTest extends TestCase
         $this->assertSame('1.130000', $price->close);
         $this->assertSame('1.099000', $price->bid_open);
         $this->assertSame('1.131000', $price->ask_close);
+        $this->assertSame('900.00000000', $price->volume);
+        $this->assertSame('tick', $price->volume_type);
 
         $this->post("/workbench/data-import/incoming-sessions/{$session->id}/stop")
             ->assertRedirect('/workbench/data-import');
@@ -104,6 +114,23 @@ class DataImportFeatureTest extends TestCase
         $this->withToken($token)->postJson('/api/data-import/candles', [
             'candles' => [$invalid],
         ])->assertUnprocessable()->assertJsonValidationErrors('candles.0.high');
+        $invalidVolume = $this->candle();
+        $invalidVolume['volume'] = -1;
+        $invalidVolume['volume_type'] = 'traded';
+        $this->withToken($token)->postJson('/api/data-import/candles', [
+            'candles' => [$invalidVolume],
+        ])->assertUnprocessable()->assertJsonValidationErrors('candles.0.volume');
+        $overPrecisionVolume = $this->candle();
+        $overPrecisionVolume['volume'] = '10.123456789';
+        $overPrecisionVolume['volume_type'] = 'traded';
+        $this->withToken($token)->postJson('/api/data-import/candles', [
+            'candles' => [$overPrecisionVolume],
+        ])->assertUnprocessable()->assertJsonValidationErrors('candles.0.volume');
+        $untypedVolume = $this->candle();
+        $untypedVolume['volume'] = 10;
+        $this->withToken($token)->postJson('/api/data-import/candles', [
+            'candles' => [$untypedVolume],
+        ])->assertUnprocessable()->assertJsonValidationErrors('candles.0.volume_type');
         $this->assertDatabaseCount('market_price', 0);
     }
 

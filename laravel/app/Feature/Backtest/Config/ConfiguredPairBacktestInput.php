@@ -59,7 +59,11 @@ final readonly class ConfiguredPairBacktestInput
      *     slippage_pips?: int|float|string|null,
      *     slippage_pip_size?: int|float|string|null,
      *     partial_fill_enabled?: bool|string,
+     *     partial_fill_mode?: 'fixed'|'volume',
      *     partial_fill_ratio?: int|float|string|null,
+     *     max_participation_rate?: int|float|string|null,
+     *     volume_source?: 'traded_volume',
+     *     execution_volume_period?: 'candle',
      *     unfilled_order_policy?: 'keep'|'cancel',
      *     trade_costs?: array<string, mixed>
      * } $input
@@ -91,6 +95,10 @@ final readonly class ConfiguredPairBacktestInput
                 enabled: filter_var($input['partial_fill_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 ratio: (float) ($input['partial_fill_ratio'] ?? 1),
                 unfilledOrderPolicy: UnfilledOrderPolicy::from($input['unfilled_order_policy'] ?? UnfilledOrderPolicy::Keep->value),
+                mode: PartialFillMode::from($input['partial_fill_mode'] ?? PartialFillMode::Fixed->value),
+                maxParticipationRate: (float) ($input['max_participation_rate'] ?? 0.1),
+                volumeSource: $input['volume_source'] ?? 'traded_volume',
+                executionVolumePeriod: $input['execution_volume_period'] ?? 'candle',
             ),
             tradeCosts: TradeCostConfig::fromArray($input['trade_costs'] ?? []),
         );

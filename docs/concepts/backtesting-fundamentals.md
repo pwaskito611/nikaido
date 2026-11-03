@@ -68,8 +68,9 @@ the simulated fills equivalent to live fills:
   information that would not have been available at the open.
 - Quote prices fall back to general OHLC when unavailable. No spread is
   invented when only general OHLC is present.
-- Synthetic partial fills use a configured quantity ratio, not candle volume
-  or order-book liquidity.
+- Fixed partial fills use a configured quantity ratio. The optional volume
+  mode uses only candles explicitly marked with traded volume; it does not
+  treat tick volume as traded quantity or model order-book liquidity.
 
 These are material simulation assumptions, not implementation details to
 ignore when interpreting a result. Order-level rules are described in

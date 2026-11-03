@@ -38,15 +38,22 @@ remainders, cost totals, risk amounts, and its exit reason.
 `partially_filled`, `filled`, or `cancelled`, depending on the limit/partial
 fill path. These are entry-status labels, not a complete broker-style order
 state machine. A pending limit can be filled on a later candle or cancelled
-when a `Close` decision cancels that unfilled pending entry. When a backtest
-ends before the limit triggers, the entry remains unfilled.
+when a `Close` decision cancels that unfilled pending entry. When a backtest ends before the limit triggers, the entry remains unfilled.
 
-With synthetic partial fills enabled, each eligible attempt fills up to
-`requested quantity × fill ratio`, capped by the remaining quantity. The
-default unfilled policy keeps a remainder for later eligible candles;
-`cancel` cancels the remainder. For exits, cancellation of an unfilled
-remainder does not close the exposure: the still-open quantity waits for a
-later exit trigger. Candle volume and order-book depth are not used.
+The order output reports entry and exit statuses, requested, filled, and
+remaining quantities, and aggregate fill ratios. Each recorded fill also
+includes its execution price, requested quantity for that attempt, remaining
+quantity, fill ratio, and status.
+
+Fixed partial fills use `requested quantity × fill ratio`, capped by the
+remaining quantity. Volume-based partial fills instead cap the combined entry
+and exit executions on each candle at `traded candle volume × max
+participation rate`. Volume mode only accepts candles explicitly marked as
+traded volume; missing or untyped volume gives no capacity, and tick volume is
+rejected rather than substituted. The default unfilled policy keeps a
+remainder for later eligible candles; `cancel` records the remainder as
+cancelled. For exits, cancellation does not close the exposure: the
+still-open quantity waits for a later exit trigger.
 
 An entry order represents the simulated trade position; it is not a separate
 exchange order ledger. Multiple entry/exit fills can belong to the same order.

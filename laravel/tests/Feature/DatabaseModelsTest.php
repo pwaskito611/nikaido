@@ -30,6 +30,8 @@ class DatabaseModelsTest extends TestCase
             'timeframe_type_id' => $timeframe->id,
             'open' => '1.234567',
             'close' => '1.234890',
+            'volume' => '12345.6789',
+            'volume_type' => 'traded',
             'bid_open' => '1.234500',
             'bid_high' => '1.234800',
             'bid_low' => '1.234400',
@@ -48,6 +50,8 @@ class DatabaseModelsTest extends TestCase
         $this->assertTrue($timeframe->marketPrices->first()->is($price));
         $this->assertSame('2026-10-10', $price->fresh()->price_date->toDateString());
         $this->assertSame('1.234567', $price->fresh()->open);
+        $this->assertSame('12345.67890000', $price->fresh()->volume);
+        $this->assertSame('traded', $price->fresh()->volume_type);
         $this->assertSame('1.234700', $price->fresh()->bid_close);
         $this->assertSame('1.234800', $price->fresh()->ask_close);
         $this->assertSame('100000.00000000', $pair->fresh()->contract_size);

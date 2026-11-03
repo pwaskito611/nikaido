@@ -96,7 +96,7 @@
                     </div>
                 @endif
                 <div class="data-import-api-example">
-                    <strong>Request body · OHLC and optional bid/ask OHLC</strong>
+                    <strong>Request body · OHLC, optional bid/ask, and explicitly typed volume</strong>
                     <pre><code>{
   "candles": [
     {
@@ -112,11 +112,13 @@
       "ask_open": 1.1026,
       "ask_high": 1.1052,
       "ask_low": 1.1011,
-      "ask_close": 1.1042
+      "ask_close": 1.1042,
+      "volume": 1250.5,
+      "volume_type": "traded"
     }
   ]
 }</code></pre>
-                    <small>Send up to 1,000 candles per request. Timestamps use <code>Y-m-d H:i:s</code>; repeated timestamps update existing candles. The bid/ask fields are optional: omit them if the feed does not provide bid and ask prices, and those columns will remain null.</small>
+                    <small>Send up to 1,000 candles per request. Timestamps use <code>Y-m-d H:i:s</code>; repeated timestamps update existing candles. Bid/ask fields are optional. Volume must use the pair's execution quantity units and include <code>volume_type</code> as <code>traded</code> or <code>tick</code>. Tick volume is not traded liquidity; the volume-based fill mode uses only candles marked <code>traded</code>.</small>
                 </div>
             </div>
         </section>

@@ -6,12 +6,14 @@ namespace App\Feature\Backtest\Request;
 
 use App\Feature\Backtest\Config\FixedSlippageConfig;
 use App\Feature\Backtest\Config\PartialFillConfig;
+use App\Feature\Backtest\Config\PartialFillMode;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Config\TradeCostConfig;
 use App\Feature\Backtest\Config\UnfilledOrderPolicy;
 use DateTimeImmutable;
 use Exact\Collection\Vec;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class RunSpecificPairTestRequest extends FormRequest
@@ -36,7 +38,20 @@ class RunSpecificPairTestRequest extends FormRequest
             'slippage_pips' => ['required_if:slippage_enabled,1', 'nullable', 'numeric', 'gte:0'],
             'slippage_pip_size' => ['nullable', 'numeric', 'gt:0'],
             'partial_fill_enabled' => ['sometimes', 'boolean'],
-            'partial_fill_ratio' => ['required_if:partial_fill_enabled,1', 'nullable', 'numeric', 'gt:0', 'lte:1'],
+            'partial_fill_mode' => ['sometimes', 'in:fixed,volume'],
+            'partial_fill_ratio' => [
+                Rule::requiredIf(
+                    $this->boolean('partial_fill_enabled')
+                    && $this->input('partial_fill_mode', PartialFillMode::Fixed->value) === PartialFillMode::Fixed->value,
+                ),
+                'nullable',
+                'numeric',
+                'gt:0',
+                'lte:1',
+            ],
+            'max_participation_rate' => ['required_if:partial_fill_mode,volume', 'nullable', 'numeric', 'gte:0', 'lte:1'],
+            'volume_source' => ['required_if:partial_fill_mode,volume', 'in:traded_volume'],
+            'execution_volume_period' => ['required_if:partial_fill_mode,volume', 'in:candle'],
             'unfilled_order_policy' => ['sometimes', 'in:keep,cancel'],
             'trade_costs' => ['sometimes', 'array'],
             'trade_costs.enabled' => ['sometimes', 'boolean'],
@@ -88,6 +103,10 @@ class RunSpecificPairTestRequest extends FormRequest
                 enabled: $this->boolean('partial_fill_enabled'),
                 ratio: (float) ($validated['partial_fill_ratio'] ?? 1),
                 unfilledOrderPolicy: UnfilledOrderPolicy::from($validated['unfilled_order_policy'] ?? UnfilledOrderPolicy::Keep->value),
+                mode: PartialFillMode::from($validated['partial_fill_mode'] ?? PartialFillMode::Fixed->value),
+                maxParticipationRate: (float) ($validated['max_participation_rate'] ?? 0.1),
+                volumeSource: $validated['volume_source'] ?? 'traded_volume',
+                executionVolumePeriod: $validated['execution_volume_period'] ?? 'candle',
             ),
             tradeCosts: TradeCostConfig::fromArray($validated['trade_costs'] ?? []),
         );

@@ -80,10 +80,12 @@ library, but there is no currency-minor-unit or exchange tick rounding.
 Costs and slippage are disabled by default. Rates must be finite and
 non-negative; `per_order`, percentage, and per-quantity methods are restricted
 to transaction components. Holding components accept only
-`daily_notional_percent`. Fill ratio must be in `(0, 1]`; `keep` retries an
-unfilled remainder and `cancel` cancels it (an unfilled exit remainder leaves
-the position open). Entry price gaps, candle volume, minimum fees, fee caps,
-and instrument-specific rounding are not modeled.
+`daily_notional_percent`. Fixed fill ratio must be in `(0, 1]`; volume mode
+uses the explicitly marked traded candle volume and configured participation
+rate. `keep` retries an unfilled remainder and `cancel` cancels it (an
+unfilled exit remainder leaves the position open). Entry price gaps, market
+impact, minimum fees, fee caps, and instrument-specific rounding are not
+modeled.
 
 Rate inputs are percentages: `0.1` means 0.1%, not 10%. There is no automatic
 conversion of fee currency or per-quantity rate units. Document the fee

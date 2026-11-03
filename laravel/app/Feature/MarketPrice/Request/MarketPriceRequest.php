@@ -42,6 +42,8 @@ class MarketPriceRequest extends FormRequest
                     ->ignore($this->route('marketPrice')),
             ],
             'close' => ['required', 'numeric', 'gt:0', 'decimal:0,6'],
+            'volume' => ['nullable', 'numeric', 'gte:0', 'decimal:0,8', 'max:999999999999.99999999'],
+            'volume_type' => ['nullable', 'required_with:volume', 'in:traded,tick'],
         ];
 
         foreach (['open', 'high', 'low', 'price_at_8'] as $field) {

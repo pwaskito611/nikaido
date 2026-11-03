@@ -5,6 +5,7 @@ namespace Tests\Unit\Engine\Domain;
 use App\Feature\Backtest\Action\RunSpecificPairBacktestAction;
 use App\Feature\Backtest\Config\FixedSlippageConfig;
 use App\Feature\Backtest\Config\PartialFillConfig;
+use App\Feature\Backtest\Config\PartialFillMode;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Config\TradeCostComponentConfig;
 use App\Feature\Backtest\Config\TradeCostConfig;
@@ -912,6 +913,206 @@ class SpecificPairBacktestDomainTest extends TestCase
         $this->assertCount(2, $order->exitFills);
     }
 
+    public function test_volume_fills_cap_entry_and_exit_at_the_smaller_requested_quantity(): void
+    {
+        $result = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['volume' => 100, 'volume_type' => 'traded']),
+                $this->candle('2026-10-09 10:00:00', ['volume' => 100, 'volume_type' => 'traded']),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 40),
+                new StrategyDecision(StrategySignal::Close, null, null),
+            ],
+            partialFill: new PartialFillConfig(
+                enabled: true,
+                mode: PartialFillMode::Volume,
+                maxParticipationRate: 0.5,
+            ),
+        );
+        $order = $result->orders->first();
+
+        $this->assertSame(40.0, $order->positionSize);
+        $this->assertSame(40.0, $order->closedPositionSize);
+        $this->assertSame(1.0, $order->jsonSerialize()['entry_fill_ratio']);
+        $this->assertSame(1.0, $order->jsonSerialize()['exit_fill_ratio']);
+        $this->assertSame('filled', $order->entryFills->first()->toArray()['status']);
+        $this->assertSame(40.0, $order->entryFills->first()->toArray()['requested_quantity']);
+        $this->assertSame('filled', $order->exitFills->first()->toArray()['status']);
+    }
+
+    public function test_volume_capacity_carries_remaining_entry_quantity_across_candles(): void
+    {
+        $result = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['volume' => 60, 'volume_type' => 'traded']),
+                $this->candle('2026-10-09 10:00:00', ['volume' => 40, 'volume_type' => 'traded']),
+                $this->candle('2026-10-09 11:00:00', ['volume' => 20, 'volume_type' => 'traded']),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 100),
+                new StrategyDecision(StrategySignal::None, null, null),
+                new StrategyDecision(StrategySignal::None, null, null),
+            ],
+            partialFill: new PartialFillConfig(
+                enabled: true,
+                mode: PartialFillMode::Volume,
+                maxParticipationRate: 0.5,
+            ),
+        );
+        $order = $result->orders->first();
+
+        $this->assertSame([30.0, 20.0, 10.0], $order->entryFills->map(
+            static fn ($fill): float => $fill->quantity,
+        )->toArray());
+        $this->assertSame(60.0, $order->positionSize);
+        $this->assertSame(40.0, $order->remainingEntryQuantity);
+        $this->assertSame('partially_filled', $order->entryStatus());
+        $this->assertLessThanOrEqual($order->requestedPositionSize, $order->positionSize);
+    }
+
+    public function test_volume_capacity_uses_contract_size_to_normalize_lot_orders(): void
+    {
+        $order = $this->runBacktest(
+            [$this->candle('2026-10-09 09:00:00', ['volume' => 1000, 'volume_type' => 'traded'])],
+            [new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 2)],
+            partialFill: new PartialFillConfig(
+                enabled: true,
+                mode: PartialFillMode::Volume,
+                maxParticipationRate: 0.5,
+            ),
+            quantityUnit: 'lot',
+            contractSize: '1000',
+        )->orders->first();
+
+        $this->assertSame(2000.0, $order->requestedPositionSize);
+        $this->assertSame(500.0, $order->positionSize);
+        $this->assertSame(1500.0, $order->remainingEntryQuantity);
+    }
+
+    public function test_zero_and_missing_volume_leave_entry_quantity_pending(): void
+    {
+        foreach ([
+            ['volume' => 0, 'volume_type' => 'traded'],
+            ['volume' => null, 'volume_type' => null],
+        ] as $volume) {
+            $order = $this->runBacktest(
+                [$this->candle('2026-10-09 09:00:00', $volume)],
+                [new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 100)],
+                partialFill: new PartialFillConfig(
+                    enabled: true,
+                    mode: PartialFillMode::Volume,
+                    maxParticipationRate: 0.5,
+                ),
+            )->orders->first();
+
+            $this->assertSame(0.0, $order->positionSize);
+            $this->assertSame(100.0, $order->remainingEntryQuantity);
+            $this->assertSame('pending', $order->entryStatus());
+            $this->assertTrue($order->entryFills->isEmpty());
+        }
+    }
+
+    public function test_partial_entry_and_exit_share_each_candles_volume_budget(): void
+    {
+        $order = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['volume' => 50, 'volume_type' => 'traded']),
+                $this->candle('2026-10-09 10:00:00', ['volume' => 60, 'volume_type' => 'traded']),
+                $this->candle('2026-10-09 11:00:00', ['volume' => 40, 'volume_type' => 'traded']),
+                $this->candle('2026-10-09 12:00:00', ['volume' => 100, 'volume_type' => 'traded']),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 100),
+                new StrategyDecision(StrategySignal::Close, null, null),
+                new StrategyDecision(StrategySignal::None, null, null),
+                new StrategyDecision(StrategySignal::None, null, null),
+            ],
+            partialFill: new PartialFillConfig(
+                enabled: true,
+                mode: PartialFillMode::Volume,
+                maxParticipationRate: 0.5,
+            ),
+        )->orders->first();
+
+        $this->assertSame([25.0, 30.0], $order->entryFills->map(
+            static fn ($fill): float => $fill->quantity,
+        )->toArray());
+        $this->assertSame([20.0, 35.0], $order->exitFills->map(
+            static fn ($fill): float => $fill->quantity,
+        )->toArray());
+        $this->assertSame(55.0, $order->positionSize);
+        $this->assertSame(55.0, $order->closedPositionSize);
+        $this->assertSame(0.0, $order->remainingPositionSize);
+        $this->assertSame('filled', $order->exitStatus());
+        $this->assertLessThanOrEqual($order->positionSize, $order->closedPositionSize);
+    }
+
+    public function test_volume_fill_accepts_participation_boundaries_and_rejects_bad_volume(): void
+    {
+        $zeroParticipation = $this->runBacktest(
+            [$this->candle('2026-10-09 09:00:00', ['volume' => 100, 'volume_type' => 'traded'])],
+            [new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 100)],
+            partialFill: new PartialFillConfig(
+                enabled: true,
+                mode: PartialFillMode::Volume,
+                maxParticipationRate: 0,
+            ),
+        )->orders->first();
+        $fullParticipation = $this->runBacktest(
+            [$this->candle('2026-10-09 09:00:00', ['volume' => 100, 'volume_type' => 'traded'])],
+            [new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 100)],
+            partialFill: new PartialFillConfig(
+                enabled: true,
+                mode: PartialFillMode::Volume,
+                maxParticipationRate: 1,
+            ),
+        )->orders->first();
+
+        $this->assertSame(0.0, $zeroParticipation->positionSize);
+        $this->assertSame(100.0, $fullParticipation->positionSize);
+        $this->assertLessThanOrEqual(100.0, $fullParticipation->positionSize);
+
+        $this->expectException(\UnexpectedValueException::class);
+        $this->runBacktest(
+            [$this->candle('2026-10-09 09:00:00', ['volume' => -1, 'volume_type' => 'traded'])],
+            [new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 100)],
+            partialFill: new PartialFillConfig(
+                enabled: true,
+                mode: PartialFillMode::Volume,
+                maxParticipationRate: 0.5,
+            ),
+        );
+    }
+
+    public function test_tick_volume_is_never_used_as_traded_liquidity(): void
+    {
+        $this->expectException(\UnexpectedValueException::class);
+        $this->runBacktest(
+            [$this->candle('2026-10-09 09:00:00', ['volume' => 1000, 'volume_type' => 'tick'])],
+            [new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 100)],
+            partialFill: new PartialFillConfig(
+                enabled: true,
+                mode: PartialFillMode::Volume,
+                maxParticipationRate: 0.5,
+            ),
+        );
+    }
+
+    public function test_unsupported_candle_volume_type_is_rejected(): void
+    {
+        $this->expectException(\UnexpectedValueException::class);
+        $this->runBacktest(
+            [$this->candle('2026-10-09 09:00:00', ['volume' => 100, 'volume_type' => 'unknown'])],
+            [new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 100)],
+            partialFill: new PartialFillConfig(
+                enabled: true,
+                mode: PartialFillMode::Volume,
+                maxParticipationRate: 0.5,
+            ),
+        );
+    }
+
     public function test_cancel_policy_records_unfilled_entry_and_exit_quantities(): void
     {
         $pair = new MarketPair;
@@ -1215,8 +1416,13 @@ class SpecificPairBacktestDomainTest extends TestCase
         ?TradeCostConfig $tradeCosts = null,
         ?FixedSlippageConfig $slippage = null,
         ?PartialFillConfig $partialFill = null,
+        string $quantityUnit = 'units',
+        string $contractSize = '1',
     ): SpecificPairBacktestResult {
-        $pair = new MarketPair(['quantity_unit' => 'units']);
+        $pair = new MarketPair([
+            'quantity_unit' => $quantityUnit,
+            'contract_size' => $contractSize,
+        ]);
         $pair->setRelation('prices', new EloquentCollection($candles));
 
         $repository = Mockery::mock(MarketPairRepository::class);

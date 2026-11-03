@@ -23,6 +23,15 @@ blank; bid/ask OHLC and the legacy `price_at_8` are optional. The push API
 requires all four general OHLC values and allows each bid/ask field to be
 omitted. `price_at_8` is not used by the strategy or execution logic.
 
+The optional `volume` column stores candle volume with a `volume_type` of
+`traded` or `tick`; both fields are nullable. Manual entry and the push API
+preserve this distinction, and the push API requires a type whenever volume
+is supplied. The Alpha Vantage FX connector provides no volume, so its
+imported candles have no execution-volume capacity. Volume-based partial fills
+use only `traded` values and require them to match the backtest engine's
+execution quantity units. Untyped volume is unavailable, and tick volume is
+never treated as traded quantity.
+
 The input paths have different validation boundaries. The manual form
 requires positive prices with at most six decimal places but does not check
 candle high/low consistency. The push API allows numeric values from zero

@@ -52,21 +52,19 @@ trigger on that candle. There is no automatic close at the end of the data
 window.
 
 For active entry decisions, `entry_order_status` in the decision history may
-be `pending`, `partially_filled`, `filled`, or `cancelled`. The order record
-tracks entry/exit fills, requested and remaining quantities, cancelled
-remainders, cost totals, and close reason. There is an output caveat:
-`BacktestOrderHistoryEntry::jsonSerialize()` currently emits
-`entry_status: "filled"` as a constant. For partially filled or pending
-states, rely on decision status, fill lists, and remaining/cancelled quantity
-fields rather than that serialized label.
+be `pending`, `partially_filled`, `filled`, or `cancelled`. The order record tracks entry/exit statuses, fill ratios, requested/filled/
+remaining quantities, cancelled remainders, cost totals, and close reason.
+Each fill records its execution price and per-attempt quantity state.
 
 The order object represents one position-level trade and can hold multiple
-entry and exit fills. With synthetic partial fills, the fill quantity per
-attempt is no more than `requestedQuantity × fillRatio`, capped by what
-remains. `keep` retries unfilled quantity on later eligible candles;
-`cancel` cancels the remainder. Cancelling an exit remainder leaves the
-remaining position open. Candle volume, order-book depth, exchange queue
-position, and broker acceptance are not modeled.
+entry and exit fills. Fixed partial fills cap each attempt at
+`requestedQuantity × fillRatio`; volume-based fills cap the combined entry
+and exit quantity on each candle at
+`tradedVolume × participationRate`. Missing or untyped volume provides no
+capacity, while tick volume is rejected and never substituted. `keep` retries
+unfilled quantity on later eligible candles; `cancel` cancels the remainder.
+Cancelling an exit remainder leaves the remaining position open. Order-book
+depth, exchange queue position, and broker acceptance are not modeled.
 
 ## Competing operations and edge cases
 

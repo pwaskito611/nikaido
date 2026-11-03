@@ -112,7 +112,11 @@ class CombineMarketTypeBacktestResultsAction
                     ? (float) $run->configuration['slippage_pip_size']
                     : null,
                 'partial_fill_enabled' => filter_var($run->configuration['partial_fill_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'partial_fill_mode' => $run->configuration['partial_fill_mode'] ?? 'fixed',
                 'partial_fill_ratio' => (float) ($run->configuration['partial_fill_ratio'] ?? 1),
+                'max_participation_rate' => (float) ($run->configuration['max_participation_rate'] ?? 0.1),
+                'volume_source' => $run->configuration['volume_source'] ?? 'traded_volume',
+                'execution_volume_period' => $run->configuration['execution_volume_period'] ?? 'candle',
                 'unfilled_order_policy' => $run->configuration['unfilled_order_policy'] ?? UnfilledOrderPolicy::Keep->value,
                 'trade_costs' => TradeCostConfig::fromArray($run->configuration['trade_costs'] ?? [])->toArray(),
             ],

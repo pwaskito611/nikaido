@@ -12,6 +12,10 @@ final readonly class BacktestEntryFill
         public string $date,
         public string $source,
         public array $tradeCosts = [],
+        public ?float $requestedQuantity = null,
+        public ?float $remainingQuantity = null,
+        public ?float $fillRatio = null,
+        public string $status = 'filled',
     ) {}
 
     /** @return array<string, mixed> */
@@ -22,6 +26,10 @@ final readonly class BacktestEntryFill
             'price' => $this->price,
             'date' => $this->date,
             'source' => $this->source,
+            'requested_quantity' => $this->requestedQuantity ?? $this->quantity,
+            'remaining_quantity' => $this->remainingQuantity ?? 0.0,
+            'fill_ratio' => $this->fillRatio ?? 1.0,
+            'status' => $this->status,
             ...($this->tradeCosts === [] ? [] : ['trade_costs' => $this->tradeCosts]),
         ];
     }

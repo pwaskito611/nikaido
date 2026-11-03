@@ -29,6 +29,10 @@ final readonly class PortfolioExitFill
         public Option $capitalAfter,
         public float $grossProfitLoss = 0.0,
         public array $tradeCosts = [],
+        public ?float $requestedQuantity = null,
+        public ?float $remainingQuantity = null,
+        public ?float $fillRatio = null,
+        public ?string $status = null,
     ) {}
 
     /** @param array<string, mixed> $fill */
@@ -48,6 +52,10 @@ final readonly class PortfolioExitFill
             grossProfitLoss: self::number($fill['gross_profit_loss'] ?? null)
                 ->getOrElse((float) Number::of($profitLoss->getOrElse(0.0))->add(self::sumCosts($tradeCosts))->value()),
             tradeCosts: $tradeCosts,
+            requestedQuantity: self::number($fill['requested_quantity'] ?? null)->getOrNull(),
+            remainingQuantity: self::number($fill['remaining_quantity'] ?? null)->getOrNull(),
+            fillRatio: self::number($fill['fill_ratio'] ?? null)->getOrNull(),
+            status: self::string($fill['status'] ?? null, 'status')->getOrNull(),
         );
     }
 
@@ -74,6 +82,10 @@ final readonly class PortfolioExitFill
             capitalAfter: $this->capitalAfter,
             grossProfitLoss: $grossProfitLoss,
             tradeCosts: $tradeCosts,
+            requestedQuantity: $this->requestedQuantity === null ? null : $this->requestedQuantity * $factor,
+            remainingQuantity: $this->remainingQuantity === null ? null : $this->remainingQuantity * $factor,
+            fillRatio: $this->fillRatio,
+            status: $this->status,
         );
     }
 
@@ -89,6 +101,10 @@ final readonly class PortfolioExitFill
             Option::some($capital),
             $this->grossProfitLoss,
             $this->tradeCosts,
+            $this->requestedQuantity,
+            $this->remainingQuantity,
+            $this->fillRatio,
+            $this->status,
         );
     }
 
@@ -113,6 +129,18 @@ final readonly class PortfolioExitFill
         }
         if ($this->reason->isSome()) {
             $fill['reason'] = $this->reason->getOrElse('');
+        }
+        if ($this->requestedQuantity !== null) {
+            $fill['requested_quantity'] = $this->requestedQuantity;
+        }
+        if ($this->remainingQuantity !== null) {
+            $fill['remaining_quantity'] = $this->remainingQuantity;
+        }
+        if ($this->fillRatio !== null) {
+            $fill['fill_ratio'] = $this->fillRatio;
+        }
+        if ($this->status !== null) {
+            $fill['status'] = $this->status;
         }
         if ($this->capitalAfter->isSome()) {
             $fill['capital_after'] = $this->capitalAfter->getOrElse(0.0);

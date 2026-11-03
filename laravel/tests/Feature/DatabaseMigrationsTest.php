@@ -48,6 +48,8 @@ class DatabaseMigrationsTest extends TestCase
                 'ask_high',
                 'ask_low',
                 'ask_close',
+                'volume',
+                'volume_type',
             ],
         ];
 

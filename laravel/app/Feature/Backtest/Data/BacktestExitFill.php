@@ -21,6 +21,10 @@ final readonly class BacktestExitFill
         public Option $capitalAfter,
         public float $grossProfitLoss = 0.0,
         public array $tradeCosts = [],
+        public ?float $requestedQuantity = null,
+        public ?float $remainingQuantity = null,
+        public ?float $fillRatio = null,
+        public string $status = 'filled',
     ) {}
 
     public function withCapitalAfter(float $capital): self
@@ -35,6 +39,10 @@ final readonly class BacktestExitFill
             Option::some($capital),
             $this->grossProfitLoss,
             $this->tradeCosts,
+            $this->requestedQuantity,
+            $this->remainingQuantity,
+            $this->fillRatio,
+            $this->status,
         );
     }
 
@@ -47,6 +55,10 @@ final readonly class BacktestExitFill
             'date' => $this->date,
             'source' => $this->source,
             'reason' => $this->reason,
+            'requested_quantity' => $this->requestedQuantity ?? $this->quantity,
+            'remaining_quantity' => $this->remainingQuantity ?? 0.0,
+            'fill_ratio' => $this->fillRatio ?? 1.0,
+            'status' => $this->status,
             'profit_loss' => $this->profitLoss,
             ...($this->tradeCosts === [] ? [] : [
                 'gross_profit_loss' => $this->grossProfitLoss,

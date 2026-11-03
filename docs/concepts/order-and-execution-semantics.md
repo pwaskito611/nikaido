@@ -80,13 +80,15 @@ differ from how an actual order would execute during a gap. A market entry
 may be evaluated from a signal that used the same candle's close but filled
 at its open; this is a look-ahead risk in the current strategy timing.
 
-Fixed slippage is a configured adverse price adjustment, not a liquidity or
-volatility model. Partial fills, when enabled, fill at most the configured
-fraction of requested quantity per eligible attempt, capped by the
-remaining amount. `keep` retries an unfilled remainder on later eligible
-candles; `cancel` cancels that remainder. A cancelled exit remainder leaves
-the remaining position open. Candle volume, queue priority, order-book depth,
-broker acceptance, and market impact are not modeled.
+Fixed slippage is a configured adverse price adjustment, not a volatility
+model. Fixed partial fills use a configured fraction of requested quantity per
+eligible attempt. The optional volume mode caps all fills on each candle at
+explicitly marked traded candle volume times the participation rate. Missing
+or untyped volume provides no capacity; tick volume is rejected and never
+substituted. `keep` retries an unfilled remainder on later eligible candles;
+`cancel` cancels that remainder. A cancelled exit remainder leaves the
+remaining position open. Queue priority, order-book depth, broker acceptance,
+and market impact are not modeled.
 
 There is no general-purpose Workbench order ticket, independent stop-order
 API, broker order state machine, expiry/time-in-force, or exchange rejection

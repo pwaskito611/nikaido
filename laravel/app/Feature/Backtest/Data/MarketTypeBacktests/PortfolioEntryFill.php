@@ -21,6 +21,10 @@ final readonly class PortfolioEntryFill
         public Option $date,
         public Option $source,
         public array $tradeCosts = [],
+        public ?float $requestedQuantity = null,
+        public ?float $remainingQuantity = null,
+        public ?float $fillRatio = null,
+        public ?string $status = null,
     ) {}
 
     /** @param array<string, mixed> $fill */
@@ -32,6 +36,10 @@ final readonly class PortfolioEntryFill
             self::string($fill, 'date'),
             self::string($fill, 'source'),
             self::costs($fill['trade_costs'] ?? []),
+            self::number($fill, 'requested_quantity')->getOrNull(),
+            self::number($fill, 'remaining_quantity')->getOrNull(),
+            self::number($fill, 'fill_ratio')->getOrNull(),
+            self::string($fill, 'status')->getOrNull(),
         );
     }
 
@@ -44,6 +52,10 @@ final readonly class PortfolioEntryFill
             $this->date,
             $this->source,
             self::scaleCosts($this->tradeCosts, $factor, $perOrderCostComponents),
+            $this->requestedQuantity === null ? null : $this->requestedQuantity * $factor,
+            $this->remainingQuantity === null ? null : $this->remainingQuantity * $factor,
+            $this->fillRatio,
+            $this->status,
         );
     }
 
@@ -62,6 +74,18 @@ final readonly class PortfolioEntryFill
         }
         if ($this->source->isSome()) {
             $fill['source'] = $this->source->getOrElse('');
+        }
+        if ($this->requestedQuantity !== null) {
+            $fill['requested_quantity'] = $this->requestedQuantity;
+        }
+        if ($this->remainingQuantity !== null) {
+            $fill['remaining_quantity'] = $this->remainingQuantity;
+        }
+        if ($this->fillRatio !== null) {
+            $fill['fill_ratio'] = $this->fillRatio;
+        }
+        if ($this->status !== null) {
+            $fill['status'] = $this->status;
         }
         if ($this->tradeCosts !== []) {
             $fill['trade_costs'] = $this->tradeCosts;

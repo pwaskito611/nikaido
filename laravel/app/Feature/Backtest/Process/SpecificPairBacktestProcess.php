@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Feature\Backtest\Process;
 
+use App\Feature\Backtest\Config\PartialFillMode;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Config\UnfilledOrderPolicy;
 use App\Feature\Backtest\Data\BacktestDecision;
@@ -111,6 +112,7 @@ class SpecificPairBacktestProcess
                 continue;
             }
 
+            $remainingCandleCapacity = $this->availableCandleCapacity($candle, $config);
             $decision = $this->isActive($candle, $config)
                 ? $currentDecision
                 : null;
@@ -135,15 +137,13 @@ class SpecificPairBacktestProcess
                         $quantityUnit,
                         $configuredQuantityMultiplier,
                         $config,
+                        $remainingCandleCapacity,
                     );
                     $orderHistory = $orderHistory->append($opened->first());
                     $openOrderIndex = $orderHistory->count() - 1;
                     $currentCapital = $opened->second();
                     $entryDecisionIndex = $pendingEntry['decision_index'];
-                    $decisionStatuses[$entryDecisionIndex] = $opened->first()->remainingEntryQuantity > 0
-                        || $opened->first()->cancelledEntryQuantity > 0
-                        ? 'partially_filled'
-                        : 'filled';
+                    $decisionStatuses[$entryDecisionIndex] = $opened->first()->entryStatus();
                     $pendingEntry = null;
                     $filledLimitThisCandle = true;
                 } elseif ($decision?->signal === StrategySignal::Close) {
@@ -169,27 +169,28 @@ class SpecificPairBacktestProcess
                                 $config,
                             )
                             : $entry->first();
-                        $fillQuantity = $this->partialFill->quantity(
+                        $fillQuantity = $this->fillQuantity(
                             $order->requestedPositionSize,
                             $order->remainingEntryQuantity,
-                            $config->partialFill->ratio,
+                            $config,
+                            $remainingCandleCapacity,
                         );
-                        $order->recordEntryFill(
-                            $fillQuantity,
-                            $entryPrice,
-                            $candle->price_date->format('Y-m-d H:i:s'),
-                            $entry->second(),
-                        );
-                        $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
-                        $order->recordEntryTradeCosts($entryCosts);
-                        $currentCapital = (float) Number::of($currentCapital)
-                            ->sub($this->sumCosts($entryCosts))
-                            ->value();
+                        if ($fillQuantity > 0) {
+                            $order->recordEntryFill(
+                                $fillQuantity,
+                                $entryPrice,
+                                $candle->price_date->format('Y-m-d H:i:s'),
+                                $entry->second(),
+                            );
+                            $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
+                            $order->recordEntryTradeCosts($entryCosts);
+                            $currentCapital = (float) Number::of($currentCapital)
+                                ->sub($this->sumCosts($entryCosts))
+                                ->value();
+                        }
                         $filledLimitThisCandle = $order->requestedEntryPrice !== null;
                         if ($entryDecisionIndex !== null) {
-                            $decisionStatuses[$entryDecisionIndex] = $order->remainingEntryQuantity > 0
-                                ? 'partially_filled'
-                                : 'filled';
+                            $decisionStatuses[$entryDecisionIndex] = $order->entryStatus();
                         }
                     }
                 }
@@ -229,42 +230,44 @@ class SpecificPairBacktestProcess
                         $order->signal !== StrategySignal::Long->value,
                         $config,
                     );
-                    $fillRatio = $config->partialFill->enabled ? $config->partialFill->ratio : 1.0;
-                    $fillQuantity = $this->partialFill->quantity(
+                    $fillQuantity = $this->fillQuantity(
                         $order->pendingExitRequestedQuantity->getOrElseThrow(
                             new LogicException('An exit request must retain its requested quantity while filling.'),
                         ),
                         $order->remainingPositionSize,
-                        $fillRatio,
+                        $config,
+                        $remainingCandleCapacity,
                     );
-                    $exitDate = $candle->price_date->format('Y-m-d H:i:s');
-                    $exitCosts = $this->transactionCosts($order, $fillQuantity, $exitPrice, $config, 'exit');
-                    if ($config->tradeCosts->enabled) {
-                        $notionalDays = $order->consumeEntryNotionalDays($fillQuantity, $exitDate);
-                        $components = $config->tradeCosts->components();
-                        if ($order->signal === StrategySignal::Short->value) {
-                            $exitCosts['borrow_fee'] = $this->tradeCostCalculator->holding(
-                                $components['borrow_fee'],
+                    if ($fillQuantity > 0) {
+                        $exitDate = $candle->price_date->format('Y-m-d H:i:s');
+                        $exitCosts = $this->transactionCosts($order, $fillQuantity, $exitPrice, $config, 'exit');
+                        if ($config->tradeCosts->enabled) {
+                            $notionalDays = $order->consumeEntryNotionalDays($fillQuantity, $exitDate);
+                            $components = $config->tradeCosts->components();
+                            if ($order->signal === StrategySignal::Short->value) {
+                                $exitCosts['borrow_fee'] = $this->tradeCostCalculator->holding(
+                                    $components['borrow_fee'],
+                                    $notionalDays,
+                                );
+                            }
+                            $exitCosts['financing_fee'] = $this->tradeCostCalculator->holding(
+                                $components['financing_fee'],
                                 $notionalDays,
                             );
                         }
-                        $exitCosts['financing_fee'] = $this->tradeCostCalculator->holding(
-                            $components['financing_fee'],
-                            $notionalDays,
+                        $fillProfitLoss = $order->recordExitFill(
+                            $fillQuantity,
+                            $exitPrice,
+                            $exitDate,
+                            $priceSource,
+                            $closeReason,
+                            $exitCosts,
                         );
+                        $currentCapital = (float) Number::of($currentCapital)
+                            ->add($fillProfitLoss)
+                            ->value();
+                        $order->recordExitCapitalAfter($currentCapital);
                     }
-                    $fillProfitLoss = $order->recordExitFill(
-                        $fillQuantity,
-                        $exitPrice,
-                        $exitDate,
-                        $priceSource,
-                        $closeReason,
-                        $exitCosts,
-                    );
-                    $currentCapital = (float) Number::of($currentCapital)
-                        ->add($fillProfitLoss)
-                        ->value();
-                    $order->recordExitCapitalAfter($currentCapital);
 
                     if ($order->remainingPositionSize <= 0.000000000001) {
                         $order->remainingPositionSize = 0.0;
@@ -276,12 +279,7 @@ class SpecificPairBacktestProcess
                         $order->capitalAfterClose = $currentCapital;
                         $openOrderIndex = null;
                     } elseif ($config->partialFill->unfilledOrderPolicy === UnfilledOrderPolicy::Cancel) {
-                        $order->cancelledExitQuantity += max(
-                            0.0,
-                            $order->pendingExitRequestedQuantity->getOrElseThrow(
-                                new LogicException('A cancelled exit must retain its requested quantity.'),
-                            ) - $fillQuantity,
-                        );
+                        $order->cancelledExitQuantity += $order->remainingPositionSize;
                         $order->pendingExitReason = Option::none();
                         $order->pendingExitRequestedQuantity = Option::none();
                     }
@@ -316,15 +314,13 @@ class SpecificPairBacktestProcess
                         $quantityUnit,
                         $configuredQuantityMultiplier,
                         $config,
+                        $remainingCandleCapacity,
                     );
                     $orderHistory = $orderHistory->append($opened->first());
                     $openOrderIndex = $orderHistory->count() - 1;
                     $entryDecisionIndex = $decisionIndex;
                     $currentCapital = $opened->second();
-                    $decisionStatuses[$decisionIndex] = $opened->first()->remainingEntryQuantity > 0
-                        || $opened->first()->cancelledEntryQuantity > 0
-                        ? 'partially_filled'
-                        : 'filled';
+                    $decisionStatuses[$decisionIndex] = $opened->first()->entryStatus();
                 }
             }
 
@@ -391,6 +387,7 @@ class SpecificPairBacktestProcess
         string $quantityUnit,
         string $configuredQuantityMultiplier,
         SpecificPairTestConfig $config,
+        ?float &$remainingCandleCapacity,
     ): Pair {
         $requestedEntryPrice = $decision->limitPrice ?? $entryPrice;
         $this->assertValidEntryDecision(
@@ -429,22 +426,86 @@ class SpecificPairBacktestProcess
             capitalAtOpen: $capital,
             requestedEntryPrice: $decision->limitPrice,
         );
-        $fillRatio = $config->partialFill->enabled ? $config->partialFill->ratio : 1.0;
-        $fillQuantity = $this->partialFill->quantity(
+        $fillQuantity = $this->fillQuantity(
             $requestedPositionSize,
             $requestedPositionSize,
-            $fillRatio,
+            $config,
+            $remainingCandleCapacity,
         );
-        $order->recordEntryFill($fillQuantity, $entryPrice, $openDate, $entryPriceSource);
-        $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
-        $order->recordEntryTradeCosts($entryCosts);
-        $capital = (float) Number::of($capital)->sub($this->sumCosts($entryCosts))->value();
+        if ($fillQuantity > 0) {
+            $order->recordEntryFill($fillQuantity, $entryPrice, $openDate, $entryPriceSource);
+            $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
+            $order->recordEntryTradeCosts($entryCosts);
+            $capital = (float) Number::of($capital)->sub($this->sumCosts($entryCosts))->value();
+        }
         if ($config->partialFill->enabled && $config->partialFill->unfilledOrderPolicy === UnfilledOrderPolicy::Cancel) {
             $order->cancelledEntryQuantity += $order->remainingEntryQuantity;
             $order->remainingEntryQuantity = 0.0;
         }
 
         return Pair::of($order, $capital);
+    }
+
+    private function availableCandleCapacity(
+        MarketPrice $candle,
+        SpecificPairTestConfig $config,
+    ): ?float {
+        if (! $config->partialFill->enabled || $config->partialFill->mode !== PartialFillMode::Volume) {
+            return null;
+        }
+
+        $volume = $candle->volume;
+        if ($volume === null) {
+            return 0.0;
+        }
+        if (! is_numeric($volume) || ! is_finite((float) $volume) || (float) $volume < 0) {
+            throw new UnexpectedValueException('Volume-based partial fills require finite, non-negative candle volume.');
+        }
+        if ($candle->volume_type === 'tick') {
+            throw new UnexpectedValueException('Tick volume is not traded quantity and cannot be used for volume-based partial fills.');
+        }
+        if ($candle->volume_type === null) {
+            return 0.0;
+        }
+        if ($candle->volume_type !== 'traded') {
+            throw new UnexpectedValueException("Unsupported candle volume type: {$candle->volume_type}.");
+        }
+
+        return (float) Number::of((string) $volume)
+            ->mul($config->partialFill->maxParticipationRate)
+            ->value();
+    }
+
+    private function fillQuantity(
+        Number|int|float|string $requestedQuantity,
+        Number|int|float|string $remainingQuantity,
+        SpecificPairTestConfig $config,
+        ?float &$remainingCandleCapacity,
+    ): float {
+        if (! $config->partialFill->enabled) {
+            return $this->partialFill->quantity($requestedQuantity, $remainingQuantity, 1);
+        }
+
+        if ($config->partialFill->mode === PartialFillMode::Fixed) {
+            return $this->partialFill->quantity(
+                $requestedQuantity,
+                $remainingQuantity,
+                $config->partialFill->ratio,
+            );
+        }
+
+        $capacity = $remainingCandleCapacity ?? 0.0;
+        $quantity = $this->partialFill->quantityFromCapacity(
+            $requestedQuantity,
+            $remainingQuantity,
+            $capacity,
+        );
+        $remainingCandleCapacity = max(
+            0.0,
+            (float) Number::of($capacity)->sub($quantity)->value(),
+        );
+
+        return $quantity;
     }
 
     private function assertValidEntryDecision(

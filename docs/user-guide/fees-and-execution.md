@@ -103,12 +103,31 @@ partial-fill attempt.
 
 ## Partial fills and cost timing
 
-Synthetic partial fill behavior is optional and disabled by default. When
-enabled, the fill ratio is in `(0, 1]`. Each eligible entry/exit attempt fills
-up to `requested quantity × ratio`, capped at the remaining amount. `Keep`
-retries a remainder on later eligible candles; `Cancel` cancels that remainder
-(for a cancelled exit, the remaining position remains exposed). This is a
-quantity rule only. Candle volume and order-book liquidity are not read.
+Partial fills are optional and disabled by default. The fixed mode preserves
+the existing rule: each eligible entry/exit attempt fills up to
+`requested quantity × fill ratio`, capped at the remaining amount. The ratio
+is in `(0, 1]`.
+
+The volume mode uses only a candle's `volume` when `volume_type` is explicitly
+`traded`. Its per-candle execution budget is
+`traded volume × max participation rate`; entry and exit fills on that candle
+share the same budget. Each fill is capped by the requested and remaining
+quantity. The rate is a decimal in `[0, 1]` (for example, `0.10` is 10%). The
+supported period is one candle at the selected backtest timeframe. `Keep`
+retains and retries the unfilled quantity on later eligible candles; `Cancel`
+records the remainder as cancelled (a cancelled exit leaves its remaining
+position open).
+
+Missing volume, or a volume value with no explicit type, provides zero
+execution capacity. Negative or invalid volume is rejected. Tick volume is
+not traded quantity and is never substituted: a candle explicitly marked
+`tick` causes volume-mode execution to fail with an explanation. The volume
+must use the engine's execution quantity units; lot quantities are normalized
+using the pair's configured contract size. The current Alpha Vantage FX
+connector supplies no volume, so those imported candles cannot execute in
+volume mode unless traded volume is provided separately. The model still does
+not simulate order-book depth, queue priority, market impact, or minimum lot
+steps.
 
 Transaction costs are recorded against fills and deducted from the simulated
 capital/P&L. Entry costs are deducted when entry fills occur. Exit costs and

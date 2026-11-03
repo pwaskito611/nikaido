@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Engine\Config;
 
 use App\Feature\Backtest\Config\ConfiguredPairBacktestInput;
+use App\Feature\Backtest\Config\PartialFillMode;
 use App\Feature\Backtest\Config\UnfilledOrderPolicy;
 use App\Feature\Backtest\Rules\ActiveTradingSchedule;
 use Exact\Collection\Vec;
@@ -27,7 +28,10 @@ class ConfiguredPairBacktestInputTest extends TestCase
             'slippage_pips' => '1.5',
             'slippage_pip_size' => '0.0001',
             'partial_fill_enabled' => true,
-            'partial_fill_ratio' => '0.5',
+            'partial_fill_mode' => 'volume',
+            'max_participation_rate' => '0.25',
+            'volume_source' => 'traded_volume',
+            'execution_volume_period' => 'candle',
             'unfilled_order_policy' => 'cancel',
         ]);
 
@@ -41,7 +45,10 @@ class ConfiguredPairBacktestInputTest extends TestCase
         $this->assertSame(1.5, $input->slippage->pips);
         $this->assertSame(0.0001, $input->slippage->pipSize);
         $this->assertTrue($input->partialFill->enabled);
-        $this->assertSame(0.5, $input->partialFill->ratio);
+        $this->assertSame(PartialFillMode::Volume, $input->partialFill->mode);
+        $this->assertSame(0.25, $input->partialFill->maxParticipationRate);
+        $this->assertSame('traded_volume', $input->partialFill->volumeSource);
+        $this->assertSame('candle', $input->partialFill->executionVolumePeriod);
         $this->assertSame(UnfilledOrderPolicy::Cancel, $input->partialFill->unfilledOrderPolicy);
     }
 
@@ -61,6 +68,7 @@ class ConfiguredPairBacktestInputTest extends TestCase
         $this->assertSame(0.0, $input->slippage->pips);
         $this->assertNull($input->slippage->pipSize);
         $this->assertFalse($input->partialFill->enabled);
+        $this->assertSame(PartialFillMode::Fixed, $input->partialFill->mode);
         $this->assertSame(1.0, $input->partialFill->ratio);
         $this->assertSame(UnfilledOrderPolicy::Keep, $input->partialFill->unfilledOrderPolicy);
         $this->assertTrue($input->excludedDays->isEmpty());

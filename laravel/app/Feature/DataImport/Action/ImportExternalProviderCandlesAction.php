@@ -40,6 +40,8 @@ class ImportExternalProviderCandlesAction
                 'high' => $high,
                 'low' => $low,
                 'close' => $close,
+                'volume' => null,
+                'volume_type' => null,
                 'bid_open' => null,
                 'bid_high' => null,
                 'bid_low' => null,

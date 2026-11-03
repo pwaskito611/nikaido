@@ -46,6 +46,8 @@ class ReceivePushedCandlesRequest extends FormRequest
             'candles.*.high' => ['required', 'numeric', 'between:0,999999.999999'],
             'candles.*.low' => ['required', 'numeric', 'between:0,999999.999999'],
             'candles.*.close' => ['required', 'numeric', 'between:0,999999.999999'],
+            'candles.*.volume' => ['nullable', 'numeric', 'gte:0', 'decimal:0,8', 'max:999999999999.99999999'],
+            'candles.*.volume_type' => ['nullable', 'required_with:candles.*.volume', 'in:traded,tick'],
             'candles.*.bid_open' => ['nullable', 'numeric', 'between:0,999999.999999'],
             'candles.*.bid_high' => ['nullable', 'numeric', 'between:0,999999.999999'],
             'candles.*.bid_low' => ['nullable', 'numeric', 'between:0,999999.999999'],

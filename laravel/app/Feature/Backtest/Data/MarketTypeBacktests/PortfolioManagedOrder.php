@@ -223,10 +223,21 @@ final readonly class PortfolioManagedOrder
             'risk_amount' => $this->riskAmount,
             'requested_risk_amount' => $this->requestedRiskAmount,
             'requested_position_size' => $this->requestedPositionSize,
+            'entry_requested_quantity' => $this->requestedPositionSize,
+            'entry_filled_quantity' => $this->positionSize,
+            'entry_remaining_quantity' => $this->remainingEntryQuantity,
+            'entry_fill_ratio' => $this->requestedPositionSize > 0
+                ? min(1.0, $this->positionSize / $this->requestedPositionSize)
+                : 0.0,
             'position_size' => $this->positionSize,
             'remaining_entry_quantity' => $this->remainingEntryQuantity,
             'remaining_position_size' => $this->remainingPositionSize,
             'closed_position_size' => $this->closedPositionSize,
+            'exit_filled_quantity' => $this->closedPositionSize,
+            'exit_remaining_quantity' => $this->remainingPositionSize,
+            'exit_fill_ratio' => $this->positionSize > 0
+                ? min(1.0, $this->closedPositionSize / $this->positionSize)
+                : 0.0,
             'cancelled_entry_quantity' => $this->cancelledEntryQuantity,
             'cancelled_exit_quantity' => $this->cancelledExitQuantity,
             'entry_fills' => $this->entryFills

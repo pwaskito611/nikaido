@@ -34,7 +34,9 @@ triggers by the end of the loaded window remains pending in decision history.
 It is not an expired or automatically cancelled order. A `Close` decision
 cancels the pending entry when that candle does not trigger it. On a trigger,
 the order is created and records an entry fill; with partial fills enabled,
-each eligible attempt fills up to the configured ratio. `keep` retries the
+each eligible attempt follows the configured fixed-ratio or traded-volume
+capacity. Volume-based fills share the candle's participation budget with
+other fills and require volume explicitly marked as traded. `keep` retries the
 remaining limit quantity on later qualifying candles; `cancel` records the
 unfilled remainder as cancelled.
 
@@ -57,9 +59,7 @@ Limit prices must be usable with the entry signal and stop/target constraints;
 an entry and stop at the same price is rejected. No separate expiration,
 time-in-force, replace, or broker cancellation API exists. An unfilled pending
 entry has a decision status but may not appear in the filled order-history
-collection. The serialized order `entry_status` field is currently constant
-`filled`; inspect decision status and fill/remainder fields for actual
-progress.
+collection. Entry status and fill/remainder fields report actual progress.
 
 ## Example and verification
 

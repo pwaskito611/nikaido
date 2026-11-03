@@ -143,13 +143,36 @@
                     </div>
                     <label class="check-row" style="margin-top:16px">
                         <input type="checkbox" id="partial_fill_enabled" name="partial_fill_enabled" value="1" @checked(old('partial_fill_enabled'))>
-                        <span><strong>Synthetic partial fills</strong><small>Each attempt fills up to requested quantity × ratio. This is not a liquidity simulation: candle volume and order-book data are not used.</small></span>
+                        <span><strong>Partial fills</strong><small>Choose a fixed fill ratio or cap each candle's fills by explicitly marked traded volume. Missing volume never means unlimited liquidity.</small></span>
                     </label>
                     <div class="field-row">
                         <div>
+                            <label class="field-label" for="partial_fill_mode">Fill mode</label>
+                            <select class="text-input" id="partial_fill_mode" name="partial_fill_mode">
+                                <option value="fixed" @selected(old('partial_fill_mode', 'fixed') === 'fixed')>Fixed partial fill</option>
+                                <option value="volume" @selected(old('partial_fill_mode') === 'volume')>Volume-based partial fill</option>
+                            </select>
+                            <small class="field-hint">Fixed mode preserves the configured per-attempt quantity ratio.</small>
+                        </div>
+                        <div id="partial-fill-fixed-fields">
                             <label class="field-label" for="partial_fill_ratio">Fill ratio (0–1)</label>
                             <input class="text-input" id="partial_fill_ratio" name="partial_fill_ratio" type="number" min="0.000001" max="1" step="0.01" value="{{ old('partial_fill_ratio', '0.50') }}">
                             <small class="field-hint">Applied to entry and exit attempts; each fill is capped by the remaining quantity.</small>
+                        </div>
+                        <div id="partial-fill-volume-fields" hidden>
+                            <label class="field-label" for="max_participation_rate">Maximum participation rate (0–1)</label>
+                            <input class="text-input" id="max_participation_rate" name="max_participation_rate" type="number" min="0" max="1" step="0.01" value="{{ old('max_participation_rate', '0.10') }}">
+                            <small class="field-hint">For example, 0.10 means at most 10% of the candle's traded volume.</small>
+                            <label class="field-label" for="volume_source">Volume source</label>
+                            <select class="text-input" id="volume_source" name="volume_source">
+                                <option value="traded_volume" @selected(old('volume_source', 'traded_volume') === 'traded_volume')>MarketPrice candle volume marked as traded</option>
+                            </select>
+                            <small class="field-hint">Tick volume is not accepted as traded quantity and is never substituted.</small>
+                            <label class="field-label" for="execution_volume_period">Execution volume period</label>
+                            <select class="text-input" id="execution_volume_period" name="execution_volume_period">
+                                <option value="candle" @selected(old('execution_volume_period', 'candle') === 'candle')>Each candle in the selected timeframe</option>
+                            </select>
+                            <small class="field-hint">All entry and exit fills on a candle share its one volume participation budget.</small>
                         </div>
                         <div>
                             <label class="field-label" for="unfilled_order_policy">Unfilled remainder</label>
@@ -290,7 +313,24 @@
             update();
         };
         setOptionalInputs(slippageToggle, ['slippage_pips', 'slippage_pip_size']);
-        setOptionalInputs(partialFillToggle, ['partial_fill_ratio', 'unfilled_order_policy']);
+        const partialFillMode = document.getElementById('partial_fill_mode');
+        const fixedFillFields = document.getElementById('partial-fill-fixed-fields');
+        const volumeFillFields = document.getElementById('partial-fill-volume-fields');
+        const updatePartialFillFields = () => {
+            partialFillMode.disabled = !partialFillToggle.checked;
+            fixedFillFields.hidden = partialFillMode.value !== 'fixed';
+            volumeFillFields.hidden = partialFillMode.value !== 'volume';
+            for (const input of fixedFillFields.querySelectorAll('input, select')) {
+                input.disabled = !partialFillToggle.checked || fixedFillFields.hidden;
+            }
+            for (const input of volumeFillFields.querySelectorAll('input, select')) {
+                input.disabled = !partialFillToggle.checked || volumeFillFields.hidden;
+            }
+            document.getElementById('unfilled_order_policy').disabled = !partialFillToggle.checked;
+        };
+        partialFillToggle.addEventListener('change', updatePartialFillFields);
+        partialFillMode.addEventListener('change', updatePartialFillFields);
+        updatePartialFillFields();
         const tradeCostsToggle = document.getElementById('trade_costs_enabled');
         const tradeCostToggles = [...document.querySelectorAll('.trade-cost-toggle')];
         const updateTradeCostFields = () => {

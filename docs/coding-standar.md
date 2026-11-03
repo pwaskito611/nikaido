@@ -6,7 +6,7 @@ These standards apply to all PHP development within the project.
 
 - **Exact (`pandu/exact`)** — domain type modeling, result representation, pattern matching, and immutable collections.
 - **Gauss (`pandu/gauss`)** — mathematical operations, statistics, probability, numerical analysis, and relevant mathematical computation.
-- **Feature-Based Architecture** — organizes application code by capability under `app/Feature/`.
+- **Feature-Based Architecture** — organizes application code by capability under `laravel/app/Feature/`, with Laravel infrastructure under `laravel/`.
 - **Core Architecture** — Controller, Action, Repository, and Model form the architectural foundation of each feature.
 - **Optional Components** — Data, Config, Process, and Rules are additional components introduced when needed.
 - **Anemic Model** — models represent persisted data without substantial business logic.
@@ -28,47 +28,41 @@ Core principles:
 
 ## 2. Feature-Based Architecture
 
-All application-specific feature code belongs under `app/Feature/`.
+Laravel-facing feature code belongs under `laravel/app/Feature/`; Laravel
+adapters belong under `laravel/app/Platform/`. Strategy implementations and
+strategy value types belong under `src/`, with `src/main.php` defining the
+strategy entry function called by the Laravel Strategy adapter. Keep Laravel
+configuration, routes, migrations, public assets, and framework runtime under
+`laravel/`. The root Composer project and environment files are shared.
 
 Features are organized by application capability, not by file type globally.
 
 Example structure:
 
 ```text
-app/
-└── Feature/
-    ├── MarketTypes/
-    │   ├── Controller/
-    │   ├── Action/
-    │   ├── Repository/
-    │   ├── Model/
-    │   └── Tests/
-    │       ├── Unit/
-    │       └── Integration/
-    │
-    ├── MarketExploration/
-    │   ├── Controller/
-    │   ├── Action/
-    │   ├── Repository/
-    │   ├── Model/
-    │   ├── Rules/
-    │   ├── Config/
-    │   └── Tests/
-    │       ├── Unit/
-    │       └── Integration/
-    │
-    └── Backtest/
-        ├── Controller/
-        ├── Action/
-        ├── Repository/
-        ├── Model/
-        ├── Data/
-        ├── Rules/
-        ├── Process/
-        ├── Config/
-        └── Tests/
-            ├── Unit/
-            └── Integration/
+nikaido/
+├── src/
+│   ├── main.php
+│   └── Strategy/
+│       ├── Enums/
+│       └── Models/
+└── laravel/
+    ├── app/
+    │   ├── Feature/
+    │   │   ├── Backtest/
+    │   │   ├── Evaluation/
+    │   │   └── ...
+    │   └── Platform/
+    │       └── Strategy/
+    │           └── Strategy.php
+    ├── bootstrap/
+    ├── config/
+    ├── database/
+    ├── public/
+    ├── resources/
+    ├── routes/
+    ├── storage/
+    └── tests/
 ```
 
 This structure is illustrative. Additional directories should be introduced only when a real responsibility requires them.
@@ -134,7 +128,9 @@ App\Feature\Backtest\Data\BacktestInput
 App\Feature\Backtest\Process\ExecuteStrategyProcess
 ```
 
-`app/Feature/` is a project convention, not a directory structure required by Laravel. Preserve the capitalization and namespace conventions established by the project.
+`laravel/app/Feature/` is a Nikaido convention, not a directory structure
+required by Laravel. Preserve the capitalization and namespace conventions
+established by the project.
 
 ## 3. Core Architecture
 
@@ -541,12 +537,14 @@ The Strategy module is where users define trading strategy behavior.
 
 Rules:
 
-- `app/Platform/Strategy/Strategy.php` is the strategy entry point invoked by the Engine according to the framework contract.
-- Strategy implementations and indicators belong in the project's designated Strategy area.
+- `laravel/app/Platform/Strategy/Strategy.php` is the Laravel adapter invoked by the backtest process; it calls `Nikaido\Strategy\main()` in `src/main.php`.
+- Strategy implementations and indicators belong in `src/`, not in Laravel's application adapter.
 - A Strategy receives an ordered sequence of candles, including warm-up data when required by the Engine contract.
 - A Strategy returns decisions according to the established contract.
 - The Engine is responsible for data retrieval, order simulation, stop-loss/take-profit handling, and backtest results.
-- Strategies run in-process, not through an internal HTTP/API layer.
+- Strategies are selected and executed through the existing UI workflow and
+  run in-process through the Backtest application flow, not through a CLI
+  strategy runner or an internal HTTP/API layer.
 - Pair, timeframe, schedule, and date configuration belong to the Engine or appropriate configuration components.
 - Actions orchestrate backtest operations; Process executes the specific tasks they require.
 - Use Exact for internal data when appropriate for the Engine contract and available API.

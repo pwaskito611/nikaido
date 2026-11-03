@@ -89,7 +89,7 @@ by `Evaluation\Request\BacktestResultsRequest`; their meanings are covered by
 The pushed-candle payload's price bounds and details are documented in
 [Data ingestion and validation](../features/data-ingestion-and-validation.md).
 The specific-pair request's complete validation rules are implemented by
-[`RunSpecificPairTestRequest`](../../app/Feature/Backtest/Request/RunSpecificPairTestRequest.php).
+[`RunSpecificPairTestRequest`](../../laravel/app/Feature/Backtest/Request/RunSpecificPairTestRequest.php).
 The PHP execution-time behavior and the separate timeout for queued market-type
 pair jobs are described in [Queued execution and concurrency](../features/concurrency.md).
 

@@ -5,10 +5,11 @@ Use this guide as an initial orientation. For coding tasks, go directly to the o
 ## Project Facts
 
 - Nikaido is a PHP 8.2 and Laravel 12 trading backtesting application. Tests use PHPUnit.
-- Feature code lives in `app/Feature/`, under the `App\Feature\` namespace. Autoloading is defined in `composer.json`.
-- `app/Platform/` contains cross-feature and technical capabilities, including Strategy, Console, and Infrastructure.
+- Laravel application features and platform adapters live in `laravel/app/`, under the `App\` namespace. Autoloading is defined in the root `composer.json`.
+- Strategy implementation and domain-facing strategy types live in `src/`; `src/main.php` defines the strategy entry function called by Laravel's strategy adapter.
+- Laravel infrastructure lives in `laravel/`; Composer dependencies and the primary `.env` stay at the repository root.
 - Modules: `Dashboard`, `MarketTypes`, `MarketPairs`, `Timeframes`, `MarketPrice`, `DataImport`, `MarketExploration`, `Backtest`, and `Evaluation`.
-- The actual directory uses `app/Feature/` (capital `F`). Some older documentation may refer to `app/feature/` or the former `Engine`/`Workbench` structure. Follow the current source code, Composer autoload configuration, and this guide when determining the current structure.
+- Some older documentation may refer to `app/Feature/`, `app/feature/`, or the former `Engine`/`Workbench` structure. Follow the current source code, Composer autoload configuration, and this guide when determining the current structure.
 
 ## Module Map
 
@@ -24,7 +25,7 @@ Use this guide as an initial orientation. For coding tasks, go directly to the o
 | `Evaluation` | `/workbench/tests/results` and market-type pair/overall result analysis |
 | `Dashboard` | Application dashboard |
 
-Each web module's routes are defined in `app/Feature/<Module>/routes.php`. API routes are defined in the `api.php` file of the module that owns them. Web and API route registration is handled through `routes/web.php` and `bootstrap/app.php`.
+Each web module's routes are defined in `laravel/app/Feature/<Module>/routes.php`. API routes are defined in the `api.php` file of the module that owns them. Laravel's web and API route registration is handled through `laravel/routes/web.php` and `laravel/bootstrap/app.php`.
 
 ## Architectural Boundaries
 
@@ -32,6 +33,7 @@ Each web module's routes are defined in `app/Feature/<Module>/routes.php`. API r
 - Actions orchestrate operations. When cross-feature integration is necessary, coordinate it through the Action that owns the use case rather than through a Controller.
 - Repositories handle queries and persistence. Eloquent Models represent persisted data and should remain anemic.
 - Processes execute algorithms and computations without direct HTTP handling or database access. Rules contain domain policies. Data objects carry non-persisted inputs, state, or results.
+- `laravel/app/Platform/Strategy/Strategy.php` is the Laravel adapter: it calls `Nikaido\Strategy\main()` from `src/main.php`. Keep strategy implementation in `src/` and keep that code independent of Laravel; strategy runs still originate from the existing UI/backtest flow.
 - Use only the directories and components required by a module. Do not introduce unnecessary abstractions or duplicate existing functionality.
 - In `Backtest`, keep `Rules`, `Process`, and `Data` separated by responsibility. Keep `Action`, `Model`, and `Repository` in their respective categories.
 - Use Exact for domain types and collections, and Gauss for mathematical computation where appropriate. Check the installed versions and their actual APIs before relying on unfamiliar capabilities.
@@ -54,12 +56,12 @@ Use the commands relevant to the changes:
 ```sh
 php artisan test --compact
 vendor/bin/pint --test <file-or-directory>
-npm run build
+npm --prefix laravel run build
 ```
 
 - Run the most relevant tests first, when available.
 - Run the full test suite when the scope or risk of the changes warrants it.
-- Run `npm run build` when frontend code is affected.
+- Run `npm --prefix laravel run build` when frontend code is affected.
 - Never claim that verification succeeded unless the command was actually executed and passed.
 - Report the tests, code-quality checks, builds, and documentation updates actually completed. Mention skipped checks when relevant.
 

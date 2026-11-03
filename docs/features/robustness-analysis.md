@@ -77,10 +77,10 @@ trades per simulation (1–10,000), positive initial capital, optional seed
 Exact Monte Carlo sampling behavior is documented in
 [Monte Carlo](monte-carlo.md).
 
-Relevant verification: [stress tests](../../tests/Unit/Engine/Domain/FluctuationStressTestDomainTest.php),
-[Monte Carlo tests](../../tests/Unit/Engine/Domain/MonteCarloSimulationDomainTest.php),
+Relevant verification: [stress tests](../../laravel/tests/Unit/Engine/Domain/FluctuationStressTestDomainTest.php),
+[Monte Carlo tests](../../laravel/tests/Unit/Engine/Domain/MonteCarloSimulationDomainTest.php),
 and
-[`AnalyzeBacktestResultsActionTest`](../../tests/Unit/Workbench/Actions/Backtests/AnalyzeBacktestResultsActionTest.php).
+[`AnalyzeBacktestResultsActionTest`](../../laravel/tests/Unit/Workbench/Actions/Backtests/AnalyzeBacktestResultsActionTest.php).
 Related: [Interpreting results](../user-guide/interpreting-results.md),
 [performance metrics](performance-metrics.md), and
 [stress testing](stress-testing.md).

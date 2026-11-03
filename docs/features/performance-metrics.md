@@ -96,13 +96,13 @@ adverse intratrade movement. Historical profitability does not establish
 future profitability or robustness.
 
 Metric formulas are implemented in
-[`AnalyzeBacktestResultsAction`](../../app/Feature/Evaluation/Action/AnalyzeBacktestResultsAction.php),
-[`BacktestClusterAnalysisProcess`](../../app/Feature/Evaluation/Process/BacktestClusterAnalysisProcess.php),
+[`AnalyzeBacktestResultsAction`](../../laravel/app/Feature/Evaluation/Action/AnalyzeBacktestResultsAction.php),
+[`BacktestClusterAnalysisProcess`](../../laravel/app/Feature/Evaluation/Process/BacktestClusterAnalysisProcess.php),
 and
-[`FluctuationStressTestProcess`](../../app/Feature/Evaluation/Process/FluctuationStressTestProcess.php).
+[`FluctuationStressTestProcess`](../../laravel/app/Feature/Evaluation/Process/FluctuationStressTestProcess.php).
 Related tests include
-[`AnalyzeBacktestResultsActionTest`](../../tests/Unit/Workbench/Actions/Backtests/AnalyzeBacktestResultsActionTest.php)
+[`AnalyzeBacktestResultsActionTest`](../../laravel/tests/Unit/Workbench/Actions/Backtests/AnalyzeBacktestResultsActionTest.php)
 and
-[`StressTestMetricsTest`](../../tests/Unit/Engine/Domain/StressTestMetricsTest.php).
+[`StressTestMetricsTest`](../../laravel/tests/Unit/Engine/Domain/StressTestMetricsTest.php).
 For user-facing result guidance see
 [Interpreting results](../user-guide/interpreting-results.md).

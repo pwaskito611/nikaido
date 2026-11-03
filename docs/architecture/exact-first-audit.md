@@ -4,10 +4,13 @@ This audit records the Exact-first changes made to application collection
 processing. It is not a claim that every PHP statement or every business
 algorithm was rewritten: imperative state machines, persistence adapters, and
 framework boundaries remain where their existing semantics fit better.
+The inventory and paths below are a historical snapshot from before Laravel
+application code was encapsulated under `laravel/app/`; they do not describe
+the current directory layout.
 
 ## Scope and method
 
-- Inventoried 174 PHP source files under `app/Feature/` and `app/Platform/`.
+- Inventoried 174 PHP source files under `src/Feature/` and `src/Platform/`.
 - Searched the application for Eloquent/Laravel collection contracts,
   repository `get()` calls, collection transforms, array transforms, and
   explicit iteration.
@@ -15,8 +18,8 @@ framework boundaries remain where their existing semantics fit better.
   from Exact v2.2.0 before using its collection and query APIs.
 - Followed the multiple-record repository results to their application
   consumers and view boundaries.
-- Existing dependency-manifest changes were present in the worktree and were
-  left untouched.
+- The single root Composer project owns `src/` autoloading; Laravel tests and
+  infrastructure are under `laravel/`.
 
 ## Findings and changes
 
@@ -54,7 +57,7 @@ framework boundaries remain where their existing semantics fit better.
 - Evaluation page preparation uses Exact `Vec`, `Map`, and `Query::groupFold`
   for order/cost presentation metrics. Laravel `collect()` usage was removed
   from the results view.
-- A follow-up pass over `app/Feature/` moved cluster analysis movement
+- A follow-up pass over `src/Feature/` moved cluster analysis movement
   selection/sorting/chart projection, stress-test aggregation and scenario
   state, Monte Carlo sorting/histogram bucketing, Alpha Vantage key lookup and
   hourly grouping, and portfolio cost-component selection to Exact Query.
@@ -79,7 +82,7 @@ join was introduced because the inspected data relationships are already
 queried by Eloquent or represented in nested result snapshots.
 
 The follow-up targets collection-bearing pipelines identified across
-`app/Feature/`; it does not certify every method in all 174 inventoried
+`src/Feature/`; it does not certify every method in all 174 inventoried
 application source files as individually reviewed. Remaining explicit loops
 were reviewed as payload validation/decoding, persistence batches, request
 normalization, random sampling, or sequential domain state rather than

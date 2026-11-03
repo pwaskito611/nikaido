@@ -86,7 +86,7 @@ results. Exact entry limit behavior is covered in
 ## Verification and related documentation
 
 Order lifecycle and edge cases are covered in
-[`SpecificPairBacktestDomainTest`](../../tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php).
+[`SpecificPairBacktestDomainTest`](../../laravel/tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php).
 See also [orders and positions](../user-guide/orders-and-positions.md),
 [fees and execution](../user-guide/fees-and-execution.md), and
 [backtest engine](backtest-engine.md).

@@ -22,7 +22,8 @@ address validation.
 
 The start and stop commands require Linux, `/proc`, the PHP POSIX extension,
 and `nohup`. The manager records PIDs and writes logs to
-`storage/logs/nikaido-server.log` and `storage/logs/nikaido-worker.log`.
+`laravel/storage/logs/nikaido-server.log` and
+`laravel/storage/logs/nikaido-worker.log`.
 Startup errors are reported by the command; if starting either process fails,
 the manager attempts to stop any process it started during that invocation.
 Stopping sends `SIGTERM` first and can escalate to `SIGKILL` if necessary.
@@ -36,8 +37,8 @@ Market-type backtests require a queue connection other than `sync`; see
 
 | Command | Definition and effect |
 |---|---|
-| `composer run setup` | Composer script: installs PHP dependencies, creates `.env` from `.env.example` if absent, generates an application key, runs `php artisan migrate --force`, installs npm dependencies, and builds frontend assets. On a fresh checkout using SQLite, create `database/database.sqlite` first; the script does not create the file. |
-| `composer run dev` | Runs `php artisan serve`, `php artisan queue:listen --tries=1 --timeout=0`, `php artisan pail --timeout=0`, and `npm run dev` through `npx concurrently`. Requires frontend dependencies. |
+| `composer run setup` | Composer script: installs PHP dependencies, creates the root `.env` from `.env.example` if absent, creates the default SQLite file when needed, generates an application key, runs `php artisan migrate --force`, installs frontend dependencies under `laravel/`, and builds assets. |
+| `composer run dev` | Runs `php artisan serve`, `php artisan queue:listen --tries=1 --timeout=0`, `php artisan pail --timeout=0`, and Vite through the frontend package's `dev:all` script. Requires frontend dependencies. |
 | `php artisan key:generate` | Generates the Laravel application key in the environment file. The Composer setup script invokes it. |
 | `php artisan nikaido:start --host=127.0.0.1 --port=8080` | Example of overriding the managed server's default host and port. |
 
@@ -77,7 +78,7 @@ composer test
 
 `composer test` clears Laravel's configuration cache and runs
 `php artisan test`. The test database and environment overrides are defined in
-[`phpunit.xml`](../../phpunit.xml); see
+the root [`phpunit.xml`](../../phpunit.xml); see
 [Testing architecture](../architecture/testing-architecture.md) for their
 scope and limitations.
 

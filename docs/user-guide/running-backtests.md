@@ -114,7 +114,7 @@ history.
 If a result shows zero trades, first verify that candles were loaded in the
 requested range, enough warm-up exists, active hours/days include signal
 candles, and the strategy produced valid decisions. A no-trade result is not
-the same as a failed job. If a run errors, inspect `storage/logs/laravel.log`,
+the same as a failed job. If a run errors, inspect `laravel/storage/logs/laravel.log`,
 the run/pair status, database reachability, and malformed or incomplete prices.
 
 For details on data validation and warm-up, see

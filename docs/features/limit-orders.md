@@ -82,6 +82,6 @@ limit cap is applied). This is a deterministic OHLC rule, not a promise of a
 live fill.
 
 Tests for buy/sell triggers, gaps, and subsequent exits are in
-[`SpecificPairBacktestDomainTest`](../../tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php).
+[`SpecificPairBacktestDomainTest`](../../laravel/tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php).
 Related: [order types](order-types.md), [market data](market-support.md),
 and [fees and execution](transaction-costs.md).

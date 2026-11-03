@@ -121,8 +121,8 @@ their formulas.
 
 See [Performance metrics](../features/performance-metrics.md) for formulas,
 units, and edge cases. Result construction and analysis are covered by
-[`ConfiguredPairBacktestResult`](../../app/Feature/Backtest/Data/ConfiguredPairBacktestResult.php),
-[`SpecificPairTestResultResource`](../../app/Feature/Backtest/Resource/SpecificPairTestResultResource.php),
-[`EvaluationController`](../../app/Feature/Evaluation/Controller/EvaluationController.php),
+[`ConfiguredPairBacktestResult`](../../laravel/app/Feature/Backtest/Data/ConfiguredPairBacktestResult.php),
+[`SpecificPairTestResultResource`](../../laravel/app/Feature/Backtest/Resource/SpecificPairTestResultResource.php),
+[`EvaluationController`](../../laravel/app/Feature/Evaluation/Controller/EvaluationController.php),
 and focused tests including
-[`SpecificPairTestRequestTest`](../../tests/Feature/SpecificPairTestRequestTest.php).
+[`SpecificPairTestRequestTest`](../../laravel/tests/Feature/SpecificPairTestRequestTest.php).

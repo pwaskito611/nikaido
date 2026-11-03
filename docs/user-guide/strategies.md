@@ -5,10 +5,10 @@
 The Workbench does not currently offer a strategy selector, plugin registry,
 discovery mechanism, or strategy-parameter form. A backtest receives the
 `App\Platform\Strategy\Strategy` service injected into
-[`SpecificPairBacktestProcess`](../../app/Feature/Backtest/Process/SpecificPairBacktestProcess.php).
+[`SpecificPairBacktestProcess`](../../laravel/app/Feature/Backtest/Process/SpecificPairBacktestProcess.php).
 That service delegates to
-[`GenerateMovingAverageCrossDecisionsAction`](../../app/Platform/Strategy/Actions/GenerateMovingAverageCrossDecisionsAction.php),
-the strategy implementation currently used by the application. Its parameters
+[`main()`](../../src/main.php), the strategy function currently used by the
+application. Its parameters
 are code constants, not per-run settings:
 
 - Fast EMA: 20 closes
@@ -24,10 +24,10 @@ strategy receives the warm-up candles as preceding history.
 ## Execution flow and decision contract
 
 The process supplies an ordered iterable of
-[`MarketPrice`](../../app/Feature/MarketPrice/Model/MarketPrice.php) candles
-and a [`StrategyExecutionContext`](../../app/Platform/Strategy/Models/StrategyExecutionContext.php).
+[`MarketPrice`](../../laravel/app/Feature/MarketPrice/Model/MarketPrice.php) candles
+and a [`StrategyExecutionContext`](../../src/Strategy/Models/StrategyExecutionContext.php).
 The strategy returns one
-[`StrategyDecision`](../../app/Platform/Strategy/Models/StrategyDecision.php)
+[`StrategyDecision`](../../src/Strategy/Models/StrategyDecision.php)
 for each candle, in the same order. The process checks this one-for-one
 invariant and raises an error if the strategy stops early. The current
 implementation materializes close values before producing decisions, so
@@ -49,7 +49,7 @@ margin, or maximum-position limit.
 
 ## Example: execute the strategy that is actually provided
 
-This standalone example uses the actual service and types; it does not create
+This example uses the actual Laravel adapter and strategy types; it does not create
 a new extension point. In application code, `$candles` must be a chronological
 iterable of candles for one pair and timeframe, including sufficient
 pre-window warm-up data. The example reads a complete series for clarity; a
@@ -57,9 +57,8 @@ production test should select only the required history.
 
 ```php
 use App\Feature\MarketPrice\Model\MarketPrice;
-use App\Platform\Strategy\Actions\GenerateMovingAverageCrossDecisionsAction;
-use App\Platform\Strategy\Models\StrategyExecutionContext;
 use App\Platform\Strategy\Strategy;
+use Nikaido\Strategy\Models\StrategyExecutionContext;
 
 $pairId = 1;
 $timeframeTypeId = 1;
@@ -71,7 +70,7 @@ $candles = MarketPrice::query()
     ->orderBy('id')
     ->get();
 
-$strategy = new Strategy(new GenerateMovingAverageCrossDecisionsAction());
+$strategy = new Strategy();
 $context = new StrategyExecutionContext(
     currentCapital: 10_000.00,
     quantityUnit: 'units',
@@ -92,8 +91,8 @@ foreach ($strategy->execute($candles, $context) as $index => $decision) {
 ```
 
 For `contract` or `lot` pairs, pass the pair's configured contract-size
-multiplier rather than `1.0`. A missing or non-numeric close is rejected by the
-moving-average action. Fewer than 200 closes produce `None` decisions; no trade
+multiplier rather than `1.0`. A missing or non-numeric close is rejected by
+`src/main.php`. Fewer than 200 closes produce `None` decisions; no trade
 is created merely because the data is too short.
 
 ## Modifying and testing strategy behavior
@@ -105,8 +104,8 @@ backtests execute, update the existing strategy wiring/implementation and add
 tests around the decision rules and the backtest process. Do not assume that
 adding a new class or setting an environment variable will register it.
 
-The strategy action can be tested independently with ordered
-`MarketPrice` fixtures and a `StrategyExecutionContext`. Test at least:
+The `Nikaido\Strategy\main()` function can be tested independently with
+ordered candle fixtures and a `StrategyExecutionContext`. Test at least:
 
 - warm-up lengths below and at the indicator periods;
 - long and short crossings and the trend filter;

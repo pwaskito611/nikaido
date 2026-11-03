@@ -71,10 +71,10 @@ The user-facing steps and forms are in
 [Market Types and Timeframes](../user-guide/market-types-and-timeframes.md).
 
 Relevant implementations include the
-[`MarketTypeRequest`](../../app/Feature/MarketTypes/Request/MarketTypeRequest.php),
-[`TimeframeTypeRequest`](../../app/Feature/Timeframes/Request/TimeframeTypeRequest.php),
+[`MarketTypeRequest`](../../laravel/app/Feature/MarketTypes/Request/MarketTypeRequest.php),
+[`TimeframeTypeRequest`](../../laravel/app/Feature/Timeframes/Request/TimeframeTypeRequest.php),
 and
-[`MarketPairRequest`](../../app/Feature/MarketPairs/Request/MarketPairRequest.php).
+[`MarketPairRequest`](../../laravel/app/Feature/MarketPairs/Request/MarketPairRequest.php).
 Related: [Market support](market-support.md),
 [Market data management](market-data-management.md), and
 [Data Management](../user-guide/data-management.md).

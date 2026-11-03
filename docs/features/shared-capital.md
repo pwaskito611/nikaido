@@ -67,9 +67,9 @@ There is no guarantee capital cannot become negative due to costs or losses.
 ## Verification and related documentation
 
 The synchronizer and ordering/allocation rules are covered by
-[`PortfolioCapitalSynchronizationDomainTest`](../../tests/Unit/Workbench/Domain/MarketTypeBacktests/PortfolioCapitalSynchronizationDomainTest.php).
+[`PortfolioCapitalSynchronizationDomainTest`](../../laravel/tests/Unit/Workbench/Domain/MarketTypeBacktests/PortfolioCapitalSynchronizationDomainTest.php).
 End-to-end multi-pair cases are in
-[`MarketTypeBacktestTest`](../../tests/Feature/MarketTypeBacktestTest.php).
+[`MarketTypeBacktestTest`](../../laravel/tests/Feature/MarketTypeBacktestTest.php).
 
 Related: [multi-pair backtesting](multi-pair-backtesting.md),
 [capital and position sizing](../user-guide/capital-and-position-sizing.md),

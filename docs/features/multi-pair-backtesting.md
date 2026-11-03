@@ -82,10 +82,10 @@ not part of this run.
 ## Verification and related documentation
 
 See
-[`MarketTypeBacktestTest`](../../tests/Feature/MarketTypeBacktestTest.php),
-[`PortfolioCapitalSynchronizationDomainTest`](../../tests/Unit/Workbench/Domain/MarketTypeBacktests/PortfolioCapitalSynchronizationDomainTest.php),
+[`MarketTypeBacktestTest`](../../laravel/tests/Feature/MarketTypeBacktestTest.php),
+[`PortfolioCapitalSynchronizationDomainTest`](../../laravel/tests/Unit/Workbench/Domain/MarketTypeBacktests/PortfolioCapitalSynchronizationDomainTest.php),
 and
-[`CombineMarketTypeBacktestResultsActionTest`](../../tests/Unit/Workbench/Actions/MarketTypeBacktests/CombineMarketTypeBacktestResultsActionTest.php).
+[`CombineMarketTypeBacktestResultsActionTest`](../../laravel/tests/Unit/Workbench/Actions/MarketTypeBacktests/CombineMarketTypeBacktestResultsActionTest.php).
 The user workflow is in [Running backtests](../user-guide/running-backtests.md).
 
 Related: [shared capital](shared-capital.md),

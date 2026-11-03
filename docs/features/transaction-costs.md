@@ -92,6 +92,6 @@ assumptions and data price side for every research comparison.
 ## Verification and related documentation
 
 Cost formulas and timing are exercised in
-[`SpecificPairBacktestDomainTest`](../../tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php).
+[`SpecificPairBacktestDomainTest`](../../laravel/tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php).
 Related: [fees and execution](../user-guide/fees-and-execution.md),
 [shared capital](shared-capital.md), and [backtest engine](backtest-engine.md).

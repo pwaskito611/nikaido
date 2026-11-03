@@ -32,7 +32,7 @@ corresponding service is used.
 | `APP_MAINTENANCE_DRIVER` | `file` | Laravel maintenance-mode storage. The default needs no database table. |
 | `BCRYPT_ROUNDS` | `12` | Laravel password-hashing cost setting. It does not affect backtest parameters. |
 | `DB_CONNECTION` | `sqlite` | Default database driver. |
-| `DB_DATABASE` | `database/database.sqlite` | SQLite file path relative to the project root. Create the file on a fresh clone before running the scripted setup. |
+| `DB_DATABASE` | `database/database.sqlite` | SQLite file path relative to the Laravel application directory (`laravel/`); relative paths are resolved independently of the current working directory. The setup command creates the default file. |
 | `DB_HOST` | Commented in template; `127.0.0.1` when using MySQL | Database server hostname. Only relevant for a server database. |
 | `DB_PORT` | Commented in template; `3306` for MySQL | Database server port. |
 | `DB_USERNAME` | Commented in template; `root` is Laravel's configured fallback | Database account name. Prefer a local account with only the required privileges. |

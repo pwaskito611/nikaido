@@ -80,13 +80,13 @@ reused across pairs.
 ## Verification and related documentation
 
 Pair and timeframe validation is implemented in
-[`MarketPairRequest`](../../app/Feature/MarketPairs/Request/MarketPairRequest.php)
+[`MarketPairRequest`](../../laravel/app/Feature/MarketPairs/Request/MarketPairRequest.php)
 and
-[`TimeframeTypeRequest`](../../app/Feature/Timeframes/Request/TimeframeTypeRequest.php);
+[`TimeframeTypeRequest`](../../laravel/app/Feature/Timeframes/Request/TimeframeTypeRequest.php);
 the quantity-unit enum is
-[`MarketPairQuantityUnit`](../../app/Feature/MarketPairs/Data/MarketPairQuantityUnit.php).
+[`MarketPairQuantityUnit`](../../laravel/app/Feature/MarketPairs/Data/MarketPairQuantityUnit.php).
 Data and ordering checks are exercised through the
-[backtest and import tests](../../tests/Feature/RunSpecificPairBacktestActionFeatureTest.php).
+[backtest and import tests](../../laravel/tests/Feature/RunSpecificPairBacktestActionFeatureTest.php).
 
 Related: [market data](../user-guide/market-data.md),
 [installation](../getting-started/installation.md),

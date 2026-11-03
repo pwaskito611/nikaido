@@ -93,9 +93,9 @@ intervals for future market returns.
 
 Tests cover shuffle, bootstrap, reproducibility, compounded returns,
 drawdown summaries, and invalid samples in
-[`MonteCarloSimulationDomainTest`](../../tests/Unit/Engine/Domain/MonteCarloSimulationDomainTest.php)
+[`MonteCarloSimulationDomainTest`](../../laravel/tests/Unit/Engine/Domain/MonteCarloSimulationDomainTest.php)
 and
-[`MonteCarloResultTypesTest`](../../tests/Unit/Engine/Domain/MonteCarloResultTypesTest.php).
+[`MonteCarloResultTypesTest`](../../laravel/tests/Unit/Engine/Domain/MonteCarloResultTypesTest.php).
 Related: [robustness analysis](robustness-analysis.md),
 [performance metrics](performance-metrics.md), and
 [Interpreting results](../user-guide/interpreting-results.md).

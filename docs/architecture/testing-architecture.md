@@ -1,9 +1,10 @@
 # Testing architecture
 
-Nikaido uses PHPUnit 11 through Laravel's test runner. The framework
-configuration is in [`phpunit.xml`](../../phpunit.xml), dependencies and the
-Composer test script are declared in [`composer.json`](../../composer.json),
-and the application test base class is [`tests/TestCase.php`](../../tests/TestCase.php).
+Nikaido uses PHPUnit 11 through Laravel's test runner. The root
+configuration is in [`phpunit.xml`](../../phpunit.xml),
+dependencies and the Composer test script are declared in
+[`composer.json`](../../composer.json), and the application test base class is
+[`laravel/tests/TestCase.php`](../../laravel/tests/TestCase.php).
 
 ## Suites and organization
 
@@ -11,8 +12,8 @@ and the application test base class is [`tests/TestCase.php`](../../tests/TestCa
 
 | Suite | Directory | Current contents |
 |---|---|---|
-| `Unit` | [`tests/Unit/`](../../tests/Unit/) | Focused behavior tests for Backtest configuration, domain/data types, execution helpers, repository-adjacent/domain operations, Strategy decision generation, and Workbench analysis or result-combination logic. |
-| `Feature` | [`tests/Feature/`](../../tests/Feature/) | Laravel application tests for HTTP/Workbench behavior, ingestion, market-type backtest dispatch/results, repository CRUD/query behavior, migrations, and persisted model behavior. |
+| `Unit` | [`laravel/tests/Unit/`](../../laravel/tests/Unit/) | Focused behavior tests for Backtest configuration, domain/data types, execution helpers, repository-adjacent/domain operations, Strategy decision generation, and Workbench analysis or result-combination logic. |
+| `Feature` | [`laravel/tests/Feature/`](../../laravel/tests/Feature/) | Laravel application tests for HTTP/Workbench behavior, ingestion, market-type backtest dispatch/results, repository CRUD/query behavior, migrations, and persisted model behavior. |
 
 The names are the configured PHPUnit suite names; test file and namespace
 names include some legacy groupings such as `Engine`, `Workbench`, and
@@ -71,7 +72,7 @@ clears Laravel's cached configuration and then runs `php artisan test`; it
 does not add a separate suite. To run one test file, pass its path:
 
 ```sh
-php artisan test --compact tests/Unit/ExampleTest.php
+php artisan test --compact laravel/tests/Unit/ExampleTest.php
 ```
 
 The PHPUnit suite names are `Unit` and `Feature`; `phpunit.xml` also provides

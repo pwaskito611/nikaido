@@ -28,9 +28,9 @@ sequenceDiagram
     Blade-->>Browser: Rendered page
 ```
 
-Implementation: [`routes/web.php`](../../routes/web.php),
-[`Dashboard/routes.php`](../../app/Feature/Dashboard/routes.php), and
-[`DashboardController`](../../app/Feature/Dashboard/Controller/DashboardController.php).
+Implementation: [`routes/web.php`](../../laravel/routes/web.php),
+[`Dashboard/routes.php`](../../laravel/app/Feature/Dashboard/routes.php), and
+[`DashboardController`](../../laravel/app/Feature/Dashboard/Controller/DashboardController.php).
 
 ## Market metadata and price CRUD
 
@@ -66,14 +66,14 @@ sequenceDiagram
 ```
 
 Market-price CRUD is registered by
-[`MarketPrice/routes.php`](../../app/Feature/MarketPrice/routes.php) and
-implemented through [`MarketPriceController`](../../app/Feature/MarketPrice/Controller/MarketPriceController.php),
-Actions, and [`MarketPriceRepository`](../../app/Feature/MarketPrice/Repository/MarketPriceRepository.php).
+[`MarketPrice/routes.php`](../../laravel/app/Feature/MarketPrice/routes.php) and
+implemented through [`MarketPriceController`](../../laravel/app/Feature/MarketPrice/Controller/MarketPriceController.php),
+Actions, and [`MarketPriceRepository`](../../laravel/app/Feature/MarketPrice/Repository/MarketPriceRepository.php).
 Market-type and timeframe resource routes are registered in
-[`MarketTypes/routes.php`](../../app/Feature/MarketTypes/routes.php) and
-[`Timeframes/routes.php`](../../app/Feature/Timeframes/routes.php); pair
+[`MarketTypes/routes.php`](../../laravel/app/Feature/MarketTypes/routes.php) and
+[`Timeframes/routes.php`](../../laravel/app/Feature/Timeframes/routes.php); pair
 routes are in
-[`MarketPairs/routes.php`](../../app/Feature/MarketPairs/routes.php).
+[`MarketPairs/routes.php`](../../laravel/app/Feature/MarketPairs/routes.php).
 Validation details, deletion guards, and exact form behavior are documented in
 the [data-management guide](../user-guide/data-management.md). The route
 names, methods, and request constraints are indexed in
@@ -100,7 +100,7 @@ flowchart LR
 
 The `MarketPriceRepository::candlesBetween()` query is used by exploration;
 pair-backtest selection and warm-up loading are implemented in
-[`MarketPairRepository`](../../app/Feature/MarketPairs/Repository/MarketPairRepository.php).
+[`MarketPairRepository`](../../laravel/app/Feature/MarketPairs/Repository/MarketPairRepository.php).
 The exact date and execution semantics are in the
 [backtest-engine feature page](../features/backtest-engine.md); the market
 price and pair table definitions are in
@@ -150,9 +150,9 @@ presentation data. The API endpoint
 `POST /api/engine/specific-pair-test` uses a separate
 `RunSpecificPairTestRequest` and response resource, but calls the same
 `RunSpecificPairBacktestAction`; it does not use the Workbench session-result
-flow. See [`BacktestController`](../../app/Feature/Backtest/Controller/BacktestController.php),
-[`EvaluationController`](../../app/Feature/Evaluation/Controller/EvaluationController.php),
-and [`RunSpecificPairBacktestAction`](../../app/Feature/Backtest/Action/RunSpecificPairBacktestAction.php).
+flow. See [`BacktestController`](../../laravel/app/Feature/Backtest/Controller/BacktestController.php),
+[`EvaluationController`](../../laravel/app/Feature/Evaluation/Controller/EvaluationController.php),
+and [`RunSpecificPairBacktestAction`](../../laravel/app/Feature/Backtest/Action/RunSpecificPairBacktestAction.php).
 The API payload, session result keys, persisted run shape, and analysis
 outputs are summarized in
 [Metrics and results](../reference/metrics-and-results.md); route and

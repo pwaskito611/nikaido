@@ -99,10 +99,10 @@ matches the actual timestamp spacing.
 ## Verification and related documentation
 
 Routes, repositories, and model relationships are defined in the relevant
-`app/Feature/{MarketTypes,MarketPairs,Timeframes,MarketPrice}` modules.
+`laravel/app/Feature/{MarketTypes,MarketPairs,Timeframes,MarketPrice}` modules.
 Deletion restrictions for pair/timeframe import-session references are covered
 by
-[`DataImportFeatureTest`](../../tests/Feature/DataImportFeatureTest.php);
+[`DataImportFeatureTest`](../../laravel/tests/Feature/DataImportFeatureTest.php);
 market-data selection and import behavior are exercised by the backtest and
 import feature tests.
 

@@ -1,31 +1,35 @@
 # Code organization
 
-Application code is organized first by capability under
-[`app/Feature/`](../../app/Feature/), then by the responsibilities actually
-used inside each feature. Shared infrastructure belongs to
-[`app/Platform/`](../../app/Platform/). This is the structure present in the
-autoloaded PHP namespaces and routes; older documentation examples using
-`app/feature/` or `Engine`/`Workbench` as application namespaces are not the
-current source layout.
+Laravel-facing application code is organized by capability under
+[`laravel/app/Feature/`](../../laravel/app/Feature/). Its Laravel-specific
+platform adapters live in `laravel/app/Platform/`. Strategy implementation and
+strategy types live under [`src/`](../../src/), with
+[`src/main.php`](../../src/main.php) defining the current strategy entry
+function. This is the structure present in the autoloaded PHP namespaces and
+routes; older examples using `app/feature/` or `Engine`/`Workbench` namespaces
+are not the current source layout.
 
-In particular, [`coding-standar.md`](../coding-standar.md) still uses the
-lowercase `app/feature/` spelling and illustrative `Engine`/`Workbench`
-directories in its examples. The live application path is case-sensitive and
-uses `app/Feature/`; the test tree retains some of those older group names.
+Laravel's bootstrap, configuration, routes, database resources, public entry
+point, views, runtime storage, and PHPUnit suites live under `laravel/`.
+Laravel's public and Artisan entry points load
+`laravel/bootstrap/app.php`; root `artisan` delegates administrative
+commands to `laravel/artisan`. The root Composer project maps `App\` to
+`laravel/app/` and `Nikaido\` to `src/`; the root `.env` is loaded regardless
+of working directory.
 
 ## Feature responsibilities
 
 | Feature | Responsibility evidenced by its routes and classes |
 |---|---|
-| [`Dashboard`](../../app/Feature/Dashboard/) | Workbench landing route and Blade response. |
-| [`MarketTypes`](../../app/Feature/MarketTypes/) | Market-type resource controller, validation, CRUD Actions, Eloquent model, and repository. |
-| [`MarketPairs`](../../app/Feature/MarketPairs/) | Pair resource and typed pair definition/quantity data; pair persistence and selection of pair-linked candle history. |
-| [`Timeframes`](../../app/Feature/Timeframes/) | Timeframe resource, validation, CRUD Actions, model, and repository. |
-| [`MarketPrice`](../../app/Feature/MarketPrice/) | Candle CRUD, listing/filtering, model relations, and candle queries/import persistence. |
-| [`DataImport`](../../app/Feature/DataImport/) | Provider ingestion, incoming-session lifecycle, push API, and request validation. |
-| [`MarketExploration`](../../app/Feature/MarketExploration/) | Selection and presentation-data preparation for market candles. |
-| [`Backtest`](../../app/Feature/Backtest/) | Workbench/API backtest entry points, input/configuration, simulation and execution, multi-pair jobs, and saved market-type run records. |
-| [`Evaluation`](../../app/Feature/Evaluation/) | Workbench backtest-result pages, performance metrics, clustering, Monte Carlo simulation, and fluctuation stress testing. |
+| [`Dashboard`](../../laravel/app/Feature/Dashboard/) | Workbench landing route and Blade response. |
+| [`MarketTypes`](../../laravel/app/Feature/MarketTypes/) | Market-type resource controller, validation, CRUD Actions, Eloquent model, and repository. |
+| [`MarketPairs`](../../laravel/app/Feature/MarketPairs/) | Pair resource and typed pair definition/quantity data; pair persistence and selection of pair-linked candle history. |
+| [`Timeframes`](../../laravel/app/Feature/Timeframes/) | Timeframe resource, validation, CRUD Actions, model, and repository. |
+| [`MarketPrice`](../../laravel/app/Feature/MarketPrice/) | Candle CRUD, listing/filtering, model relations, and candle queries/import persistence. |
+| [`DataImport`](../../laravel/app/Feature/DataImport/) | Provider ingestion, incoming-session lifecycle, push API, and request validation. |
+| [`MarketExploration`](../../laravel/app/Feature/MarketExploration/) | Selection and presentation-data preparation for market candles. |
+| [`Backtest`](../../laravel/app/Feature/Backtest/) | Workbench/API backtest entry points, input/configuration, simulation and execution, multi-pair jobs, and saved market-type run records. |
+| [`Evaluation`](../../laravel/app/Feature/Evaluation/) | Workbench backtest-result pages, performance metrics, clustering, Monte Carlo simulation, and fluctuation stress testing. |
 
 ## Component roles as implemented
 
@@ -33,8 +37,8 @@ These are responsibilities visible in the current code, not a requirement
 that every operation must pass through every type of component.
 
 - **Routes** are feature-owned files required from
-  [`routes/web.php`](../../routes/web.php), or `api.php` files registered
-  through [`bootstrap/app.php`](../../bootstrap/app.php). They map an HTTP
+  [`routes/web.php`](../../laravel/routes/web.php), or `api.php` files registered
+  through [`bootstrap/app.php`](../../laravel/bootstrap/app.php). They map an HTTP
   method and path to a controller method.
 - **Controllers** are HTTP boundary classes. They resolve validated input,
   call Actions, and return Blade views, redirects, or JSON resources. For
@@ -44,21 +48,21 @@ that every operation must pass through every type of component.
   Evaluation Actions. DashboardController directly renders its landing page.
 - **FormRequests** define request authorization and input rules. Some also
   normalize HTTP values or create typed Backtest configuration objects, as in
-  [`RunWorkbenchBacktestRequest`](../../app/Feature/Backtest/Request/RunWorkbenchBacktestRequest.php).
+  [`RunWorkbenchBacktestRequest`](../../laravel/app/Feature/Backtest/Request/RunWorkbenchBacktestRequest.php).
   This is transport validation; domain/configuration classes can enforce
   additional invariants.
 - **Actions** are operation entry points. Simple CRUD Actions often delegate
   directly to their feature Repository. Larger Actions coordinate
   repositories, Processes, jobs, validation failures, or other feature
   entry points. For example,
-  [`LoadBacktestSetupPageAction`](../../app/Feature/Backtest/Action/LoadBacktestSetupPageAction.php)
+  [`LoadBacktestSetupPageAction`](../../laravel/app/Feature/Backtest/Action/LoadBacktestSetupPageAction.php)
   assembles lists through MarketPairs, MarketTypes, and Timeframes Actions;
-  [`RunSpecificPairBacktestAction`](../../app/Feature/Backtest/Action/RunSpecificPairBacktestAction.php)
+  [`RunSpecificPairBacktestAction`](../../laravel/app/Feature/Backtest/Action/RunSpecificPairBacktestAction.php)
   selects data and calls the computation Process.
 - **Repositories** contain Eloquent reads and persistence operations. They
   load relationships, filter/order records, map storage results, and expose
   operations such as pair candle selection or batched candle import. For
-  example, [`MarketPriceRepository`](../../app/Feature/MarketPrice/Repository/MarketPriceRepository.php)
+  example, [`MarketPriceRepository`](../../laravel/app/Feature/MarketPrice/Repository/MarketPriceRepository.php)
   handles price CRUD, filtered pagination, candle loading, and import writes.
 - **Models** are Eloquent persistence representations with fillable fields,
   casts, and relations. MarketType, MarketPair, TimeframeType, and
@@ -73,7 +77,7 @@ that every operation must pass through every type of component.
   synchronization; Evaluation Processes contain cluster analysis, Monte
   Carlo, and stress testing. The Backtest Rules area includes trading-schedule
   policy. The principal
-  [`SpecificPairBacktestProcess`](../../app/Feature/Backtest/Process/SpecificPairBacktestProcess.php)
+  [`SpecificPairBacktestProcess`](../../laravel/app/Feature/Backtest/Process/SpecificPairBacktestProcess.php)
   receives prepared candle input rather than performing an HTTP request or
   repository query.
 - **Jobs** are Laravel queue jobs. The implemented market-type pair job
@@ -81,14 +85,14 @@ that every operation must pass through every type of component.
 - **Execution helpers** under `Backtest/Execution/` implement execution
   mechanics such as fixed slippage and partial fills, called by the
   simulation process.
-- **Platform Strategy classes** provide the strategy execution boundary.
-  [`Strategy`](../../app/Platform/Strategy/Strategy.php) delegates to the
-  current moving-average decision generator. Strategy decisions and execution
-  context are passed to the Backtest process.
+- **Strategy bridge**: [`Strategy`](../../laravel/app/Platform/Strategy/Strategy.php)
+  is the Laravel adapter used by the Backtest process. It delegates decisions
+  to `Nikaido\Strategy\main()` in [`src/main.php`](../../src/main.php).
+  Strategy decisions, signals, and execution context are owned by `src/`.
 - **External market-data provider integration** is represented by
-  [`ExternalMarketDataProvider`](../../app/Feature/DataImport/Contract/ExternalMarketDataProvider.php).
+  [`ExternalMarketDataProvider`](../../laravel/app/Feature/DataImport/Contract/ExternalMarketDataProvider.php).
   The DataImport Action consumes this contract, while
-  [`AppServiceProvider`](../../app/Platform/Infrastructure/Providers/AppServiceProvider.php)
+  [`AppServiceProvider`](../../laravel/app/Platform/Infrastructure/Providers/AppServiceProvider.php)
   currently binds it to Alpha Vantage. Replacing the provider means
   implementing the same normalized candle contract and changing that binding;
   the current Workbench does not offer provider selection. For owned datasets
@@ -144,7 +148,8 @@ claim that every class is small or that every feature uses all layers.
 
 Some existing PHPUnit namespaces and directories retain names such as
 `Tests\Unit\Engine`, `Tests\Unit\Workbench`, or `Tests\Unit\Strategy`, while
-application classes are now organized under `App\Feature\...` and
-`App\Platform\...`. Tests are organized by suite and subject rather than
-mirroring each current feature's exact directory structure; see
+Laravel application classes are organized under `App\Feature\...` and
+`App\Platform\...`, and strategy types under `Nikaido\Strategy\...`. Tests are
+organized by suite and subject rather than mirroring each current feature's
+exact directory structure; see
 [testing architecture](testing-architecture.md).

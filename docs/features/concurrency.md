@@ -69,10 +69,10 @@ empty eligible set completes immediately with zero pair jobs, while a failed
 pair is distinct from a zero-trade success.
 
 Concurrency and duplicate-delivery behavior are tested in
-[`MarketTypeBacktestTest`](../../tests/Feature/MarketTypeBacktestTest.php),
+[`MarketTypeBacktestTest`](../../laravel/tests/Feature/MarketTypeBacktestTest.php),
 including synchronous queue rejection and a terminal duplicate delivery.
 Ordering and allocation tests are in
-[`PortfolioCapitalSynchronizationDomainTest`](../../tests/Unit/Workbench/Domain/MarketTypeBacktests/PortfolioCapitalSynchronizationDomainTest.php).
+[`PortfolioCapitalSynchronizationDomainTest`](../../laravel/tests/Unit/Workbench/Domain/MarketTypeBacktests/PortfolioCapitalSynchronizationDomainTest.php).
 
 Related: [multi-pair backtesting](multi-pair-backtesting.md),
 [shared capital](shared-capital.md), and

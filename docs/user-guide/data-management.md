@@ -217,7 +217,7 @@ For a failed operation:
   period. Backtests do not synthesize gaps.
 
 Useful checks are covered by
-[DataImportFeatureTest](../../tests/Feature/DataImportFeatureTest.php) and
+[DataImportFeatureTest](../../laravel/tests/Feature/DataImportFeatureTest.php) and
 [Running tests](../getting-started/running-tests.md). The technical import
 contract is in [Data ingestion and validation](../features/data-ingestion-and-validation.md);
 record persistence and relationships are in

@@ -124,7 +124,7 @@ test.
   crossing signal; a valid run can still have no trades.
 - **Validation errors:** check the date format and ordering, positive capital,
   and that the selected timeframe and pair exist.
-- **Server or database error:** inspect `storage/logs/laravel.log` and the
+- **Server or database error:** inspect `laravel/storage/logs/laravel.log` and the
   server log shown in [Installation](installation.md). Check the local
   database connection before retrying.
 

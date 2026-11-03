@@ -118,13 +118,13 @@ is normalized to the provider contract's candle shape:
 `ImportExternalProviderCandlesAction` adds the selected `pair_id` and
 `timeframe_type_id`, maps `time` to `price_date`, sets all bid/ask OHLC
 columns to `null`, and passes the records to
-[`MarketPriceRepository::importCandles`](../../app/Feature/MarketPrice/Repository/MarketPriceRepository.php).
+[`MarketPriceRepository::importCandles`](../../laravel/app/Feature/MarketPrice/Repository/MarketPriceRepository.php).
 That importer inserts new pair/timeframe/timestamp keys or updates existing
 ones. The timeframe-to-Alpha-Vantage mapping and response normalization are
 implemented in
-[`AlphaVantageDataProvider`](../../app/Feature/DataImport/Provider/AlphaVantageDataProvider.php);
+[`AlphaVantageDataProvider`](../../laravel/app/Feature/DataImport/Provider/AlphaVantageDataProvider.php);
 the shared call and persistence mapping are in
-[`ImportExternalProviderCandlesAction`](../../app/Feature/DataImport/Action/ImportExternalProviderCandlesAction.php).
+[`ImportExternalProviderCandlesAction`](../../laravel/app/Feature/DataImport/Action/ImportExternalProviderCandlesAction.php).
 
 ## Using another provider or your own market data
 
@@ -154,7 +154,7 @@ To replace the built-in provider:
    provider, and malformed-payload failures rather than returning fabricated
    candles.
 2. Change the binding in
-   [`AppServiceProvider`](../../app/Platform/Infrastructure/Providers/AppServiceProvider.php)
+   [`AppServiceProvider`](../../laravel/app/Platform/Infrastructure/Providers/AppServiceProvider.php)
    from `AlphaVantageDataProvider` to the new implementation.
 3. Add tests for provider parameters, response mapping, error responses, and
    timestamp ordering. `DataImportFeatureTest` demonstrates the existing
@@ -258,7 +258,7 @@ names.
 
 The request, provider, receiver-token, repeated-timestamp, OHLC-validation,
 credential-handling, and hourly aggregation behaviors are tested in
-[`DataImportFeatureTest`](../../tests/Feature/DataImportFeatureTest.php).
+[`DataImportFeatureTest`](../../laravel/tests/Feature/DataImportFeatureTest.php).
 Related: [Data Management](../user-guide/data-management.md),
 [Market Data](../user-guide/market-data.md), and
 [Market data management](market-data-management.md).

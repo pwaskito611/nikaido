@@ -18,10 +18,10 @@ are replayed in timestamp order; see
 [shared-capital simulation](shared-capital.md).
 
 The main flow is implemented by
-[`RunSpecificPairBacktestAction`](../../app/Feature/Backtest/Action/RunSpecificPairBacktestAction.php),
-[`SpecificPairBacktestProcess`](../../app/Feature/Backtest/Process/SpecificPairBacktestProcess.php),
+[`RunSpecificPairBacktestAction`](../../laravel/app/Feature/Backtest/Action/RunSpecificPairBacktestAction.php),
+[`SpecificPairBacktestProcess`](../../laravel/app/Feature/Backtest/Process/SpecificPairBacktestProcess.php),
 and
-[`GenerateMovingAverageCrossDecisionsAction`](../../app/Platform/Strategy/Actions/GenerateMovingAverageCrossDecisionsAction.php).
+[`main()`](../../src/main.php).
 The Workbench currently uses the fixed example strategy; it has no strategy
 selector or per-run strategy-parameter editor. See the
 [strategy guide](../user-guide/strategies.md) for its decision contract.
@@ -129,9 +129,9 @@ do not add unrealized P&L or recreate a complete intrabar equity curve.
 ## Verification and related documentation
 
 Focused coverage is in
-[`SpecificPairBacktestDomainTest`](../../tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php)
+[`SpecificPairBacktestDomainTest`](../../laravel/tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php)
 and
-[`RunSpecificPairBacktestActionFeatureTest`](../../tests/Feature/RunSpecificPairBacktestActionFeatureTest.php).
+[`RunSpecificPairBacktestActionFeatureTest`](../../laravel/tests/Feature/RunSpecificPairBacktestActionFeatureTest.php).
 Run the relevant tests with the commands in
 [Running tests](../getting-started/running-tests.md).
 

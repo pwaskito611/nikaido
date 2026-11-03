@@ -65,9 +65,9 @@ cover all possible market conditions.
 ## Verification and related documentation
 
 Behavior is covered by
-[`FluctuationStressTestDomainTest`](../../tests/Unit/Engine/Domain/FluctuationStressTestDomainTest.php)
+[`FluctuationStressTestDomainTest`](../../laravel/tests/Unit/Engine/Domain/FluctuationStressTestDomainTest.php)
 and
-[`StressTestMetricsTest`](../../tests/Unit/Engine/Domain/StressTestMetricsTest.php).
+[`StressTestMetricsTest`](../../laravel/tests/Unit/Engine/Domain/StressTestMetricsTest.php).
 Related: [robustness analysis](robustness-analysis.md),
 [performance metrics](performance-metrics.md), and
 [Interpreting results](../user-guide/interpreting-results.md).

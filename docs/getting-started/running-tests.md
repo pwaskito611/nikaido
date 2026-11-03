@@ -6,13 +6,13 @@ it to PHPUnit `11.5.57`.
 
 ## Test layout and environment
 
-- `tests/Unit/` covers domain calculations, configuration objects, strategy
+- `laravel/tests/Unit/` covers domain calculations, configuration objects, strategy
   behavior, execution helpers, and analysis logic.
-- `tests/Feature/` covers Laravel-facing behavior such as data import,
+- `laravel/tests/Feature/` covers Laravel-facing behavior such as data import,
   migrations, repositories, Workbench requests, and backtest flows.
-- `tests/TestCase.php` provides the Laravel test application base class.
+- `laravel/tests/TestCase.php` provides the Laravel test application base class.
 
-`phpunit.xml` configures the test environment to use SQLite `:memory:`,
+Root `phpunit.xml` configures the test environment to use SQLite `:memory:`,
 `APP_ENV=testing`, array-backed cache and sessions, and a synchronous queue.
 Feature tests therefore do not need the local development database, a running
 MySQL service, the Nikaido queue worker, or external provider credentials.
@@ -51,21 +51,21 @@ php artisan test --compact --testsuite=Feature
 Pass a test file to limit the run, or use PHPUnit's test-name filter:
 
 ```sh
-php artisan test --compact tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php
+php artisan test --compact laravel/tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php
 php artisan test --compact --filter=SpecificPairBacktest
 ```
 
 Useful focused tests include:
 
-- `tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php` for simulation
+- `laravel/tests/Unit/Engine/Domain/SpecificPairBacktestDomainTest.php` for simulation
   and order behavior.
-- `tests/Unit/Strategy/Actions/GenerateMovingAverageCrossDecisionsActionTest.php`
+- `laravel/tests/Unit/Strategy/MainStrategyTest.php`
   for the included strategy.
-- `tests/Unit/Workbench/Domain/MarketTypeBacktests/PortfolioCapitalSynchronizationDomainTest.php`
+- `laravel/tests/Unit/Workbench/Domain/MarketTypeBacktests/PortfolioCapitalSynchronizationDomainTest.php`
   for chronological shared-capital allocation.
-- `tests/Feature/RunSpecificPairBacktestActionFeatureTest.php` for the specific
+- `laravel/tests/Feature/RunSpecificPairBacktestActionFeatureTest.php` for the specific
   pair workflow.
-- `tests/Feature/DataImportFeatureTest.php` for incoming and external data
+- `laravel/tests/Feature/DataImportFeatureTest.php` for incoming and external data
   import behavior.
 
 The paths above are examples from the current test tree; use a focused test
@@ -80,9 +80,8 @@ features or shared execution paths.
   `composer check-platform-reqs` to identify missing PHP extensions.
 - **SQLite driver errors:** install/enable `pdo_sqlite` for the CLI PHP version.
   The test suite uses in-memory SQLite even if `.env` selects MySQL.
-- **Test tries to connect to MySQL or Redis:** check that the project-root
-  `phpunit.xml` is being loaded and that the command is run from the repository
-  root. Clear a stale Laravel configuration cache with `php artisan
+- **Test tries to connect to MySQL or Redis:** check that
+  `phpunit.xml` is being loaded. Clear a stale Laravel configuration cache with `php artisan
   config:clear`, then rerun the tests.
 - **External API or queue is unavailable:** feature tests should use their
   test configuration and do not require provider credentials or a running

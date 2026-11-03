@@ -97,8 +97,12 @@ one strategy observing synchronized markets while making decisions. See
 The Workbench includes a Fundamental feature for manually managing economic
 or company entities and their historical indicator observations. A
 fundamental entity (for example, a national economy or a company) can be
-linked to one or more market pairs. Only entities linked to the pair being
-backtested are added to that run's strategy context. The feature does not
+linked to one or more market pairs. This is a separate relationship from the
+Market Pair feature's related-pair dependencies: it links an entity to the
+pair whose strategy should be able to read its observations. Only entities
+linked directly to the primary pair being backtested are added to that run's
+strategy context. Linking an entity only to a related pair does not make it
+available to the primary pair's strategy. The feature does not
 provide an external data provider, financial-statement importer, economic
 calendar, or strategy selector.
 

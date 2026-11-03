@@ -67,10 +67,17 @@ indicator history. No rows are synthesized for missing timestamps.
 
 ## Related market-pair data
 
-The Market Pair create/edit form lets you select directional related-pair
-dependencies and choose a timeframe for each selected pair. Leave the
-timeframe as **Use backtest timeframe** to follow the primary backtest
-timeframe. For example, configure EUR/GBP as the primary pair and select:
+In **Workbench → Market Pairs**, create or edit the primary pair and use the
+**Related Market Pairs** section to select its dependencies. Choose a timeframe
+for each selected pair. Leave the timeframe as **Use backtest timeframe** to
+follow the primary backtest timeframe. A related-pair dependency is stored from
+the pair being edited to the selected pair; it is not automatically reciprocal
+or transitive. For example, if EUR/GBP is related to GBP/USD, a backtest of
+EUR/GBP can receive GBP/USD candles, but a backtest of GBP/USD does not receive
+EUR/GBP candles unless that reverse relation is also configured. A relation
+from A to B to C does not cause a backtest of A to load C.
+
+For example, configure EUR/GBP as the primary pair and select:
 
 - EUR/GBP at 1d as an additional series (the same pair can be selected when a
   related timeframe is explicitly chosen);
@@ -79,9 +86,10 @@ timeframe. For example, configure EUR/GBP as the primary pair and select:
 A backtest of EUR/GBP at 1h then provides the primary EUR/GBP 1h candles and
 the two configured 1d series to the strategy. A selected related pair is a
 data dependency, not another backtest target: it does not produce extra
-strategy decisions, orders, or result rows. Relationships are directional;
-configuring A → B does not configure B → A. Each related pair entry has one
-selected timeframe.
+strategy decisions, orders, or result rows. The primary pair may also be
+selected as its own related series to expose another timeframe of that same
+pair; this self-relation requires an explicit timeframe. Each related pair
+entry has one selected timeframe.
 
 The loader uses the same requested date range for each series, orders each
 series by its own candle timestamps, and includes up to 200 earlier candles
@@ -96,9 +104,20 @@ holidays, or timeframe boundaries are not forward-filled, nearest-matched,
 or otherwise synchronized. Check data coverage for every configured
 pair/timeframe combination.
 
+Related market pairs and related Fundamentals are separate relationships.
+The pair-to-pair relation supplies additional candle series. To link dated
+Fundamental observations, open **Workbench → Fundamentals**, create or edit a
+Fundamental, and select pairs under **Related market pairs**. A pair backtest
+receives only Fundamental entities linked directly to its primary pair;
+linking an entity only to a related pair does not make it available to the
+primary strategy. See
+[Strategies](strategies.md#fundamental-observations) and
+[Backtesting fundamentals](../concepts/backtesting-fundamentals.md) for the
+context access methods and release-time rules.
+
 Related-pair loading uses the same candle source and price fields described
 above. It does not certify that observations are complete or suitable as
-executable prices. See [Strategies](strategies.md#related-pair-data-in-a-strategy)
+executable prices. See [Strategies](strategies.md#execution-flow-and-decision-contract)
 for the strategy access contract and example.
 
 Manual market-price validation rejects a duplicate pair/timeframe/timestamp

@@ -47,11 +47,23 @@ is null, the entry is a market entry. `None` does not request an action.
 short position by itself. The engine owns fill timing, quote selection,
 partial-fill behavior, costs, order history, and P&L.
 
-The context exposes `currentCapital`, `quantityUnit`, and
-`quantityMultiplier`. Configured pair backtests also expose
-`primaryMarketPairId`, `primaryMarketPairSymbol`, and a `relatedMarketPairs`
-map keyed by related pair ID. `primaryTimeframeTypeId` identifies the selected
-backtest timeframe. Each related series is a
+The backtest builds one `StrategyExecutionContext` for the primary pair and
+passes that same object to the strategy for the run. Its fields are:
+
+| Context value | Meaning |
+|---|---|
+| `currentCapital` | Starts at the run's initial capital. The engine updates it as each primary candle is simulated, so later decisions can size against the current simulated capital. |
+| `quantityUnit` | The primary pair's unit: `units`, `contract`, or `lot`. |
+| `quantityMultiplier` | `1` for `units`; otherwise the primary pair's configured contract size. |
+| `primaryMarketPairId` | ID of the pair whose candles drive decisions. |
+| `primaryMarketPairSymbol` | Primary pair symbol in `BASE/QUOTE` form. |
+| `primaryTimeframeTypeId` | Timeframe ID selected for the primary backtest candles. |
+| `relatedMarketPairs` | Map of explicitly related pair series, keyed by related market-pair ID. |
+| `fundamentals()` | Collection of Fundamental entities linked directly to the primary pair, keyed by Fundamental ID. |
+
+The context does not carry every backtest setting. Date range, active schedule,
+slippage, partial-fill rules, trade costs, and execution behavior remain owned
+by the backtest engine. Related series are represented by a
 [`RelatedMarketPairData`](../../src/Strategy/Models/RelatedMarketPairData.php)
 with `marketPairId`, `base`, `quote`, `timeframeTypeId`,
 `candlesByTimestamp`, and `candleAt($timestamp)`. The map key is the related
@@ -82,10 +94,10 @@ up to 200 preceding warm-up candles, and retains each candle's own timestamp.
 A null related timeframe uses the primary backtest timeframe.
 
 Related pairs are directional data dependencies only; their candles do not
-produce additional strategy decisions or orders. `currentCapital` is updated
-by the backtest as its simulation proceeds; the strategy uses it to size each
-new risk request. The engine does not automatically cap the strategy's
-quantity to a notional, margin, or maximum-position limit.
+produce additional strategy decisions or orders. The primary pair's candle
+iterable still determines the number and order of decisions. The engine does
+not automatically cap the strategy's quantity to a notional, margin, or
+maximum-position limit.
 
 The context makes related data available; it does not automatically combine,
 align, or apply that data to strategy decisions. The example `main()` currently
@@ -99,11 +111,12 @@ and data-loading behavior.
 ## Fundamental observations
 
 The context also exposes preloaded, point-in-time fundamental observations
-through `fundamentals()`. Each linked fundamental entity is keyed by its ID;
-unlinked entities are not included. Observations without a `released_at`
-timestamp are retained in the Workbench but are not passed into strategy
-data. At a decision time, use that candle's timestamp as the knowledge
-boundary:
+through `fundamentals()`. A Fundamental must be linked to the primary pair in
+the Fundamental form; linking it only to one of the primary pair's related
+pairs does not include it in this context. Each included entity is keyed by
+its Fundamental ID. Observations without a `released_at` timestamp are
+retained in the Workbench but are not passed into strategy data. At each
+decision, use the primary candle's timestamp as the knowledge boundary:
 
 ```php
 $economy = $context->fundamentals()->get($fundamentalId);
@@ -114,6 +127,23 @@ $cpiForPeriod = $economy?->valueAt(
     $primaryCandle->price_date,
 );
 ```
+
+Related candles and Fundamental observations are independent inputs. This
+example reads an exact-time related candle and the latest CPI observation
+that was publicly released by the current primary candle:
+
+```php
+$relatedSeries = $context->relatedMarketPairs[$relatedPairId] ?? null;
+$relatedCandle = $relatedSeries?->candleAt($primaryCandle->price_date);
+
+$economy = $context->fundamentals()->get($fundamentalId);
+$cpi = $economy?->latestAvailable('CPI', $primaryCandle->price_date);
+$cpiValue = $cpi?->value;
+```
+
+Either lookup can be absent. Handle `null` explicitly; neither related prices
+nor fundamental values are filled, interpolated, or inferred for the
+strategy.
 
 `observations($code, $knownAt)` returns the eligible observations loaded for
 the backtest range for one indicator, including the latest prior observation
@@ -176,6 +206,29 @@ For `contract` or `lot` pairs, pass the pair's configured contract-size
 multiplier rather than `1.0`. A missing or non-numeric close is rejected by
 `src/main.php`. Fewer than 200 closes produce `None` decisions; no trade
 is created merely because the data is too short.
+
+## Performance and native acceleration
+
+For strategies with large numerical loops or expensive calculations, first
+profile a representative backtest and identify the part that dominates total
+runtime. Prefer algorithmic improvements, avoiding repeated work, or batching
+calculations in PHP when those address the bottleneck. A complex set of
+business rules alone is not a reason to use native code.
+
+If profiling still shows a CPU-bound numerical kernel dominating runtime,
+consider implementing that isolated kernel in C++ and calling it through FFI.
+Keep strategy orchestration, context access, validation, and construction of
+`StrategyDecision` objects in PHP. Use a narrow C-compatible interface and
+make coarse calls that pass a whole series or batch; calling across FFI once
+per value or candle can make data-copying overhead outweigh the computation.
+
+Before adopting it, compare end-to-end runtime and memory against the PHP
+implementation, including conversion and copy costs. Check native output
+against deterministic fixtures for candle ordering, warm-up behavior, and
+one decision per primary candle. Plan for building and shipping the library,
+the PHP FFI extension, and the `ffi.enable` restrictions of the target SAPI.
+See [C++ and PHP FFI for research and production](../reference/php-research-ecosystem.md#c-mathematical-ecosystem-and-php-ffi-for-research-and-production)
+for the integration, safety, and deployment trade-offs.
 
 ## Modifying and testing strategy behavior
 

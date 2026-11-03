@@ -137,6 +137,17 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
                 'timeframe_name' => '1h',
                 'from' => '2026-10-10 00:00:00',
                 'to' => '2026-10-12 23:59:59',
+                'slippage_enabled' => true,
+                'slippage_mode' => 'random',
+                'slippage_direction' => 'random',
+                'slippage_unit' => 'pips',
+                'fixed_slippage' => 1.5,
+                'minimum_slippage' => 0.25,
+                'maximum_slippage' => 2.5,
+                'distribution' => 'normal',
+                'mean' => 1.25,
+                'standard_deviation' => 0.2,
+                'random_seed' => 91,
             ],
         ]);
         $pairRuns = [
@@ -228,5 +239,12 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
         $this->assertSame(20000.0, $result['initial_capital']);
         $this->assertSame(10000.0, $result['average_initial_capital_per_pair']);
         $this->assertSame(10015.0, $result['average_ending_capital_per_pair']);
+        $this->assertSame('random', $result['execution_config']['slippage_mode']);
+        $this->assertSame('random', $result['execution_config']['slippage_direction']);
+        $this->assertSame(1.5, $result['execution_config']['fixed_slippage']);
+        $this->assertSame(0.25, $result['execution_config']['minimum_slippage']);
+        $this->assertSame(2.5, $result['execution_config']['maximum_slippage']);
+        $this->assertSame('normal', $result['execution_config']['distribution']);
+        $this->assertSame(91, $result['execution_config']['random_seed']);
     }
 }

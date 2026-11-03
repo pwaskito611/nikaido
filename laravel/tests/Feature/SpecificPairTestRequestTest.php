@@ -72,6 +72,9 @@ class SpecificPairTestRequestTest extends TestCase
             ->assertJsonPath('quantity_multiplier', 1)
             ->assertJsonPath('units_per_lot', 1)
             ->assertJsonPath('execution_config.slippage_enabled', true)
+            ->assertJsonPath('execution_config.slippage_mode', 'fixed')
+            ->assertJsonPath('execution_config.slippage_direction', 'adverse_only')
+            ->assertJsonPath('execution_config.fixed_slippage', 1.5)
             ->assertJsonPath('execution_config.slippage_pips', 1.5)
             ->assertJsonPath('execution_config.slippage_pip_size', 0.0002)
             ->assertJsonPath('execution_config.partial_fill_enabled', true)
@@ -108,11 +111,79 @@ class SpecificPairTestRequestTest extends TestCase
             'active_until' => false,
             'slippage_enabled' => true,
             'slippage_pips' => -1,
+            'slippage_direction' => 'favorable_only',
             'partial_fill_enabled' => true,
             'partial_fill_ratio' => 0,
         ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['slippage_pips', 'partial_fill_ratio']);
+            ->assertJsonValidationErrors(['slippage_pips', 'slippage_direction', 'partial_fill_ratio']);
+    }
+
+    public function test_it_accepts_and_serializes_dynamic_slippage_configuration(): void
+    {
+        $marketType = MarketType::create(['name' => 'Forex']);
+        $pair = MarketPair::create([
+            'market_type_id' => $marketType->id,
+            'base' => 'EUR',
+            'quote' => 'USD',
+            'quantity_unit' => 'units',
+        ]);
+        MarketPrice::create([
+            'pair_id' => $pair->id,
+            'price_date' => '2026-10-09 09:00:00',
+            'timeframe_type_id' => 1,
+            'open' => '1.100000',
+            'close' => '1.200000',
+            ...$this->quotes('1.100000', '1.200000'),
+        ]);
+
+        $this->postJson('/api/engine/specific-pair-test', [
+            'base' => 'EUR',
+            'quote' => 'USD',
+            'from' => '2026-10-09 00:00:00',
+            'to' => '2026-10-09 23:59:59',
+            'active_from' => false,
+            'active_until' => false,
+            'slippage_enabled' => true,
+            'slippage_mode' => 'dynamic',
+            'slippage_direction' => 'random',
+            'slippage_unit' => 'pips',
+            'base_slippage' => 0.5,
+            'volatility_factor' => 0.25,
+            'volume_impact_factor' => 2,
+            'spread_factor' => 0.75,
+            'maximum_slippage' => 8,
+        ])
+            ->assertOk()
+            ->assertJsonPath('execution_config.slippage_mode', 'dynamic')
+            ->assertJsonPath('execution_config.slippage_direction', 'random')
+            ->assertJsonPath('execution_config.slippage_unit', 'pips')
+            ->assertJsonPath('execution_config.base_slippage', 0.5)
+            ->assertJsonPath('execution_config.volatility_factor', 0.25)
+            ->assertJsonPath('execution_config.volume_impact_factor', 2)
+            ->assertJsonPath('execution_config.spread_factor', 0.75)
+            ->assertJsonPath('execution_config.maximum_slippage', 8);
+    }
+
+    public function test_it_rejects_invalid_random_slippage_boundaries_and_normal_parameters(): void
+    {
+        $this->postJson('/api/engine/specific-pair-test', [
+            'base' => 'EUR',
+            'quote' => 'USD',
+            'from' => '2026-10-09 00:00:00',
+            'to' => '2026-10-09 23:59:59',
+            'active_from' => false,
+            'active_until' => false,
+            'slippage_enabled' => true,
+            'slippage_mode' => 'random',
+            'minimum_slippage' => 3,
+            'maximum_slippage' => 1,
+            'distribution' => 'normal',
+            'mean' => 4,
+            'standard_deviation' => -1,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['minimum_slippage', 'mean', 'standard_deviation']);
     }
 
     public function test_it_accepts_and_serializes_volume_based_fill_configuration(): void

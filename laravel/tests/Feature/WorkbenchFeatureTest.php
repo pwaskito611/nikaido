@@ -552,6 +552,15 @@ class WorkbenchFeatureTest extends TestCase
             'to' => '2026-10-09T23:59',
             'active_from' => '09:00',
             'active_until' => '17:00',
+            'slippage_enabled' => '1',
+            'slippage_mode' => 'dynamic',
+            'slippage_direction' => 'random',
+            'slippage_unit' => 'pips',
+            'base_slippage' => '0',
+            'volatility_factor' => '0',
+            'volume_impact_factor' => '0',
+            'spread_factor' => '0',
+            'maximum_slippage' => '10',
         ])->assertRedirect('/workbench/tests/results');
 
         $this->get('/workbench/tests/results')
@@ -601,6 +610,8 @@ class WorkbenchFeatureTest extends TestCase
             ->assertSee('MAX DRAWDOWN DISTRIBUTION');
 
         $this->assertSame('stop_loss', session('backtestResult')['order_history'][0]['close_reason']);
+        $this->assertSame('dynamic', session('backtestResult')['execution_config']['slippage_mode']);
+        $this->assertSame('random', session('backtestResult')['execution_config']['slippage_direction']);
     }
 
     public function test_result_page_redirects_to_test_setup_when_there_is_no_result(): void
@@ -674,6 +685,11 @@ class WorkbenchFeatureTest extends TestCase
         $this->get('/workbench/tests/create')
             ->assertOk()
             ->assertSee('Fixed slippage')
+            ->assertSee('Slippage model')
+            ->assertSee('Slippage direction')
+            ->assertSee('Random (adverse or favorable)')
+            ->assertSee('Dynamic')
+            ->assertSee('Random')
             ->assertSee('Partial fills')
             ->assertSee('Volume-based partial fill')
             ->assertSee('Maximum participation rate')

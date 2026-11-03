@@ -6,6 +6,7 @@ use App\Feature\Backtest\Action\RunSpecificPairBacktestAction;
 use App\Feature\Backtest\Config\FixedSlippageConfig;
 use App\Feature\Backtest\Config\PartialFillConfig;
 use App\Feature\Backtest\Config\PartialFillMode;
+use App\Feature\Backtest\Config\SlippageMode;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Config\TradeCostComponentConfig;
 use App\Feature\Backtest\Config\TradeCostConfig;
@@ -846,6 +847,76 @@ class SpecificPairBacktestDomainTest extends TestCase
         $this->assertEqualsWithDelta(1.0999, $order->entryPrice, 0.0000001);
         $this->assertEqualsWithDelta(1.2001, $order->closePrice, 0.0000001);
         $this->assertSame('stop_loss', $order->closeReason);
+    }
+
+    public function test_dynamic_slippage_uses_each_actual_partial_fill_quantity_and_candle_volume(): void
+    {
+        $order = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['volume' => 100, 'volume_type' => 'traded']),
+                $this->candle('2026-10-09 10:00:00', ['volume' => 400, 'volume_type' => 'traded']),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 100),
+                new StrategyDecision(StrategySignal::None, null, null),
+            ],
+            slippage: new FixedSlippageConfig(
+                enabled: true,
+                mode: SlippageMode::Dynamic,
+                volumeImpactFactor: 1,
+                maximumSlippage: 10,
+            ),
+            partialFill: new PartialFillConfig(
+                enabled: true,
+                mode: PartialFillMode::Volume,
+                maxParticipationRate: 0.5,
+            ),
+        )->orders->first();
+
+        $this->assertSame([50.0, 50.0], $order->entryFills->map(
+            static fn ($fill): float => $fill->quantity,
+        )->toArray());
+        $this->assertEqualsWithDelta(1.100070710678, $order->entryFills->at(0)->price, 0.000000001);
+        $this->assertEqualsWithDelta(1.100035355339, $order->entryFills->at(1)->price, 0.000000001);
+        $this->assertSame(100.0, $order->positionSize);
+        $this->assertSame(0.0, $order->remainingEntryQuantity);
+    }
+
+    public function test_dynamic_slippage_uses_each_actual_partial_exit_quantity_and_candle_volume(): void
+    {
+        $order = $this->runBacktest(
+            [
+                $this->candle('2026-10-09 09:00:00', ['volume' => 100, 'volume_type' => 'traded']),
+                $this->candle('2026-10-09 10:00:00', ['volume' => 100, 'volume_type' => 'traded']),
+                $this->candle('2026-10-09 11:00:00', ['volume' => 100, 'volume_type' => 'traded']),
+                $this->candle('2026-10-09 12:00:00', ['volume' => 400, 'volume_type' => 'traded']),
+            ],
+            [
+                new StrategyDecision(StrategySignal::Long, 1.0, 1.2, 100),
+                new StrategyDecision(StrategySignal::Close, null, null),
+                new StrategyDecision(StrategySignal::None, null, null),
+                new StrategyDecision(StrategySignal::None, null, null),
+            ],
+            slippage: new FixedSlippageConfig(
+                enabled: true,
+                mode: SlippageMode::Dynamic,
+                volumeImpactFactor: 1,
+                maximumSlippage: 10,
+            ),
+            partialFill: new PartialFillConfig(
+                enabled: true,
+                mode: PartialFillMode::Volume,
+                maxParticipationRate: 0.5,
+            ),
+        )->orders->first();
+
+        $this->assertSame([50.0, 50.0], $order->exitFills->map(
+            static fn ($fill): float => $fill->quantity,
+        )->toArray());
+        $this->assertEqualsWithDelta(1.099929289322, $order->exitFills->at(0)->price, 0.000000001);
+        $this->assertEqualsWithDelta(1.099964644661, $order->exitFills->at(1)->price, 0.000000001);
+        $this->assertSame(100.0, $order->closedPositionSize);
+        $this->assertSame(0.0, $order->remainingPositionSize);
     }
 
     public function test_it_retries_entry_and_exit_fills_and_charges_per_order_commission_once_per_side(): void

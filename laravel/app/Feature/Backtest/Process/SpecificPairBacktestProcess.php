@@ -14,8 +14,8 @@ use App\Feature\Backtest\Data\BacktestPriceObservation;
 use App\Feature\Backtest\Data\SpecificPairBacktestResult;
 use App\Feature\Backtest\Data\StressTestPriceSource;
 use App\Feature\Backtest\Data\StressTestTimestamp;
-use App\Feature\Backtest\Execution\FixedSlippage;
 use App\Feature\Backtest\Execution\PartialFill;
+use App\Feature\Backtest\Execution\SlippageCalculator;
 use App\Feature\MarketPairs\Data\MarketPairMarketData;
 use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Platform\Strategy\Strategy;
@@ -35,8 +35,6 @@ use UnexpectedValueException;
 
 class SpecificPairBacktestProcess
 {
-    private readonly FixedSlippage $fixedSlippage;
-
     private readonly PartialFill $partialFill;
 
     private readonly TradeCostCalculator $tradeCostCalculator;
@@ -44,7 +42,6 @@ class SpecificPairBacktestProcess
     public function __construct(
         private readonly Strategy $strategy,
     ) {
-        $this->fixedSlippage = new FixedSlippage;
         $this->partialFill = new PartialFill;
         $this->tradeCostCalculator = new TradeCostCalculator;
     }
@@ -96,6 +93,7 @@ class SpecificPairBacktestProcess
         /** @var array{decision: StrategyDecision, decision_index: int}|null $pendingEntry */
         $pendingEntry = null;
         $currentCapital = $config->initialCapital;
+        $slippageCalculator = new SlippageCalculator($config->slippage);
         $decisionIterator = $this->decisionIterator($decisions);
         $decisionIterator->rewind();
 
@@ -124,13 +122,13 @@ class SpecificPairBacktestProcess
                     $candle,
                     $pendingEntry['decision']->signal,
                     $pendingEntry['decision']->limitPrice ?? throw new LogicException('A pending limit entry must have a limit price.'),
-                    $config,
                 );
                 if ($limitFill !== null) {
                     $opened = $this->openOrder(
                         $pendingEntry['decision'],
                         $limitFill->first(),
                         $limitFill->second(),
+                        $candle,
                         $candle->price_date->format('Y-m-d H:i:s'),
                         $orderHistory->count() + 1,
                         $currentCapital,
@@ -138,6 +136,7 @@ class SpecificPairBacktestProcess
                         $configuredQuantityMultiplier,
                         $config,
                         $remainingCandleCapacity,
+                        $slippageCalculator,
                     );
                     $orderHistory = $orderHistory->append($opened->first());
                     $openOrderIndex = $orderHistory->count() - 1;
@@ -160,15 +159,8 @@ class SpecificPairBacktestProcess
                     $signal = StrategySignal::from($order->signal);
                     $entry = $order->requestedEntryPrice === null
                         ? $this->entryPrice($candle, $signal)
-                        : $this->limitEntryPrice($candle, $signal, $order->requestedEntryPrice, $config);
+                        : $this->limitEntryPrice($candle, $signal, $order->requestedEntryPrice);
                     if ($entry !== null) {
-                        $entryPrice = $order->requestedEntryPrice === null
-                            ? $this->applySlippage(
-                                $entry->first(),
-                                $order->signal === StrategySignal::Long->value,
-                                $config,
-                            )
-                            : $entry->first();
                         $fillQuantity = $this->fillQuantity(
                             $order->requestedPositionSize,
                             $order->remainingEntryQuantity,
@@ -176,6 +168,20 @@ class SpecificPairBacktestProcess
                             $remainingCandleCapacity,
                         );
                         if ($fillQuantity > 0) {
+                            $entryPrice = $this->applySlippage(
+                                $entry->first(),
+                                $fillQuantity,
+                                $order->signal === StrategySignal::Long->value,
+                                true,
+                                $candle,
+                                $config,
+                                $slippageCalculator,
+                            );
+                            if ($order->requestedEntryPrice !== null) {
+                                $entryPrice = $order->signal === StrategySignal::Long->value
+                                    ? min($order->requestedEntryPrice, $entryPrice)
+                                    : max($order->requestedEntryPrice, $entryPrice);
+                            }
                             $order->recordEntryFill(
                                 $fillQuantity,
                                 $entryPrice,
@@ -225,11 +231,6 @@ class SpecificPairBacktestProcess
                     if ($referencePrice === null) {
                         throw new UnexpectedValueException('Cannot calculate trade profit or loss without a closing price.');
                     }
-                    $exitPrice = $this->applySlippage(
-                        $referencePrice,
-                        $order->signal !== StrategySignal::Long->value,
-                        $config,
-                    );
                     $fillQuantity = $this->fillQuantity(
                         $order->pendingExitRequestedQuantity->getOrElseThrow(
                             new LogicException('An exit request must retain its requested quantity while filling.'),
@@ -239,6 +240,15 @@ class SpecificPairBacktestProcess
                         $remainingCandleCapacity,
                     );
                     if ($fillQuantity > 0) {
+                        $exitPrice = $this->applySlippage(
+                            $referencePrice,
+                            $fillQuantity,
+                            $order->signal !== StrategySignal::Long->value,
+                            false,
+                            $candle,
+                            $config,
+                            $slippageCalculator,
+                        );
                         $exitDate = $candle->price_date->format('Y-m-d H:i:s');
                         $exitCosts = $this->transactionCosts($order, $fillQuantity, $exitPrice, $config, 'exit');
                         if ($config->tradeCosts->enabled) {
@@ -299,15 +309,11 @@ class SpecificPairBacktestProcess
                     $decisionStatuses[$decisionIndex] = 'pending';
                 } else {
                     $entry = $this->entryPrice($candle, $decision->signal);
-                    $entryPrice = $this->applySlippage(
-                        $entry->first(),
-                        $decision->signal === StrategySignal::Long,
-                        $config,
-                    );
                     $opened = $this->openOrder(
                         $decision,
-                        $entryPrice,
+                        $entry->first(),
                         $entry->second(),
+                        $candle,
                         $candle->price_date->format('Y-m-d H:i:s'),
                         $orderHistory->count() + 1,
                         $currentCapital,
@@ -315,6 +321,7 @@ class SpecificPairBacktestProcess
                         $configuredQuantityMultiplier,
                         $config,
                         $remainingCandleCapacity,
+                        $slippageCalculator,
                     );
                     $orderHistory = $orderHistory->append($opened->first());
                     $openOrderIndex = $orderHistory->count() - 1;
@@ -381,6 +388,7 @@ class SpecificPairBacktestProcess
         StrategyDecision $decision,
         float $entryPrice,
         string $entryPriceSource,
+        MarketPrice $candle,
         string $openDate,
         int $id,
         float $capital,
@@ -388,6 +396,7 @@ class SpecificPairBacktestProcess
         string $configuredQuantityMultiplier,
         SpecificPairTestConfig $config,
         ?float &$remainingCandleCapacity,
+        SlippageCalculator $slippageCalculator,
     ): Pair {
         $requestedEntryPrice = $decision->limitPrice ?? $entryPrice;
         $this->assertValidEntryDecision(
@@ -433,6 +442,20 @@ class SpecificPairBacktestProcess
             $remainingCandleCapacity,
         );
         if ($fillQuantity > 0) {
+            $entryPrice = $this->applySlippage(
+                $entryPrice,
+                $fillQuantity,
+                $decision->signal === StrategySignal::Long,
+                true,
+                $candle,
+                $config,
+                $slippageCalculator,
+            );
+            if ($decision->limitPrice !== null) {
+                $entryPrice = $decision->signal === StrategySignal::Long
+                    ? min($decision->limitPrice, $entryPrice)
+                    : max($decision->limitPrice, $entryPrice);
+            }
             $order->recordEntryFill($fillQuantity, $entryPrice, $openDate, $entryPriceSource);
             $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
             $order->recordEntryTradeCosts($entryCosts);
@@ -534,7 +557,6 @@ class SpecificPairBacktestProcess
         MarketPrice $candle,
         StrategySignal $signal,
         float $limitPrice,
-        SpecificPairTestConfig $config,
     ): ?Pair {
         $isBuy = $signal === StrategySignal::Long;
 
@@ -554,12 +576,8 @@ class SpecificPairBacktestProcess
         $priceSource = $openIsBetter
             ? (is_numeric($candle->{$openField}) ? $openField : 'open')
             : (is_numeric($candle->{$triggerField}) ? $triggerField : ($isBuy ? 'low' : 'high'));
-        $slippedPrice = $this->applySlippage($referencePrice, $isBuy, $config);
-        $executionPrice = $isBuy
-            ? min($limitPrice, $slippedPrice)
-            : max($limitPrice, $slippedPrice);
 
-        return Pair::of($executionPrice, $priceSource);
+        return Pair::of($referencePrice, $priceSource);
     }
 
     /**
@@ -818,15 +836,29 @@ class SpecificPairBacktestProcess
         );
     }
 
-    private function applySlippage(float $referencePrice, bool $isBuy, SpecificPairTestConfig $config): float
-    {
+    private function applySlippage(
+        float $referencePrice,
+        float $filledQuantity,
+        bool $isBuy,
+        bool $isEntry,
+        MarketPrice $candle,
+        SpecificPairTestConfig $config,
+        SlippageCalculator $slippageCalculator,
+    ): float {
         if (! $config->slippage->enabled) {
             return $referencePrice;
         }
 
         $pipSize = $config->slippage->pipSize ?? (strtoupper($config->quote) === 'JPY' ? 0.01 : 0.0001);
 
-        return $this->fixedSlippage->apply($referencePrice, $config->slippage->pips, $pipSize, $isBuy);
+        return $slippageCalculator->apply(
+            $referencePrice,
+            $filledQuantity,
+            $pipSize,
+            $isBuy,
+            $isEntry,
+            $candle,
+        );
     }
 
     /**

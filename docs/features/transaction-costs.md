@@ -2,7 +2,7 @@
 
 ## Scope
 
-Nikaido can use quote-side candle prices, fixed adverse slippage, synthetic
+Nikaido can use quote-side candle prices, fixed, dynamic, or random adverse slippage, synthetic
 partial fills, transaction charges, and holding costs. These are configurable
 simulation assumptions; they do not model an order book, liquidity, market
 impact, exchange routing, broker fee schedules, or guaranteed live fills.
@@ -18,11 +18,28 @@ Limit triggers use ask-low (buy) or bid-high (sell). Generic OHLC is used
 without adding a spread or midpoint. A spread is therefore represented only
 if the supplied bid/ask prices embody one.
 
-When enabled, fixed slippage adjusts every simulated market/exit reference by
-`pips × pipSize`: buys add the amount, sells subtract it. Default pip size is
-`0.0001`, or `0.01` for JPY quote pairs; an explicit positive price increment
-can override it. It is not volatility-, liquidity-, or size-dependent.
-Limit-order execution is capped so slippage cannot breach the limit.
+Slippage is calculated per actual fill and adjusts the chosen execution
+reference by `slippagePips × pipSize`: buys add the amount, sells subtract it.
+Fixed mode uses a constant amount. Dynamic mode adds configured base slippage,
+candle high-low range converted to pips times the volatility factor,
+`sqrt(fillQuantity / tradedVolume)` times the volume-impact factor, and
+bid-ask spread converted to pips times the spread factor, capped by maximum
+slippage. Volume impact requires positive explicitly typed traded volume;
+missing, zero, invalid, or tick volume raises an execution error when that
+factor is enabled. Candle range is a volatility proxy. Random mode draws a
+bounded uniform or normal sample; normal samples are clipped to bounds, and an
+optional seed makes the sequence repeatable.
+Direction is configured independently: `adverse_only` always worsens the
+execution price for the trade side and remains the default; `random` selects
+adverse or favorable direction with equal probability on each fill. Direction
+draws share the same seeded random sequence as random magnitude.
+
+Default pip size is `0.0001`, or `0.01` for JPY quote pairs; an explicit
+positive price increment can override it. Spread may already be reflected in
+the bid/ask execution reference. Dynamic spread impact informs the slippage
+amount but does not add spread to the reference a second time. Limit-order
+execution is capped so slippage cannot breach the limit. No instrument tick
+size is available for additional price rounding.
 
 ## Configurable costs and formulas
 

@@ -127,19 +127,78 @@
                     <p>Both simulations default to off, preserving the engine's current execution behavior.</p>
                     <label class="check-row">
                         <input type="checkbox" id="slippage_enabled" name="slippage_enabled" value="1" @checked(old('slippage_enabled'))>
-                        <span><strong>Fixed slippage</strong><small>Adverse adjustment is applied once to the executable quote: buy adds slippage; sell subtracts it.</small></span>
+                        <span><strong>Slippage</strong><small>Adverse slippage is applied to actual fills: buy adds slippage; sell subtracts it. Existing runs default to fixed pips.</small></span>
                     </label>
                     <div class="field-row">
                         <div>
-                            <label class="field-label" for="slippage_pips">Slippage (pips)</label>
-                            <input class="text-input" id="slippage_pips" name="slippage_pips" type="number" min="0" step="0.1" value="{{ old('slippage_pips', '1.0') }}">
-                            <small class="field-hint">Reference: entry uses ask-open for buy / bid-open for sell; exit uses bid-close for long / ask-close for short, with OHLC fallback. TP uses the target. Spread is not added again. FX pip defaults to 0.0001, or 0.01 when quote is JPY.</small>
+                            <label class="field-label" for="slippage_mode">Slippage model</label>
+                            <select class="text-input" id="slippage_mode" name="slippage_mode">
+                                <option value="fixed" @selected(old('slippage_mode', 'fixed') === 'fixed')>Fixed</option>
+                                <option value="dynamic" @selected(old('slippage_mode') === 'dynamic')>Dynamic</option>
+                                <option value="random" @selected(old('slippage_mode') === 'random')>Random</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="field-label" for="slippage_direction">Slippage direction</label>
+                            <select class="text-input" id="slippage_direction" name="slippage_direction">
+                                <option value="adverse_only" @selected(old('slippage_direction', 'adverse_only') === 'adverse_only')>Adverse only</option>
+                                <option value="random" @selected(old('slippage_direction') === 'random')>Random (adverse or favorable)</option>
+                            </select>
+                            <small class="field-hint">Random direction selects adverse or favorable with equal probability for every fill. It uses the configured random seed.</small>
+                        </div>
+                        <div>
+                            <label class="field-label" for="slippage_unit">Slippage unit</label>
+                            <select class="text-input" id="slippage_unit" name="slippage_unit">
+                                <option value="pips" selected>Pips</option>
+                            </select>
+                            <small class="field-hint">All model inputs are expressed in pips. FX pip defaults to 0.0001, or 0.01 when quote is JPY.</small>
                         </div>
                         <div>
                             <label class="field-label" for="slippage_pip_size">Pip size override <small>Optional</small></label>
                             <input class="text-input" id="slippage_pip_size" name="slippage_pip_size" type="number" min="0.00000001" step="any" value="{{ old('slippage_pip_size') }}">
-                            <small class="field-hint">Price increment per pip for non-standard instruments. A market-type run applies an override to every pair.</small>
+                            <small class="field-hint">Price increment per pip for non-standard instruments. Spread and candle range are converted to pips using this value.</small>
                         </div>
+                        <div id="slippage-fixed-fields">
+                            <label class="field-label" for="fixed_slippage">Fixed slippage (pips)</label>
+                            <input class="text-input" id="fixed_slippage" name="fixed_slippage" type="number" min="0" max="1000000000" step="0.1" value="{{ old('fixed_slippage', old('slippage_pips', '1.0')) }}">
+                            <small class="field-hint">The same adverse amount is used for each actual entry or exit fill.</small>
+                        </div>
+                        <div id="slippage-dynamic-fields" hidden>
+                            <label class="field-label" for="base_slippage">Base slippage (pips)</label>
+                            <input class="text-input" id="base_slippage" name="base_slippage" type="number" min="0" max="1000000000" step="any" value="{{ old('base_slippage', '0') }}">
+                            <label class="field-label" for="volatility_factor">Volatility factor</label>
+                            <input class="text-input" id="volatility_factor" name="volatility_factor" type="number" min="0" max="1000000000" step="any" value="{{ old('volatility_factor', '0') }}">
+                            <small class="field-hint">Multiplies the candle high-low range converted to pips.</small>
+                            <label class="field-label" for="volume_impact_factor">Volume impact factor (pips)</label>
+                            <input class="text-input" id="volume_impact_factor" name="volume_impact_factor" type="number" min="0" max="1000000000" step="any" value="{{ old('volume_impact_factor', '0') }}">
+                            <small class="field-hint">Multiplies sqrt(filled quantity / explicitly typed traded volume). Requires positive candle traded volume when nonzero.</small>
+                            <label class="field-label" for="spread_factor">Spread factor</label>
+                            <input class="text-input" id="spread_factor" name="spread_factor" type="number" min="0" max="1000000000" step="any" value="{{ old('spread_factor', '0') }}">
+                            <small class="field-hint">Multiplies the bid-ask spread converted to pips. Uses open quotes for entry, close quotes for exit; spread is not added again to the execution reference.</small>
+                            <label class="field-label" for="dynamic_maximum_slippage">Maximum slippage (pips)</label>
+                            <input class="text-input" id="dynamic_maximum_slippage" name="maximum_slippage" type="number" min="0" max="1000000000" step="any" value="{{ old('maximum_slippage', '10') }}">
+                        </div>
+                        <div id="slippage-random-fields" hidden>
+                            <label class="field-label" for="minimum_slippage">Minimum slippage (pips)</label>
+                            <input class="text-input" id="minimum_slippage" name="minimum_slippage" type="number" min="0" max="1000000000" step="any" value="{{ old('minimum_slippage', '0') }}">
+                            <label class="field-label" for="random_maximum_slippage">Maximum slippage (pips)</label>
+                            <input class="text-input" id="random_maximum_slippage" name="maximum_slippage" type="number" min="0" max="1000000000" step="any" value="{{ old('maximum_slippage', '2') }}">
+                            <label class="field-label" for="distribution">Distribution</label>
+                            <select class="text-input" id="distribution" name="distribution">
+                                <option value="uniform" @selected(old('distribution', 'uniform') === 'uniform')>Uniform</option>
+                                <option value="normal" @selected(old('distribution') === 'normal')>Normal (clipped to bounds)</option>
+                            </select>
+                            <div id="slippage-normal-fields" hidden>
+                                <label class="field-label" for="mean">Mean (pips)</label>
+                                <input class="text-input" id="mean" name="mean" type="number" min="0" max="1000000000" step="any" value="{{ old('mean', '1') }}">
+                                <label class="field-label" for="standard_deviation">Standard deviation (pips)</label>
+                                <input class="text-input" id="standard_deviation" name="standard_deviation" type="number" min="0" max="1000000000" step="any" value="{{ old('standard_deviation', '0.25') }}">
+                            </div>
+                            <label class="field-label" for="random_seed">Random seed <small>Optional</small></label>
+                            <input class="text-input" id="random_seed" name="random_seed" type="number" min="0" max="2147483647" step="1" value="{{ old('random_seed') }}">
+                            <small class="field-hint">A seed reproduces the same slippage sequence for the same execution sequence.</small>
+                        </div>
+                        <div class="field-hint">Reference: entry uses ask-open for buy / bid-open for sell; exit uses bid-close for long / ask-close for short, with OHLC fallback. Take-profit uses the target. No spread is applied twice.</div>
                     </div>
                     <label class="check-row" style="margin-top:16px">
                         <input type="checkbox" id="partial_fill_enabled" name="partial_fill_enabled" value="1" @checked(old('partial_fill_enabled'))>
@@ -305,14 +364,33 @@
         }
         const slippageToggle = document.getElementById('slippage_enabled');
         const partialFillToggle = document.getElementById('partial_fill_enabled');
-        const setOptionalInputs = (toggle, inputIds) => {
-            const update = () => inputIds.forEach((id) => {
-                document.getElementById(id).disabled = !toggle.checked;
-            });
-            toggle.addEventListener('change', update);
-            update();
+        const slippageMode = document.getElementById('slippage_mode');
+        const slippageModeFields = {
+            fixed: document.getElementById('slippage-fixed-fields'),
+            dynamic: document.getElementById('slippage-dynamic-fields'),
+            random: document.getElementById('slippage-random-fields'),
         };
-        setOptionalInputs(slippageToggle, ['slippage_pips', 'slippage_pip_size']);
+        const normalSlippageFields = document.getElementById('slippage-normal-fields');
+        const updateSlippageFields = () => {
+            slippageMode.disabled = !slippageToggle.checked;
+            document.getElementById('slippage_direction').disabled = !slippageToggle.checked;
+            document.getElementById('slippage_unit').disabled = !slippageToggle.checked;
+            document.getElementById('slippage_pip_size').disabled = !slippageToggle.checked;
+            for (const [mode, fields] of Object.entries(slippageModeFields)) {
+                fields.hidden = mode !== slippageMode.value;
+                for (const input of fields.querySelectorAll('input, select')) {
+                    input.disabled = !slippageToggle.checked || fields.hidden;
+                }
+            }
+            normalSlippageFields.hidden = document.getElementById('distribution').value !== 'normal';
+            for (const input of normalSlippageFields.querySelectorAll('input, select')) {
+                input.disabled = !slippageToggle.checked || slippageMode.value !== 'random' || normalSlippageFields.hidden;
+            }
+        };
+        slippageToggle.addEventListener('change', updateSlippageFields);
+        slippageMode.addEventListener('change', updateSlippageFields);
+        document.getElementById('distribution').addEventListener('change', updateSlippageFields);
+        updateSlippageFields();
         const partialFillMode = document.getElementById('partial_fill_mode');
         const fixedFillFields = document.getElementById('partial-fill-fixed-fields');
         const volumeFillFields = document.getElementById('partial-fill-volume-fields');

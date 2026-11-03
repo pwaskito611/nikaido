@@ -7,6 +7,9 @@ namespace App\Feature\Backtest\Request;
 use App\Feature\Backtest\Config\FixedSlippageConfig;
 use App\Feature\Backtest\Config\PartialFillConfig;
 use App\Feature\Backtest\Config\PartialFillMode;
+use App\Feature\Backtest\Config\SlippageDirection;
+use App\Feature\Backtest\Config\SlippageDistribution;
+use App\Feature\Backtest\Config\SlippageMode;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Config\TradeCostConfig;
 use App\Feature\Backtest\Config\UnfilledOrderPolicy;
@@ -25,6 +28,11 @@ class RunSpecificPairTestRequest extends FormRequest
 
     public function rules(): array
     {
+        $dynamicSlippageEnabled = $this->boolean('slippage_enabled')
+            && $this->input('slippage_mode', SlippageMode::Fixed->value) === SlippageMode::Dynamic->value;
+        $randomSlippageEnabled = $this->boolean('slippage_enabled')
+            && $this->input('slippage_mode', SlippageMode::Fixed->value) === SlippageMode::Random->value;
+
         return [
             'base' => ['required', 'string', 'max:10'],
             'quote' => ['required', 'string', 'max:10'],
@@ -35,8 +43,28 @@ class RunSpecificPairTestRequest extends FormRequest
             'excluded_days' => ['sometimes', 'array'],
             'excluded_days.*' => ['integer', 'between:1,7'],
             'slippage_enabled' => ['sometimes', 'boolean'],
-            'slippage_pips' => ['required_if:slippage_enabled,1', 'nullable', 'numeric', 'gte:0'],
+            'slippage_mode' => ['sometimes', 'in:fixed,dynamic,random'],
+            'slippage_direction' => ['sometimes', 'in:adverse_only,random'],
+            'slippage_unit' => ['sometimes', 'in:pips'],
+            'fixed_slippage' => ['sometimes', 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'slippage_pips' => ['sometimes', 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
             'slippage_pip_size' => ['nullable', 'numeric', 'gt:0'],
+            'base_slippage' => [Rule::requiredIf($dynamicSlippageEnabled), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'volatility_factor' => [Rule::requiredIf($dynamicSlippageEnabled), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'volume_impact_factor' => [Rule::requiredIf($dynamicSlippageEnabled), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'spread_factor' => [Rule::requiredIf($dynamicSlippageEnabled), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'minimum_slippage' => [Rule::requiredIf($randomSlippageEnabled), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'maximum_slippage' => [
+                Rule::requiredIf($dynamicSlippageEnabled || $randomSlippageEnabled),
+                'nullable',
+                'numeric',
+                'gte:0',
+                'max:1000000000',
+            ],
+            'distribution' => [Rule::requiredIf($randomSlippageEnabled), 'in:uniform,normal'],
+            'mean' => [Rule::requiredIf($randomSlippageEnabled && $this->input('distribution') === 'normal'), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'standard_deviation' => [Rule::requiredIf($randomSlippageEnabled && $this->input('distribution') === 'normal'), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'random_seed' => ['nullable', 'integer', 'between:0,2147483647'],
             'partial_fill_enabled' => ['sometimes', 'boolean'],
             'partial_fill_mode' => ['sometimes', 'in:fixed,volume'],
             'partial_fill_ratio' => [
@@ -71,6 +99,26 @@ class RunSpecificPairTestRequest extends FormRequest
                     'Both active time boundaries must be false for a full-day schedule.',
                 );
             }
+            $mode = $this->input('slippage_mode', SlippageMode::Fixed->value);
+            if ($this->boolean('slippage_enabled') && $mode === SlippageMode::Fixed->value
+                && $this->input('fixed_slippage', $this->input('slippage_pips')) === null) {
+                $validator->errors()->add('fixed_slippage', 'Fixed slippage is required when fixed slippage is enabled.');
+            }
+            if ($mode === SlippageMode::Random->value
+                && $this->input('minimum_slippage') !== null
+                && $this->input('maximum_slippage') !== null
+                && (float) $this->input('minimum_slippage') > (float) $this->input('maximum_slippage')) {
+                $validator->errors()->add('minimum_slippage', 'Minimum slippage cannot exceed maximum slippage.');
+            }
+            if ($mode === SlippageMode::Random->value
+                && $this->input('distribution') === 'normal'
+                && $this->input('mean') !== null
+                && $this->input('minimum_slippage') !== null
+                && $this->input('maximum_slippage') !== null
+                && ((float) $this->input('mean') < (float) $this->input('minimum_slippage')
+                    || (float) $this->input('mean') > (float) $this->input('maximum_slippage'))) {
+                $validator->errors()->add('mean', 'Normal slippage mean must be within its configured boundaries.');
+            }
 
             if (filter_var($this->input('trade_costs.transaction_tax.enabled', false), FILTER_VALIDATE_BOOLEAN)
                 && ! in_array($this->input('trade_costs.transaction_tax.applies_to'), ['both', 'entry', 'exit'], true)) {
@@ -96,8 +144,21 @@ class RunSpecificPairTestRequest extends FormRequest
             excludedDays: Vec::fromArray(array_map('intval', $validated['excluded_days'] ?? [])),
             slippage: new FixedSlippageConfig(
                 enabled: $this->boolean('slippage_enabled'),
-                pips: (float) ($validated['slippage_pips'] ?? 0),
+                pips: (float) ($validated['fixed_slippage'] ?? $validated['slippage_pips'] ?? 0),
                 pipSize: isset($validated['slippage_pip_size']) ? (float) $validated['slippage_pip_size'] : null,
+                mode: SlippageMode::from($validated['slippage_mode'] ?? SlippageMode::Fixed->value),
+                direction: SlippageDirection::from($validated['slippage_direction'] ?? SlippageDirection::AdverseOnly->value),
+                baseSlippage: (float) ($validated['base_slippage'] ?? 0),
+                volatilityFactor: (float) ($validated['volatility_factor'] ?? 0),
+                volumeImpactFactor: (float) ($validated['volume_impact_factor'] ?? 0),
+                spreadFactor: (float) ($validated['spread_factor'] ?? 0),
+                maximumSlippage: (float) ($validated['maximum_slippage'] ?? 10),
+                minimumSlippage: (float) ($validated['minimum_slippage'] ?? 0),
+                distribution: SlippageDistribution::from($validated['distribution'] ?? SlippageDistribution::Uniform->value),
+                mean: (float) ($validated['mean'] ?? 0),
+                standardDeviation: (float) ($validated['standard_deviation'] ?? 1),
+                randomSeed: isset($validated['random_seed']) ? (int) $validated['random_seed'] : null,
+                unit: $validated['slippage_unit'] ?? 'pips',
             ),
             partialFill: new PartialFillConfig(
                 enabled: $this->boolean('partial_fill_enabled'),

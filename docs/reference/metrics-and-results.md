@@ -46,7 +46,7 @@ The JSON object also includes these root-level fields:
 | `initial_capital`, `ending_capital` | number | Capital values for the simulation. |
 | `quantity_unit` | string | Pair quantity unit. |
 | `units_per_lot`, `quantity_multiplier` | number | Pair sizing multipliers. |
-| `execution_config` | object | `slippage_enabled`, `slippage_pips`, nullable `slippage_pip_size`, `partial_fill_enabled`, `partial_fill_mode`, `partial_fill_ratio`, `max_participation_rate`, `volume_source`, `execution_volume_period`, `unfilled_order_policy`, and `trade_costs`. |
+| `execution_config` | object | Slippage settings (`slippage_enabled`, `slippage_mode`, `slippage_direction`, `slippage_unit`, `fixed_slippage`, legacy `slippage_pips`, nullable `slippage_pip_size`, dynamic factors/cap, random bounds/distribution/seed), partial-fill settings, and `trade_costs`. |
 
 Within `execution_config.trade_costs`, `enabled` is a boolean and `components`
 contains `commission`, `exchange_fee`, `clearing_fee`, `regulatory_fee`,

@@ -6,6 +6,7 @@ namespace App\Feature\Backtest\Request;
 
 use App\Feature\Backtest\Config\ConfiguredPairBacktestInput;
 use App\Feature\Backtest\Config\PartialFillMode;
+use App\Feature\Backtest\Config\SlippageMode;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -41,6 +42,11 @@ class RunWorkbenchBacktestRequest extends FormRequest
 
     public function rules(): array
     {
+        $dynamicSlippageEnabled = $this->boolean('slippage_enabled')
+            && $this->input('slippage_mode', SlippageMode::Fixed->value) === SlippageMode::Dynamic->value;
+        $randomSlippageEnabled = $this->boolean('slippage_enabled')
+            && $this->input('slippage_mode', SlippageMode::Fixed->value) === SlippageMode::Random->value;
+
         return [
             'test_type' => ['required', 'in:specific_pair,market_type'],
             'market_pair_id' => ['required_if:test_type,specific_pair', 'nullable', 'integer', 'exists:market_pair,id'],
@@ -62,8 +68,28 @@ class RunWorkbenchBacktestRequest extends FormRequest
             'excluded_days' => ['sometimes', 'array'],
             'excluded_days.*' => ['integer', 'between:1,7'],
             'slippage_enabled' => ['sometimes', 'boolean'],
-            'slippage_pips' => ['required_if:slippage_enabled,1', 'nullable', 'numeric', 'gte:0'],
+            'slippage_mode' => ['sometimes', 'in:fixed,dynamic,random'],
+            'slippage_direction' => ['sometimes', 'in:adverse_only,random'],
+            'slippage_unit' => ['sometimes', 'in:pips'],
+            'fixed_slippage' => ['sometimes', 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'slippage_pips' => ['sometimes', 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
             'slippage_pip_size' => ['nullable', 'numeric', 'gt:0'],
+            'base_slippage' => [Rule::requiredIf($dynamicSlippageEnabled), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'volatility_factor' => [Rule::requiredIf($dynamicSlippageEnabled), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'volume_impact_factor' => [Rule::requiredIf($dynamicSlippageEnabled), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'spread_factor' => [Rule::requiredIf($dynamicSlippageEnabled), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'minimum_slippage' => [Rule::requiredIf($randomSlippageEnabled), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'maximum_slippage' => [
+                Rule::requiredIf($dynamicSlippageEnabled || $randomSlippageEnabled),
+                'nullable',
+                'numeric',
+                'gte:0',
+                'max:1000000000',
+            ],
+            'distribution' => [Rule::requiredIf($randomSlippageEnabled), 'in:uniform,normal'],
+            'mean' => [Rule::requiredIf($randomSlippageEnabled && $this->input('distribution') === 'normal'), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'standard_deviation' => [Rule::requiredIf($randomSlippageEnabled && $this->input('distribution') === 'normal'), 'nullable', 'numeric', 'gte:0', 'max:1000000000'],
+            'random_seed' => ['nullable', 'integer', 'between:0,2147483647'],
             'partial_fill_enabled' => ['sometimes', 'boolean'],
             'partial_fill_mode' => ['sometimes', 'in:fixed,volume'],
             'partial_fill_ratio' => [
@@ -97,6 +123,27 @@ class RunWorkbenchBacktestRequest extends FormRequest
                     'active_from',
                     'Both active time boundaries must be false for a full-day schedule.',
                 );
+            }
+
+            $mode = $this->input('slippage_mode', SlippageMode::Fixed->value);
+            if ($this->boolean('slippage_enabled') && $mode === SlippageMode::Fixed->value
+                && $this->input('fixed_slippage', $this->input('slippage_pips')) === null) {
+                $validator->errors()->add('fixed_slippage', 'Fixed slippage is required when fixed slippage is enabled.');
+            }
+            if ($mode === SlippageMode::Random->value
+                && $this->input('minimum_slippage') !== null
+                && $this->input('maximum_slippage') !== null
+                && (float) $this->input('minimum_slippage') > (float) $this->input('maximum_slippage')) {
+                $validator->errors()->add('minimum_slippage', 'Minimum slippage cannot exceed maximum slippage.');
+            }
+            if ($mode === SlippageMode::Random->value
+                && $this->input('distribution') === 'normal'
+                && $this->input('mean') !== null
+                && $this->input('minimum_slippage') !== null
+                && $this->input('maximum_slippage') !== null
+                && ((float) $this->input('mean') < (float) $this->input('minimum_slippage')
+                    || (float) $this->input('mean') > (float) $this->input('maximum_slippage'))) {
+                $validator->errors()->add('mean', 'Normal slippage mean must be within its configured boundaries.');
             }
 
             if (filter_var($this->input('trade_costs.transaction_tax.enabled', false), FILTER_VALIDATE_BOOLEAN)

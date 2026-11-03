@@ -24,13 +24,36 @@ midpoint. If general OHLC values are already midpoint prices, the fallback
 does not add a spread. Supply consistent bid/ask history when the research
 question depends on the spread.
 
-## Fixed slippage
+## Slippage models
 
-Slippage is optional and disabled by default. When enabled, it applies a fixed
-adverse number of pips: buys add the price adjustment and sells subtract it.
-The default FX pip size is `0.0001`, or `0.01` when the quote currency is JPY;
-an optional positive pip-size override supports other increments. Slippage
-does not model volatility, liquidity, market impact, or order size.
+Slippage is optional and disabled by default. Each model expresses its inputs
+in pips. The default FX pip size is `0.0001`, or `0.01` when the quote
+currency is JPY; an optional positive pip-size override supports other
+increments. Slippage is calculated for each actual fill, so unfilled quantity
+does not incur a price adjustment. Direction is configured separately from
+magnitude: **adverse only** (the backward-compatible default) always worsens
+the execution price for the trade side; **random** chooses adverse or favorable
+direction with equal probability on each fill. Direction uses the configured
+seed as part of the same isolated random sequence as random magnitude.
+
+- **Fixed:** applies the configured constant adverse pip amount to every fill.
+  Existing `slippage_pips` configurations remain aliases for this setting.
+- **Dynamic:** adds a base amount, candle high-low range (converted to pips)
+  multiplied by a volatility factor, a volume-impact factor multiplied by
+  `sqrt(fill quantity / traded volume)`, and a spread factor multiplied by the
+  quote-side bid-ask spread converted to pips. The total is capped by maximum
+  slippage. Volume impact requires a positive volume explicitly marked as
+  `traded`; tick volume, missing volume, and zero volume are not treated as
+  traded liquidity. Volatility uses the candle range as a proxy, not a
+  statistical volatility estimate. Configure factors as zero when the
+  corresponding market data is not available. The volume quantity and
+  normalized fill quantity are assumed to use compatible units; current market
+  data has no instrument-specific volume-unit metadata.
+- **Random:** draws a value from a uniform or normal distribution, bounded by
+  the configured minimum and maximum. Normal samples outside those limits are
+  clipped to the nearest bound; this is not a mathematically truncated normal
+  distribution. An optional seed reproduces the sequence for the same
+  execution order.
 
 Example: at a long entry ask-open of `1.10000`, 1 pip at `0.0001` changes the
 execution reference to `1.10010`. At a long exit, the sell-side adjustment
@@ -39,8 +62,11 @@ bounded by its limit price even after the slippage adjustment.
 
 Spread and slippage are separate: quote-side prices can already embody a
 spread; slippage is applied to the selected execution reference. Do not add a
-second spread cost unless it represents a separate, intentionally modeled
-charge.
+second spread cost. Dynamic spread impact uses the supplied bid/ask quotes as
+an input to the slippage estimate; it does not add the spread to the execution
+reference a second time. No instrument tick-size metadata is currently
+available, so prices are adjusted by the configured pip increment without
+additional tick rounding.
 
 ## Additional transaction and holding costs
 

@@ -107,9 +107,25 @@ class CombineMarketTypeBacktestResultsAction
             'average_ending_capital_per_pair' => $averageEndingCapital,
             'execution_config' => [
                 'slippage_enabled' => filter_var($run->configuration['slippage_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                'slippage_mode' => $run->configuration['slippage_mode'] ?? 'fixed',
+                'slippage_direction' => $run->configuration['slippage_direction'] ?? 'adverse_only',
+                'slippage_unit' => $run->configuration['slippage_unit'] ?? 'pips',
+                'fixed_slippage' => (float) ($run->configuration['fixed_slippage'] ?? $run->configuration['slippage_pips'] ?? 0),
                 'slippage_pips' => (float) ($run->configuration['slippage_pips'] ?? 0),
                 'slippage_pip_size' => isset($run->configuration['slippage_pip_size'])
                     ? (float) $run->configuration['slippage_pip_size']
+                    : null,
+                'base_slippage' => (float) ($run->configuration['base_slippage'] ?? 0),
+                'volatility_factor' => (float) ($run->configuration['volatility_factor'] ?? 0),
+                'volume_impact_factor' => (float) ($run->configuration['volume_impact_factor'] ?? 0),
+                'spread_factor' => (float) ($run->configuration['spread_factor'] ?? 0),
+                'maximum_slippage' => (float) ($run->configuration['maximum_slippage'] ?? 10),
+                'minimum_slippage' => (float) ($run->configuration['minimum_slippage'] ?? 0),
+                'distribution' => $run->configuration['distribution'] ?? 'uniform',
+                'mean' => (float) ($run->configuration['mean'] ?? 0),
+                'standard_deviation' => (float) ($run->configuration['standard_deviation'] ?? 1),
+                'random_seed' => isset($run->configuration['random_seed'])
+                    ? (int) $run->configuration['random_seed']
                     : null,
                 'partial_fill_enabled' => filter_var($run->configuration['partial_fill_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
                 'partial_fill_mode' => $run->configuration['partial_fill_mode'] ?? 'fixed',

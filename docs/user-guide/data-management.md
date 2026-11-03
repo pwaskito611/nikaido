@@ -83,15 +83,23 @@ Single-pair results are held in the browser session, while market-type runs
 persist copied results; changing candles does not rewrite those copied
 results.
 
-## Feed data through the API
+## Feed price candles through the API
 
 The Data Import page (`/workbench/data-import`) waits for a data sender; it
-does not request or poll an external provider. Choose a pair and timeframe,
-then select **Start receiving**. Copy the bearer token shown once and have
-your client POST normalized candles to `/api/data-import/candles`. The token
-is valid only for the selected pair/timeframe and can be invalidated by
-stopping the session. The page shows the API request shape and active/recent
-receiver sessions.
+does not request or poll an external provider. The page presents two separate
+receivers side by side. Use **Import market candles** for OHLCV data: choose a
+pair and timeframe, then start the candle receiver. Its token accepts
+`candles` at `/api/data-import/candles` and is bound to that pair/timeframe.
+Use **Import economic/company observations** for CPI, GDP, revenue, EPS, and
+other dated indicator values: choose a Fundamental entity. Its different token
+accepts `observations` at `/api/data-import/fundamentals/observations` and is
+bound to that entity, not a pair or timeframe.
+
+Do not interchange these endpoints or tokens: candle requests use OHLC fields
+and a `candles` array, while fundamental requests use `code`, observation
+`datetime`, `released_at`, and `value` in an `observations` array. The page
+labels each receiver, request example, token, and session table accordingly.
+Both flows wait for an external sender; neither fetches nor polls providers.
 
 The sender is responsible for retrieving its data, normalizing timestamps and
 OHLC values, and including explicit `volume_type` when sending volume.

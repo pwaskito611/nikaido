@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Feature\DataImport\Model\DataImportSession;
+use App\Feature\Fundamentals\Model\Fundamental;
+use App\Feature\Fundamentals\Model\FundamentalImportSession;
 use App\Feature\MarketPairs\Model\MarketPair;
 use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Feature\MarketTypes\Model\MarketType;
@@ -23,11 +25,17 @@ class DataImportFeatureTest extends TestCase
             ->assertOk()
             ->assertSee('The API receiver is currently off.')
             ->assertSee('Select pair')
+            ->assertSee('PRICE DATA · OHLCV')
+            ->assertSee('FUNDAMENTAL DATA · INDICATORS')
+            ->assertSee('Import market candles')
+            ->assertSee('Import economic/company observations')
+            ->assertSee('This receiver is scoped to one Fundamental entity—not a market pair or timeframe.')
+            ->assertSee('/api/data-import/fundamentals/observations')
             ->assertSee('bid_open', false)
             ->assertSee('ask_close', false)
             ->assertSee('Bid/ask fields are optional.', false)
             ->assertSee('volume_type', false)
-            ->assertSee('Start a short-lived API receiver')
+            ->assertSee('Start candle receiver')
             ->assertDontSee('external_provider_credential')
             ->assertDontSee('Pull from data provider');
         $this->post('/workbench/data-import/external-provider', [])->assertNotFound();
@@ -154,6 +162,78 @@ class DataImportFeatureTest extends TestCase
         $this->assertDatabaseHas('timeframe_type', ['id' => $timeframe->id]);
     }
 
+    public function test_data_import_page_starts_and_stops_a_distinct_fundamental_observation_receiver(): void
+    {
+        $type = MarketType::query()->create(['name' => 'Forex']);
+        $pair = MarketPair::query()->create([
+            'market_type_id' => $type->id,
+            'base' => 'EUR',
+            'quote' => 'USD',
+        ]);
+        $fundamental = Fundamental::query()->create(['name' => 'United States Economy', 'category' => 'Economy']);
+        $fundamental->marketPairs()->attach($pair->id);
+
+        $this->get('/workbench/data-import')
+            ->assertOk()
+            ->assertSee('United States Economy')
+            ->assertSee('Fundamental entity')
+            ->assertSee('No pair/timeframe is selected here.')
+            ->assertSee('Request body · dated observations, not OHLCV candles');
+
+        $this->post('/workbench/data-import/fundamental-sessions', [
+            'fundamental_id' => $fundamental->id,
+        ])->assertRedirect('/workbench/data-import')
+            ->assertSessionHas('fundamental_import_token');
+
+        $session = FundamentalImportSession::query()->sole();
+        $token = session('fundamental_import_token');
+        $this->assertNotSame($token, $session->token_hash);
+        $this->assertSame(hash('sha256', $token), $session->token_hash);
+
+        $this->get('/workbench/data-import')
+            ->assertOk()
+            ->assertSee('FUNDAMENTAL TOKEN · copy now')
+            ->assertSee($token)
+            ->assertSee('/api/data-import/fundamentals/observations')
+            ->assertSee('United States Economy · Economy · RECEIVER ACTIVE');
+
+        $this->withToken($token)->postJson('/api/data-import/fundamentals/observations', [
+            'observations' => [[
+                'code' => 'CPI',
+                'name' => 'Consumer Price Index',
+                'datetime' => '2024-09-01 00:00:00',
+                'released_at' => '2024-10-10 08:30:00',
+                'value' => 1.1,
+            ]],
+        ])->assertOk()->assertJsonPath('imported', 1);
+        $this->assertDatabaseHas('fundamental_contents', [
+            'fundamental_id' => $fundamental->id,
+            'code' => 'CPI',
+        ]);
+
+        $this->post("/workbench/data-import/fundamental-sessions/{$fundamental->id}/{$session->id}/stop")
+            ->assertRedirect('/workbench/data-import');
+        $this->withToken($token)->postJson('/api/data-import/fundamentals/observations', [
+            'observations' => [$this->apiObservation()],
+        ])->assertUnauthorized();
+        $this->assertDatabaseCount('fundamental_contents', 1);
+    }
+
+    public function test_fundamental_import_form_rejects_missing_or_unknown_entity(): void
+    {
+        $this->from('/workbench/data-import')
+            ->post('/workbench/data-import/fundamental-sessions', [])
+            ->assertRedirect('/workbench/data-import')
+            ->assertSessionHasErrors('fundamental_id');
+
+        $this->from('/workbench/data-import')
+            ->post('/workbench/data-import/fundamental-sessions', ['fundamental_id' => 99999])
+            ->assertRedirect('/workbench/data-import')
+            ->assertSessionHasErrors('fundamental_id');
+
+        $this->assertDatabaseCount('fundamental_import_sessions', 0);
+    }
+
     /**
      * @return array{MarketPair, TimeframeType}
      */
@@ -180,6 +260,18 @@ class DataImportFeatureTest extends TestCase
             'high' => 1.15,
             'low' => 1.09,
             'close' => 1.12,
+        ];
+    }
+
+    /** @return array{code: string, name: string, datetime: string, released_at: string, value: float} */
+    private function apiObservation(): array
+    {
+        return [
+            'code' => 'CPI',
+            'name' => 'Consumer Price Index',
+            'datetime' => '2024-09-01 00:00:00',
+            'released_at' => '2024-10-10 08:30:00',
+            'value' => 1.1,
         ];
     }
 }

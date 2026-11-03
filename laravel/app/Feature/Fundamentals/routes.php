@@ -4,9 +4,17 @@ declare(strict_types=1);
 
 use App\Feature\Fundamentals\Controller\FundamentalContentController;
 use App\Feature\Fundamentals\Controller\FundamentalController;
+use App\Feature\Fundamentals\Controller\FundamentalImportSessionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('workbench')->name('workbench.')->group(function (): void {
+    Route::post('data-import/fundamental-sessions', [FundamentalImportSessionController::class, 'start'])
+        ->name('data-import.fundamental-sessions.start');
+    Route::post(
+        'data-import/fundamental-sessions/{fundamental}/{sessionId}/stop',
+        [FundamentalImportSessionController::class, 'stop'],
+    )->whereNumber(['fundamental', 'sessionId'])->name('data-import.fundamental-sessions.stop');
+
     Route::resource('fundamentals', FundamentalController::class)
         ->parameters(['fundamentals' => 'fundamental']);
 

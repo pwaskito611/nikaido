@@ -10,6 +10,7 @@ use App\Feature\Fundamentals\Model\Fundamental;
 use App\Feature\Fundamentals\Model\FundamentalContent;
 use DateTimeInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Nikaido\Strategy\Models\FundamentalDataCollection;
 use Nikaido\Strategy\Models\FundamentalEntityData;
@@ -28,6 +29,14 @@ class FundamentalRepository
             ->withCount(['contents', 'marketPairs'])
             ->orderBy('name')
             ->paginate($perPage);
+    }
+
+    /** @return Collection<int, Fundamental> */
+    public function allForImport(): Collection
+    {
+        return $this->model->newQuery()
+            ->orderBy('name')
+            ->get(['id', 'name', 'category']);
     }
 
     public function findOrFail(int $id): Fundamental

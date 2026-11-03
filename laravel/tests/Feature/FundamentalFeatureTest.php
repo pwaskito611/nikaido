@@ -10,6 +10,7 @@ use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
 use App\Feature\Fundamentals\Action\LoadFundamentalDataForBacktestAction;
 use App\Feature\Fundamentals\Model\Fundamental;
 use App\Feature\Fundamentals\Model\FundamentalContent;
+use App\Feature\Fundamentals\Model\FundamentalImportSession;
 use App\Feature\MarketPairs\Model\MarketPair;
 use App\Feature\MarketPairs\Repository\MarketPairRepository;
 use App\Feature\MarketPrice\Model\MarketPrice;
@@ -264,6 +265,249 @@ class FundamentalFeatureTest extends TestCase
         $this->assertNull($entity->latestAvailable('CPI', new DateTimeImmutable('2020-02-01')));
     }
 
+    public function test_strategy_gets_in_range_history_and_only_the_latest_pre_range_value_as_of_simulation_time(): void
+    {
+        $type = MarketType::create(['name' => 'Forex']);
+        $pair = $this->pair($type, 'EUR', 'USD');
+        $fundamental = Fundamental::create(['name' => 'United States Economy']);
+        $fundamental->marketPairs()->attach($pair->id);
+
+        $this->content($fundamental, 'CPI', '2024-06-01', '2024-07-15 08:30:00', 0.8);
+        $this->content($fundamental, 'CPI', '2024-07-01', '2024-08-15 08:30:00', 0.9);
+        $this->content($fundamental, 'CPI', '2024-08-01', '2024-09-15 08:30:00', 1.0);
+        $this->content($fundamental, 'CPI', '2024-09-01', '2024-10-10 08:30:00', 1.1);
+        $this->content($fundamental, 'CPI', '2024-10-01', '2024-10-25 08:30:00', 1.2);
+        $this->content($fundamental, 'CPI', '2024-11-01', '2024-11-15 08:30:00', 1.3);
+        $this->content($fundamental, 'GDP', '2024-07-01', '2024-09-20 12:00:00', ['growth' => 2.4]);
+        $this->content($fundamental, 'GDP', '2024-10-01', '2024-11-20 12:00:00', ['growth' => 2.7]);
+
+        $data = app(LoadFundamentalDataForBacktestAction::class)->execute(
+            $pair->id,
+            new DateTimeImmutable('2024-10-01 00:00:00'),
+            new DateTimeImmutable('2024-10-31 23:59:59'),
+        );
+        $entity = $data->get($fundamental->id);
+
+        $this->assertNotNull($entity);
+        $cpiAvailableOnOctober20 = $entity->observations('CPI', new DateTimeImmutable('2024-10-20 23:59:59'));
+        $this->assertCount(2, $cpiAvailableOnOctober20);
+        $this->assertSame([1.0, 1.1], array_map(
+            static fn ($observation): float => (float) $observation->value,
+            $cpiAvailableOnOctober20,
+        ));
+        $this->assertSame(
+            '2024-09-01',
+            $entity->latestAvailable('CPI', new DateTimeImmutable('2024-10-20 23:59:59'))
+                ?->datetime->format('Y-m-d'),
+        );
+        $this->assertSame(
+            ['growth' => 2.4],
+            $entity->latestAvailable('GDP', new DateTimeImmutable('2024-10-20 23:59:59'))?->value,
+        );
+
+        $this->assertSame(
+            1.2,
+            $entity->latestAvailable('CPI', new DateTimeImmutable('2024-10-25 08:30:00'))?->value,
+        );
+        $this->assertCount(3, $entity->observations('CPI', new DateTimeImmutable('2024-10-31 23:59:59')));
+        $this->assertCount(1, $entity->observations('GDP', new DateTimeImmutable('2024-10-31 23:59:59')));
+    }
+
+    public function test_external_fundamental_import_session_accepts_scalar_and_object_observations(): void
+    {
+        $type = MarketType::create(['name' => 'Forex']);
+        $pair = $this->pair($type, 'EUR', 'USD');
+        $fundamental = Fundamental::create(['name' => 'United States Economy']);
+        $fundamental->marketPairs()->attach($pair->id);
+
+        $token = $this->startImportSession($fundamental);
+        $session = FundamentalImportSession::query()->sole();
+
+        $this->assertIsString($token);
+        $this->assertNotSame($token, $session->token_hash);
+        $this->assertSame(hash('sha256', $token), $session->token_hash);
+        $this->get('/workbench/data-import')
+            ->assertOk()
+            ->assertSee($token)
+            ->assertSee('/api/data-import/fundamentals/observations');
+        $this->get("/workbench/fundamentals/{$fundamental->id}")
+            ->assertOk()
+            ->assertDontSee($token)
+            ->assertDontSee('Import observations via API')
+            ->assertDontSee('/api/data-import/fundamentals/observations');
+
+        $this->withToken($token)->postJson('/api/data-import/fundamentals/observations', [
+            'observations' => [
+                [
+                    'code' => 'cpi',
+                    'name' => 'Consumer Price Index',
+                    'datetime' => '2024-09-01 00:00:00',
+                    'released_at' => '2024-10-10 08:30:00',
+                    'value' => 1.1,
+                ],
+                [
+                    'code' => 'GDP',
+                    'name' => 'GDP Growth',
+                    'datetime' => '2024-07-01 00:00:00',
+                    'released_at' => null,
+                    'value' => ['growth' => 2.4, 'unit' => 'percent'],
+                ],
+                [
+                    'code' => 'UNEMPLOYMENT',
+                    'name' => 'Unemployment',
+                    'datetime' => '2024-09-01 00:00:00',
+                    'value' => null,
+                ],
+            ],
+        ])->assertOk()->assertExactJson([
+            'imported' => 3,
+            'inserted' => 3,
+            'updated' => 0,
+        ]);
+
+        $this->assertDatabaseCount('fundamental_contents', 3);
+        $this->assertDatabaseHas('fundamental_contents', [
+            'fundamental_id' => $fundamental->id,
+            'code' => 'CPI',
+            'datetime' => '2024-09-01 00:00:00',
+            'released_at' => '2024-10-10 08:30:00',
+            'value' => '1.1',
+        ]);
+        $this->assertDatabaseHas('fundamental_contents', [
+            'fundamental_id' => $fundamental->id,
+            'code' => 'GDP',
+            'released_at' => null,
+            'value' => '{"growth":2.4,"unit":"percent"}',
+        ]);
+        $this->assertDatabaseHas('fundamental_contents', [
+            'fundamental_id' => $fundamental->id,
+            'code' => 'UNEMPLOYMENT',
+            'released_at' => null,
+            'value' => 'null',
+        ]);
+
+        $strategyData = app(LoadFundamentalDataForBacktestAction::class)->execute(
+            (int) $pair->id,
+            new DateTimeImmutable('2024-10-01'),
+            new DateTimeImmutable('2024-10-31'),
+        );
+        $this->assertSame(
+            1.1,
+            $strategyData->get($fundamental->id)
+                ?->latestAvailable('CPI', new DateTimeImmutable('2024-10-20'))?->value,
+        );
+        $this->assertNull(
+            $strategyData->get($fundamental->id)
+                ?->latestAvailable('GDP', new DateTimeImmutable('2024-10-20')),
+        );
+    }
+
+    public function test_external_fundamental_import_is_idempotent_and_updates_the_same_indicator_period(): void
+    {
+        $fundamental = Fundamental::create(['name' => 'United States Economy']);
+        $token = $this->startImportSession($fundamental);
+        $observation = [
+            'code' => 'CPI',
+            'name' => 'Consumer Price Index',
+            'datetime' => '2024-09-01 00:00:00',
+            'released_at' => '2024-10-10 08:30:00',
+            'value' => 1.1,
+        ];
+
+        $this->withToken($token)->postJson('/api/data-import/fundamentals/observations', [
+            'observations' => [$observation],
+        ])->assertOk()->assertExactJson(['imported' => 1, 'inserted' => 1, 'updated' => 0]);
+
+        $observation['name'] = 'CPI revised by source';
+        $observation['released_at'] = '2024-10-15 08:30:00';
+        $observation['value'] = 1.2;
+        $this->withToken($token)->postJson('/api/data-import/fundamentals/observations', [
+            'observations' => [$observation],
+        ])->assertOk()->assertExactJson(['imported' => 1, 'inserted' => 0, 'updated' => 1]);
+
+        $this->assertDatabaseCount('fundamental_contents', 1);
+        $content = FundamentalContent::query()->sole();
+        $this->assertSame('CPI revised by source', $content->name);
+        $this->assertSame(1.2, $content->value);
+        $this->assertSame('2024-10-15 08:30:00', $content->released_at->format('Y-m-d H:i:s'));
+    }
+
+    public function test_external_fundamental_import_rejects_bad_token_and_stopped_sessions(): void
+    {
+        $fundamental = Fundamental::create(['name' => 'United States Economy']);
+        $payload = ['observations' => [$this->apiObservation()]];
+
+        $this->postJson('/api/data-import/fundamentals/observations', $payload)->assertUnauthorized();
+        $this->withToken('invalid')->postJson('/api/data-import/fundamentals/observations', $payload)->assertUnauthorized();
+
+        $token = $this->startImportSession($fundamental);
+        $session = FundamentalImportSession::query()->sole();
+        $this->post("/workbench/data-import/fundamental-sessions/{$fundamental->id}/{$session->id}/stop")
+            ->assertRedirect('/workbench/data-import');
+        $this->assertDatabaseHas('fundamental_import_sessions', [
+            'id' => $session->id,
+            'status' => 'stopped',
+            'active_fundamental_id' => null,
+        ]);
+
+        $this->withToken($token)->postJson('/api/data-import/fundamentals/observations', $payload)->assertUnauthorized();
+        $this->assertDatabaseCount('fundamental_contents', 0);
+    }
+
+    public function test_external_fundamental_import_rejects_duplicate_batch_keys_and_invalid_observations(): void
+    {
+        $fundamental = Fundamental::create(['name' => 'United States Economy']);
+        $token = $this->startImportSession($fundamental);
+        $observation = $this->apiObservation();
+
+        $this->withToken($token)->postJson('/api/data-import/fundamentals/observations', [
+            'observations' => [$observation, $observation],
+        ])->assertUnprocessable()->assertJsonValidationErrors('observations.1.datetime');
+
+        $invalid = $this->apiObservation();
+        $invalid['code'] = 'CPI-USD';
+        $invalid['datetime'] = '2024-13-40 00:00:00';
+        unset($invalid['value']);
+        $this->withToken($token)->postJson('/api/data-import/fundamentals/observations', [
+            'observations' => [$invalid],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'observations.0.code',
+                'observations.0.datetime',
+                'observations.0.value',
+            ]);
+
+        $this->withToken($token)->postJson('/api/data-import/fundamentals/observations', [
+            'observations' => [],
+        ])->assertUnprocessable()->assertJsonValidationErrors('observations');
+        $this->assertDatabaseCount('fundamental_contents', 0);
+    }
+
+    public function test_fundamental_entity_allows_only_one_active_import_session_until_stopped(): void
+    {
+        $fundamental = Fundamental::create(['name' => 'United States Economy']);
+        $this->startImportSession($fundamental);
+
+        $this->from('/workbench/data-import')
+            ->post('/workbench/data-import/fundamental-sessions', ['fundamental_id' => $fundamental->id])
+            ->assertRedirect('/workbench/data-import')
+            ->assertSessionHasErrors('fundamental');
+
+        $session = FundamentalImportSession::query()->sole();
+        $this->post("/workbench/data-import/fundamental-sessions/{$fundamental->id}/{$session->id}/stop")->assertRedirect();
+        $this->startImportSession($fundamental);
+        $this->assertDatabaseCount('fundamental_import_sessions', 2);
+    }
+
+    private function startImportSession(Fundamental $fundamental): string
+    {
+        $this->post('/workbench/data-import/fundamental-sessions', [
+            'fundamental_id' => $fundamental->id,
+        ])->assertRedirect('/workbench/data-import')->assertSessionHas('fundamental_import_token');
+
+        return (string) session('fundamental_import_token');
+    }
+
     private function pair(MarketType $type, string $base, string $quote): MarketPair
     {
         return MarketPair::create([
@@ -303,5 +547,17 @@ class FundamentalFeatureTest extends TestCase
             'low' => '1.100000',
             'close' => '1.100000',
         ]);
+    }
+
+    /** @return array{code: string, name: string, datetime: string, released_at: string, value: float} */
+    private function apiObservation(): array
+    {
+        return [
+            'code' => 'CPI',
+            'name' => 'Consumer Price Index',
+            'datetime' => '2024-09-01 00:00:00',
+            'released_at' => '2024-10-10 08:30:00',
+            'value' => 1.1,
+        ];
     }
 }

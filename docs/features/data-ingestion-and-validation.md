@@ -13,6 +13,10 @@ CSV/Excel uploader, scheduled sync, public market-price CRUD API, or
 general-purpose file import command. Supported user workflows are described
 in [Data Management](../user-guide/data-management.md).
 
+Fundamental observations use a separate authenticated push endpoint described
+below; they are not candle records and do not use a pair/timeframe import
+session.
+
 ## Manual entry and form validation
 
 `MarketPriceRequest` validates both creates and updates. `pair_id` and
@@ -67,6 +71,58 @@ HTTP 422. Extra fields are not copied into stored price columns.
 There is no explicit all-batch database transaction in the receive action.
 If a storage failure occurs during the repository's multiple update/insert
 operations, callers should inspect persisted records before retrying.
+
+## Authenticated incoming-fundamental API
+
+The Data Import page offers a separate Fundamental observation receiver.
+Select one Fundamental entity there to start its incoming import session. The
+generated 64-character bearer token is stored only as a SHA-256 hash and
+displayed once after the session starts. An entity cannot have another active
+session until the current one is stopped. Stopping a session invalidates its
+token; deleting the entity cascades to its sessions.
+
+`POST /api/data-import/fundamentals/observations` accepts batches of 1–1,000
+observations and is throttled at 120 requests per minute. The entity is
+resolved from the active bearer-token session, not from a submitted
+`fundamental_id`:
+
+```json
+{
+  "observations": [
+    {
+      "code": "CPI",
+      "name": "Consumer Price Index",
+      "datetime": "2024-09-01 00:00:00",
+      "released_at": "2024-10-10 08:30:00",
+      "value": 1.1
+    },
+    {
+      "code": "GDP",
+      "name": "GDP growth",
+      "datetime": "2024-07-01 00:00:00",
+      "released_at": null,
+      "value": {"growth": 2.4, "unit": "percent"}
+    }
+  ]
+}
+```
+
+`code` is normalized to uppercase and must contain letters, digits, or
+underscores, beginning with a letter. `datetime` and non-null `released_at`
+must use exact `Y-m-d H:i:s` timestamps. `value` must be present and can be
+any JSON value, including a scalar, object, array, or `null`. `released_at`
+may be omitted or null; such an observation is stored but remains unavailable
+to strategies. Duplicate `(code, datetime)` keys in one batch are rejected.
+
+Retries are idempotent on `(fundamental_id, code, datetime)`: existing
+observations are updated, including their name, value, and release time. The
+entire batch is stored transactionally. A successful response reports
+`imported`, `inserted`, and `updated` counts. A missing, invalid, or stopped
+token returns HTTP 401; validation errors return HTTP 422. Since the current
+schema has one row per indicator and observation timestamp, an update
+overwrites the prior value rather than preserving a revision/vintage. Do not
+use this upsert behavior for revised source data when historical vintages are
+required to avoid look-ahead bias.
 
 ## Duplicate keys, persistence, and data quality
 

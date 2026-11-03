@@ -13,6 +13,7 @@ $app = NikaidoLaravelApplication::configure(basePath: $projectRoot)
         api: [
             $projectRoot.'/laravel/app/Feature/Backtest/api.php',
             $projectRoot.'/laravel/app/Feature/DataImport/api.php',
+            $projectRoot.'/laravel/app/Feature/Fundamentals/api.php',
         ],
         commands: __DIR__.'/../routes/console.php',
         health: '/up',

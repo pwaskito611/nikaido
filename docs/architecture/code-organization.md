@@ -26,7 +26,7 @@ of working directory.
 | [`MarketPairs`](../../laravel/app/Feature/MarketPairs/) | Pair resource and typed pair definition/quantity data; pair persistence and selection of pair-linked candle history. |
 | [`Timeframes`](../../laravel/app/Feature/Timeframes/) | Timeframe resource, validation, CRUD Actions, model, and repository. |
 | [`MarketPrice`](../../laravel/app/Feature/MarketPrice/) | Candle CRUD, listing/filtering, model relations, and candle queries/import persistence. |
-| [`DataImport`](../../laravel/app/Feature/DataImport/) | Provider ingestion, incoming-session lifecycle, push API, and request validation. |
+| [`DataImport`](../../laravel/app/Feature/DataImport/) | Incoming-session lifecycle, authenticated push API, and request validation. |
 | [`MarketExploration`](../../laravel/app/Feature/MarketExploration/) | Selection and presentation-data preparation for market candles. |
 | [`Backtest`](../../laravel/app/Feature/Backtest/) | Workbench/API backtest entry points, input/configuration, simulation and execution, multi-pair jobs, and saved market-type run records. |
 | [`Evaluation`](../../laravel/app/Feature/Evaluation/) | Workbench backtest-result pages, performance metrics, clustering, Monte Carlo simulation, and fluctuation stress testing. |
@@ -89,16 +89,14 @@ that every operation must pass through every type of component.
   is the Laravel adapter used by the Backtest process. It delegates decisions
   to `Nikaido\Strategy\main()` in [`src/main.php`](../../src/main.php).
   Strategy decisions, signals, and execution context are owned by `src/`.
-- **External market-data provider integration** is represented by
-  [`ExternalMarketDataProvider`](../../laravel/app/Feature/DataImport/Contract/ExternalMarketDataProvider.php).
-  The DataImport Action consumes this contract, while
-  [`AppServiceProvider`](../../laravel/app/Platform/Infrastructure/Providers/AppServiceProvider.php)
-  currently binds it to Alpha Vantage. Replacing the provider means
-  implementing the same normalized candle contract and changing that binding;
-  the current Workbench does not offer provider selection. For owned datasets
-  or a different input format, extend the DataImport ingestion path rather
-  than changing backtest candle processing. Details are in
-  [Data ingestion and validation](../features/data-ingestion-and-validation.md#using-another-provider-or-your-own-market-data).
+- **External market-data feed** enters through the authenticated push API in
+  the DataImport feature. The Workbench issues a temporary bearer token for a
+  selected pair and timeframe; a client is responsible for retrieving and
+  normalizing source data before sending candles. Nikaido has no built-in
+  external-provider connector. For owned datasets or a different input
+  format, build a sender for the existing API rather than changing backtest
+  candle processing. Details are in
+  [Data ingestion and validation](../features/data-ingestion-and-validation.md).
 
 No global Service, UseCase, or generic Repository hierarchy is present in
 these application paths. Component usage varies with the work: the dashboard

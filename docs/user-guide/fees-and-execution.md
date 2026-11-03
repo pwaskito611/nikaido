@@ -123,11 +123,9 @@ execution capacity. Negative or invalid volume is rejected. Tick volume is
 not traded quantity and is never substituted: a candle explicitly marked
 `tick` causes volume-mode execution to fail with an explanation. The volume
 must use the engine's execution quantity units; lot quantities are normalized
-using the pair's configured contract size. The current Alpha Vantage FX
-connector supplies no volume, so those imported candles cannot execute in
-volume mode unless traded volume is provided separately. The model still does
-not simulate order-book depth, queue priority, market impact, or minimum lot
-steps.
+using the pair's configured contract size. Volume must be supplied as
+explicitly marked traded volume by the data sender. The model still does not
+simulate order-book depth, queue priority, market impact, or minimum lot steps.
 
 Transaction costs are recorded against fills and deducted from the simulated
 capital/P&L. Entry costs are deducted when entry fills occur. Exit costs and

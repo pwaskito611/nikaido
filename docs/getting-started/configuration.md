@@ -72,9 +72,7 @@ not populated in `.env.example`.
 
 `STRATEGY_SERVICE_URL` is present in `.env.example`, but a search of the current
 application code found no runtime reference to it. It does not select or
-configure the included strategy. The strategy credential for Alpha Vantage is
-entered for an individual import request in the Data Import page and is not
-saved by the application.
+configure the included strategy.
 
 ## Database setup and verification
 
@@ -158,12 +156,10 @@ places, and checks that the timestamp is unique for the selected pair and
 timeframe. The incoming-data API additionally checks candle high/low
 consistency.
 
-Data can be created in the Market Prices Workbench, imported through the
-Alpha Vantage FX connector, or pushed to a short-lived bearer-token API
-session. Alpha Vantage's connector supports daily, weekly, and monthly data,
-minute intervals of 1, 5, 15, 30, or 60 minutes, and whole-hour intervals
-that divide 24. Provider coverage and limits apply. Provider-imported candles
-contain generic OHLC; they do not include synthesized bid/ask data.
+Data can be created in the Market Prices Workbench or sent to a short-lived
+bearer-token API session. The Data Import page waits for the sender and does
+not fetch provider data. Feed clients should normalize their source data to
+the API's candle format before sending.
 
 The strategy needs 200 candles before it can evaluate its trend filter. The
 repository includes up to 200 earlier candles as warm-up data before the

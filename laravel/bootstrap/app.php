@@ -3,7 +3,6 @@
 use App\Platform\Console\Commands\NikaidoStartCommand;
 use App\Platform\Console\Commands\NikaidoStopCommand;
 use App\Platform\Infrastructure\NikaidoLaravelApplication;
-use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 
 $projectRoot = dirname(__DIR__, 2);
@@ -25,8 +24,7 @@ $app = NikaidoLaravelApplication::configure(basePath: $projectRoot)
     ->withMiddleware(function (Middleware $middleware): void {
         //
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->dontFlash('external_provider_credential');
-    })->create();
+    ->withExceptions()
+    ->create();
 
 return $app;

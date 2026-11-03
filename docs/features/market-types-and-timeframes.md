@@ -24,9 +24,9 @@ Likewise, the market-price pair/timeframe/timestamp uniqueness rule is
 request/import logic rather than a database composite constraint.
 
 Timeframe names are free-form aside from required, trimmed, unique, and
-maximum length. This is intentional for local/manual or push candle sets, but
-the Alpha Vantage connector supports only specific labels. Its provider
-mapping is detailed in [Data ingestion and validation](data-ingestion-and-validation.md).
+maximum length. Data senders must map their source intervals to the selected
+timeframe; the incoming receiver does not resample or validate interval
+spacing.
 
 ## Relationships and deletion
 
@@ -55,12 +55,10 @@ selected timeframe inside the date range; excluded pair IDs are skipped.
 Rows are traversed by timestamp then database ID. The timeframe label does
 not cause interval verification, timezone conversion, or resampling.
 
-The import page uses the pair and timeframe selectors for both provider pulls
-and push receiver sessions. External Alpha Vantage integration converts the
-timeframe name to one of its known interval mappings; an otherwise valid
-timeframe name may be unsupported for that connector. A push session binds
-the pair/timeframe IDs directly and accepts timestamps using the API's
-specified date format, without checking interval spacing.
+The import page uses the pair and timeframe selectors to create push receiver
+sessions. A session binds the pair/timeframe IDs directly and accepts
+timestamps using the API's specified date format, without checking interval
+spacing.
 
 ## Operations, errors, and verification
 

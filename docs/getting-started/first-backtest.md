@@ -132,16 +132,11 @@ test.
 
 For a research backtest, create a market type, a market pair, and a timeframe
 through the corresponding Workbench pages, then open `/workbench/data-import`.
-The Alpha Vantage FX connector requires a provider credential for that request;
-the credential is not stored by Nikaido. Its available history and request
-limits are external prerequisites, so results depend on the supplied source.
-Confirm that at least 200 warm-up candles precede the selected test range and
-that the desired test range contains candles.
-
-Alternatively, use the incoming-candle receiver on the Data Import page. Start
-a session for one pair and timeframe, copy the bearer token while it is shown
-(it is displayed only once), and POST OHLC data to
-`/api/data-import/candles`. A request body can look like this:
+Start an incoming-candle session for the pair and timeframe, copy the bearer
+token while it is shown (it is displayed only once), and have your data sender
+POST normalized OHLC data to `/api/data-import/candles`. Confirm that at least
+200 warm-up candles precede the selected test range and that the desired test
+range contains candles. A request body can look like this:
 
 ```json
 {

@@ -70,11 +70,9 @@ timeframe. A market-type backtest selects pairs belonging to that type which
 have price records for the selected timeframe and requested date range.
 Backtest code selects a timeframe by ID, not by parsing its name.
 
-The Alpha Vantage connector is an exception to the otherwise free-form
-timeframe labels: it maps a limited set of names to provider intervals. A
-timeframe record can therefore be valid for manual data or push imports but
-unsupported by the external connector. The connector's supported names and
-aggregation are documented in [Data Management](data-management.md).
+Timeframe names are labels used to select candle data; the push receiver
+associates candles with the selected timeframe but does not resample or check
+the spacing between timestamps.
 
 Market types are organizational metadata, not activation of special trading
 rules for FX, crypto, equities, or futures. Market mechanics depend on the

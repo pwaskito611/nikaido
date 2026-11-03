@@ -6,11 +6,12 @@ and error handling, see [Data Management](data-management.md). Creating market
 groups and interval labels is covered in
 [Market Types and Timeframes](market-types-and-timeframes.md).
 
-Nikaido backtests consume stored candles. A provider connector or accepted
-upload does not certify that prices are complete, correctly adjusted, or
-representative of executable market prices. Current input paths are manual
-Workbench entry, the Alpha Vantage FX connector, and the authenticated
-incoming-candle API; there is no CSV/Excel import or general market-data API.
+Nikaido backtests consume stored candles. Data can be entered manually in the
+Workbench or sent to its authenticated incoming-candle API. The Data Import
+page waits for the application user's sender; it does not fetch or poll a
+third-party provider. Received data is not certified as complete, correctly
+adjusted, or representative of executable market prices. There is no
+CSV/Excel import or general market-data CRUD API.
 
 ## Stored candle structure
 
@@ -26,21 +27,17 @@ omitted. `price_at_8` is not used by the strategy or execution logic.
 The optional `volume` column stores candle volume with a `volume_type` of
 `traded` or `tick`; both fields are nullable. Manual entry and the push API
 preserve this distinction, and the push API requires a type whenever volume
-is supplied. The Alpha Vantage FX connector provides no volume, so its
-imported candles have no execution-volume capacity. Volume-based partial fills
-use only `traded` values and require them to match the backtest engine's
-execution quantity units. Untyped volume is unavailable, and tick volume is
-never treated as traded quantity.
+is supplied. Volume-based partial fills use only `traded` values and require
+them to match the backtest engine's execution quantity units. Untyped volume
+is unavailable, and tick volume is never treated as traded quantity.
 
 The input paths have different validation boundaries. The manual form
 requires positive prices with at most six decimal places but does not check
 candle high/low consistency. The push API allows numeric values from zero
 through 999999.999999 and checks general OHLC consistency; it checks bid/ask
-consistency only when all four values on one side are present. The provider
-connector checks numeric OHLC structure and timestamps but does not enforce
-the same high/low-consistency rule as the push API. Provide positive finite
-prices and internally consistent general and quote OHLC regardless of the
-input path.
+consistency only when all four values on one side are present. Provide
+positive finite prices and internally consistent general and quote OHLC
+regardless of the input path.
 
 General OHLC values are the strategy's primary candle data. The strategy
 needs numeric `close` values for its indicators. The execution process uses
@@ -69,8 +66,8 @@ still run, but the supplied strategy returns no signals until it has enough
 indicator history. No rows are synthesized for missing timestamps.
 
 Manual market-price validation rejects a duplicate pair/timeframe/timestamp
-key, and the push/provider import paths update an existing candle for that
-key. The database itself has no composite unique constraint for this key, so
+key, and the push API updates an existing candle for that key. The database
+itself has no composite unique constraint for this key, so
 direct writers may still create duplicates. If duplicates exist, the
 backtest's ID tie-break makes processing order deterministic but does not make
 duplicate market data valid.

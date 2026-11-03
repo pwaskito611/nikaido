@@ -31,10 +31,10 @@ The root `artisan` wrapper preserves administrative commands and delegates to
 | [`MarketPairs`](../../laravel/app/Feature/MarketPairs/) | Pair definitions, persistence, relationships, and market-data selection. |
 | [`Timeframes`](../../laravel/app/Feature/Timeframes/) | Timeframe Workbench endpoints and persistence. |
 | [`MarketPrice`](../../laravel/app/Feature/MarketPrice/) | Market-price CRUD, candle queries, and import persistence. |
-| [`DataImport`](../../laravel/app/Feature/DataImport/) | External/pushed data ingestion and import-session handling. |
+| [`DataImport`](../../laravel/app/Feature/DataImport/) | Authenticated pushed-data ingestion and import-session handling. |
 | [`MarketExploration`](../../laravel/app/Feature/MarketExploration/) | Market selection and candle data preparation for the Workbench. |
 | [`Dashboard`](../../laravel/app/Feature/Dashboard/) | Workbench landing page. |
-| [`Laravel infrastructure`](../../laravel/app/Platform/) | Laravel-specific strategy bridge, process commands, and service-provider bindings. |
+| [`Laravel infrastructure`](../../laravel/app/Platform/) | Laravel-specific strategy bridge and process commands. |
 
 ## Bootstrap and execution
 

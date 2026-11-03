@@ -55,11 +55,10 @@ gap-filling procedure.
 
 ## Available input paths and constraints
 
-The Workbench supports manual records, the implemented Alpha Vantage FX
-import flow, and the incoming-candle receiver. The external provider
-integration is specifically an FX request path; it does not imply support for
-other vendors, file formats, exchanges, or asset classes. Provider availability
-and historical depth are external constraints. See
+The Workbench supports manual records and the incoming-candle receiver. The
+receiver accepts data sent by an external client, but Nikaido does not fetch
+from a provider or transform provider-specific formats. Data availability and
+historical depth depend on the configured sender. See
 [market data](../user-guide/market-data.md) for ingestion usage and validation
 differences.
 

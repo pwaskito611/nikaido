@@ -7,52 +7,11 @@
         <div>
             <span class="eyebrow">MARKET DATA / IMPORT</span>
             <h1>Data import</h1>
-            <p>Pull candles from an external data provider or enable a short-lived API receiver.</p>
+            <p>Start a short-lived API receiver and send candle data to the application.</p>
         </div>
     </div>
 
     <div class="data-import-grid">
-        <section class="data-panel">
-            <div class="panel-top">
-                <div><span class="eyebrow">EXTERNAL PROVIDER</span><h2>Pull from data provider</h2></div>
-                <span class="record-count">ON DEMAND</span>
-            </div>
-            <form method="POST" action="{{ route('workbench.data-import.external-provider') }}" class="data-import-form">
-                @csrf
-                <label class="data-import-field">
-                    <span>Market pair</span>
-                    <select class="text-input" name="pair_id" required>
-                        <option value="">Select pair</option>
-                        @foreach ($marketPairs as $marketPair)
-                            <option value="{{ $marketPair->id }}" @selected((string) old('pair_id') === (string) $marketPair->id)>
-                                {{ $marketPair->base }}/{{ $marketPair->quote }}
-                            </option>
-                        @endforeach
-                    </select>
-                </label>
-                <label class="data-import-field">
-                    <span>Timeframe</span>
-                    <select class="text-input" name="timeframe_type_id" required>
-                        <option value="">Select timeframe</option>
-                        @foreach ($timeframes as $timeframe)
-                            <option value="{{ $timeframe->id }}" @selected((string) old('timeframe_type_id') === (string) $timeframe->id)>
-                                {{ $timeframe->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </label>
-                <label class="data-import-field data-import-full">
-                    <span>Provider credential</span>
-                    <input class="text-input" name="external_provider_credential" type="password" autocomplete="off" required>
-                    <small>The credential is sent to the configured external provider for this request and is not saved by this application.</small>
-                </label>
-                <div class="data-import-full data-import-note">
-                    Imports the external provider's available history for the selected pair and timeframe. If the provider returns general OHLC only, bid/ask columns remain null rather than being synthesized.
-                </div>
-                <button class="button button-primary data-import-full" type="submit">Pull provider data <span>→</span></button>
-            </form>
-        </section>
-
         <section class="data-panel">
             <div class="panel-top">
                 <div><span class="eyebrow">PUSH API</span><h2>Receive data via API</h2></div>

@@ -37,7 +37,6 @@ the current directory layout.
 | Evaluation: `BacktestClusterAnalysisProcess` | Loops selected orders/fills into capital movements, manually sorted them, and iterated chart points; order matching looped through exit fills. | Query min/max and filtering for cluster bounds, flatten/map/sort for movements, and project chart coordinates with Query; keep sequential net capital as ordered collection aggregation. | Changed — `REFACTOR` | Separates collection selection/projection/order from the order-dependent capital sequence. |
 | Evaluation: `FluctuationStressTestProcess` | A loop generated scenario orders and accumulated capital; repeated collection filters/folds calculated summary metrics and a long sequence appended metric objects. | Use Query `fold` for scenario capital and drawdown state, `sum` and `countBy` for metrics, and map metric definitions into Exact data. | Changed — `REFACTOR` | State transitions remain explicitly ordered reducers while in-memory selection, grouping, and output construction use Exact. |
 | Evaluation: `MonteCarloSimulationProcess` | Loop-based value ordering and repeated full-list filters built histogram bins. | Query stable value sorting and one-pass `countBy` histogram bucketing. | Changed — `REFACTOR` | These are pure collection transformations; random sampling and equity simulation remain sequential. |
-| DataImport: `AlphaVantageDataProvider` | Laravel `collect()` searched response keys; `usort` and a mutable bucket loop ordered/aggregated hourly candles. | Exact Query searches the response keys, sorts decoded candles, groups hourly values with `groupFold`, then sorts the serialized output. | Changed — `REFACTOR` / `KEEP` | Parsing/validation remains explicit at the external payload boundary; collection lookup and aggregation use Exact; provider output remains an array. |
 | Backtest: `CombineMarketTypeBacktestResultsAction` cost-component normalization | A loop filtered keyed cost-configuration entries and capital totals used manual folds. | Use Exact `Map`/`Query` to filter keyed config and Exact Query sums/averages. | Changed — `REFACTOR` | The operation is pure in-memory collection processing; the configuration and result output shapes remain arrays. |
 | Dashboard | Direct static view rendering; no application collection pipeline. | Keep as-is. | `KEEP` | No collection processing to replace. |
 | DataImport provider, HTTP/FormRequests, repository writes, Eloquent models, and serialized results | Arrays and loops decode external provider input, validate fixed request fields, form database writes, and represent persisted/JSON structures. | Keep arrays at those boundaries; use Exact after data becomes an internal collection where useful. | `KEEP` / `EXCEPTION` | These arrays express external/framework/storage shapes or drive side-effectful batch writes; replacing them would add conversions without clarifying contracts. |
@@ -59,10 +58,10 @@ the current directory layout.
   from the results view.
 - A follow-up pass over `src/Feature/` moved cluster analysis movement
   selection/sorting/chart projection, stress-test aggregation and scenario
-  state, Monte Carlo sorting/histogram bucketing, Alpha Vantage key lookup and
-  hourly grouping, and portfolio cost-component selection to Exact Query.
+  state, Monte Carlo sorting/histogram bucketing, and portfolio
+  cost-component selection to Exact Query.
 - Pagination, SQL-side filtering/ordering, queue dispatch, persistence arrays,
-  provider data, and chart JSON contracts remain Laravel/native where they
+  API request data, and chart JSON contracts remain Laravel/native where they
   are the appropriate boundary.
 
 ## Performance, tests, and remaining work

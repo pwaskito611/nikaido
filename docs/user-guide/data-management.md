@@ -83,41 +83,25 @@ Single-pair results are held in the browser session, while market-type runs
 persist copied results; changing candles does not rewrite those copied
 results.
 
-## Import provider history
+## Feed data through the API
 
-Open **Data Import** (`/workbench/data-import`), choose a pair and timeframe,
-enter the provider credential, then choose **Pull provider data**. The form
-posts to `/workbench/data-import/external-provider`. The credential is
-required, sent to the provider for that request, and removed from the request
-input so it is not retained in session old input or persisted with market
-records.
+The Data Import page (`/workbench/data-import`) waits for a data sender; it
+does not request or poll an external provider. Choose a pair and timeframe,
+then select **Start receiving**. Copy the bearer token shown once and have
+your client POST normalized candles to `/api/data-import/candles`. The token
+is valid only for the selected pair/timeframe and can be invalidated by
+stopping the session. The page shows the API request shape and active/recent
+receiver sessions.
 
-The only built-in external connector is Alpha Vantage FX. It requests the
-provider's available history for the selected pair and timeframe; it does not
-allow a user-selected date range. The connector supports timeframe labels
-recognized by its mapping: daily (`1d`, `daily`, `day`), weekly (`1w`,
-`weekly`, `week`), monthly (`1mo`, `monthly`, `month`), minute values 1, 5,
-15, 30, or 60 minutes, and whole-hour values from 1 through 24 that divide
-24. Other labels fail validation. Hourly provider candles are grouped into
-the requested number of hours; daily/weekly/monthly data is imported as
-returned. Alpha Vantage supplies general OHLC only, so bid/ask fields remain
-null.
+The sender is responsible for retrieving its data, normalizing timestamps and
+OHLC values, and including explicit `volume_type` when sending volume.
+Nikaido accepts general OHLC and optional bid/ask OHLC; volume can be marked
+`traded` or `tick`. Tick volume is never substituted for traded quantity.
+See [Data ingestion and validation](../features/data-ingestion-and-validation.md)
+for request limits, validation, authentication, and duplicate handling.
 
-The provider payload must contain numeric OHLC fields and valid date/time
-strings in the expected provider format. Network connection errors, HTTP
-errors, provider `Error Message`/`Information`/`Note`, unsupported intervals,
-empty responses, and malformed candles are reported as errors and no
-successful completion message is shown. Provider limits, credential validity,
-and historical coverage are external dependencies. Successful import
-redirects to Data Import and reports the number of candles inserted or
-updated.
-
-For a concrete Alpha Vantage request and an example of how its response is
-normalized into stored candles, see
-[Data ingestion and validation](../features/data-ingestion-and-validation.md#example-alpha-vantage-daily-eurusd).
-That page also explains how a developer can replace the current provider
-binding or build an importer for privately owned data. The current application
-does not provide a CSV/Excel upload or a runtime provider selector.
+There is no built-in provider integration or CSV/Excel upload. For manual
+correction or a small data set, use the Market Prices form.
 
 ## Receive candle batches through the push API
 
@@ -178,16 +162,14 @@ selection.
 Push submissions cannot repeat a timestamp within the same batch due to the
 `distinct` validation. If a later request sends the same timestamp for the
 same pair and timeframe, import updates that stored candle rather than adding
-a second row. The external-provider import uses the same insert-or-update
-repository path. When repeated keys occur inside a prepared import array, the
-last value wins during in-memory keying.
+a second row.
 
 The manual form rejects duplicate pair/timeframe/timestamp keys at validation
 time. The database schema does not declare a composite unique constraint for
 those fields, so other direct database writers are not protected by a
 database-level uniqueness guarantee. Review existing records in Market Prices
-before relying on uniqueness. Manual entry and provider ingestion do not
-apply the push API's complete OHLC-consistency checks.
+before relying on uniqueness. Manual entry does not apply the push API's
+complete OHLC-consistency checks.
 
 None of the supported ingestion paths establishes that a feed is complete,
 correctly adjusted, or suitable for a trading simulation. See
@@ -206,8 +188,6 @@ end-user import workflow.
 For a failed operation:
 
 - Check Laravel validation messages on the returned Workbench form.
-- For provider imports, verify the credential, connection, provider quota,
-  selected pair/timeframe, and the exact timeframe-label mapping.
 - For a 401 push response, check that the bearer token is copied exactly and
   its receiver session is still active.
 - For a 422 push response, check timestamp format, batch size, numeric bounds,

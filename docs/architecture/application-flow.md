@@ -208,12 +208,11 @@ failure behavior are described in the
 
 ## Data ingestion entry points
 
-The DataImport web controller routes manual operator actions to Actions. For
-external imports, the `ExternalMarketDataProvider` interface is resolved via
-the platform service-provider binding and the resulting candles are written
-through `MarketPriceRepository`. The push API validates a bearer-authenticated
-session and candle payload, then follows a separate Action path to the same
-price repository. Refer to
+The DataImport web controller routes manual receiver-session actions to
+Actions. The push API validates a bearer-authenticated session and candle
+payload, then writes normalized candles through `MarketPriceRepository`.
+Nikaido does not fetch from external providers; sending clients retrieve and
+normalize source data before posting. Refer to
 [data ingestion and validation](../features/data-ingestion-and-validation.md)
 for source-specific behavior, and
 [Routes and controllers](../reference/routes-and-controllers.md) for the

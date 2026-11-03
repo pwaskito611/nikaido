@@ -12,6 +12,4 @@ Route::prefix('workbench')->name('workbench.')->group(function (): void {
     Route::post('/data-import/incoming-sessions/{sessionId}/stop', [DataImportController::class, 'stopIncoming'])
         ->whereNumber('sessionId')
         ->name('data-import.incoming-sessions.stop');
-    Route::post('/data-import/external-provider', [DataImportController::class, 'importExternalProvider'])
-        ->name('data-import.external-provider');
 });

@@ -10,7 +10,6 @@ use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Feature\MarketTypes\Model\MarketType;
 use App\Feature\Timeframes\Model\TimeframeType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class DataImportFeatureTest extends TestCase
@@ -28,9 +27,10 @@ class DataImportFeatureTest extends TestCase
             ->assertSee('ask_close', false)
             ->assertSee('Bid/ask fields are optional.', false)
             ->assertSee('volume_type', false)
-            ->assertSee('Pull from data provider')
-            ->assertSee('Provider credential')
-            ->assertDontSee('Alpha Vantage');
+            ->assertSee('Start a short-lived API receiver')
+            ->assertDontSee('external_provider_credential')
+            ->assertDontSee('Pull from data provider');
+        $this->post('/workbench/data-import/external-provider', [])->assertNotFound();
         $this->postJson('/api/data-import/candles', [
             'candles' => [$this->candle()],
         ])->assertUnauthorized();
@@ -152,97 +152,6 @@ class DataImportFeatureTest extends TestCase
             ->assertSessionHasErrors('timeframe');
         $this->assertDatabaseHas('market_pair', ['id' => $pair->id]);
         $this->assertDatabaseHas('timeframe_type', ['id' => $timeframe->id]);
-    }
-
-    public function test_external_provider_imports_selected_daily_ohlc_without_saving_the_entered_credential(): void
-    {
-        [$pair, $timeframe] = $this->createImportTarget('1d');
-        Http::fake([
-            'www.alphavantage.co/query*' => Http::response([
-                'Meta Data' => [],
-                'Time Series FX (Daily)' => [
-                    '2026-10-12' => [
-                        '1. open' => '1.100000',
-                        '2. high' => '1.150000',
-                        '3. low' => '1.090000',
-                        '4. close' => '1.120000',
-                    ],
-                ],
-            ]),
-        ]);
-
-        $this->post('/workbench/data-import/external-provider', [
-            'pair_id' => $pair->id,
-            'timeframe_type_id' => $timeframe->id,
-            'external_provider_credential' => 'temporary-test-secret',
-        ])->assertRedirect('/workbench/data-import')
-            ->assertSessionHas('status', 'External provider import complete: 1 candles inserted or updated.')
-            ->assertSessionMissing('external_provider_credential');
-
-        Http::assertSent(fn ($request): bool => $request['apikey'] === 'temporary-test-secret'
-            && $request['function'] === 'FX_DAILY'
-            && $request['from_symbol'] === 'EUR'
-            && $request['to_symbol'] === 'USD');
-
-        $price = MarketPrice::query()->sole();
-        $this->assertSame('1.100000', $price->open);
-        $this->assertNull($price->ask_high);
-        $this->assertNull($price->bid_low);
-    }
-
-    public function test_provider_hourly_data_is_aggregated_to_the_selected_four_hour_timeframe(): void
-    {
-        [$pair, $timeframe] = $this->createImportTarget('4h');
-        Http::fake([
-            'www.alphavantage.co/query*' => Http::response([
-                'Time Series FX (60min)' => [
-                    '2026-10-12 03:00:00' => ['1. open' => '1.3', '2. high' => '1.4', '3. low' => '1.2', '4. close' => '1.35'],
-                    '2026-10-12 02:00:00' => ['1. open' => '1.25', '2. high' => '1.36', '3. low' => '1.21', '4. close' => '1.3'],
-                    '2026-10-12 01:00:00' => ['1. open' => '1.2', '2. high' => '1.31', '3. low' => '1.15', '4. close' => '1.25'],
-                    '2026-10-12 00:00:00' => ['1. open' => '1.1', '2. high' => '1.25', '3. low' => '1.05', '4. close' => '1.2'],
-                    '2026-10-11 23:00:00' => ['1. open' => '1.0', '2. high' => '1.15', '3. low' => '0.95', '4. close' => '1.1'],
-                ],
-            ]),
-        ]);
-
-        $this->post('/workbench/data-import/external-provider', [
-            'pair_id' => $pair->id,
-            'timeframe_type_id' => $timeframe->id,
-            'external_provider_credential' => 'hourly-test-key',
-        ])->assertRedirect('/workbench/data-import')
-            ->assertSessionHas('status', 'External provider import complete: 2 candles inserted or updated.');
-
-        $candles = MarketPrice::query()->orderBy('price_date')->get();
-        $this->assertCount(2, $candles);
-        $this->assertSame('2026-10-11 20:00:00', $candles[0]->price_date->format('Y-m-d H:i:s'));
-        $this->assertSame('1.000000', $candles[0]->open);
-        $this->assertSame('1.150000', $candles[0]->high);
-        $this->assertSame('0.950000', $candles[0]->low);
-        $this->assertSame('1.100000', $candles[0]->close);
-        $this->assertSame('2026-10-12 00:00:00', $candles[1]->price_date->format('Y-m-d H:i:s'));
-        $this->assertSame('1.100000', $candles[1]->open);
-        $this->assertSame('1.400000', $candles[1]->high);
-        $this->assertSame('1.050000', $candles[1]->low);
-        $this->assertSame('1.350000', $candles[1]->close);
-    }
-
-    public function test_external_provider_error_is_reported_in_the_import_form(): void
-    {
-        [$pair, $timeframe] = $this->createImportTarget('1d');
-        Http::fake([
-            'www.alphavantage.co/query*' => Http::response(['Note' => 'API call frequency limit reached.']),
-        ]);
-
-        $this->from('/workbench/data-import')
-            ->post('/workbench/data-import/external-provider', [
-                'pair_id' => $pair->id,
-                'timeframe_type_id' => $timeframe->id,
-                'external_provider_credential' => 'temporary-test-secret',
-            ])->assertRedirect('/workbench/data-import')
-            ->assertSessionHasErrors('external_provider_credential');
-
-        $this->assertFalse(session()->hasOldInput('external_provider_credential'));
-        $this->assertDatabaseCount('market_price', 0);
     }
 
     /**

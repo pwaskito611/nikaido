@@ -7,11 +7,15 @@ namespace App\Feature\MarketPairs\Repository;
 use App\Feature\MarketPairs\Data\MarketPairDefinition;
 use App\Feature\MarketPairs\Data\MarketPairMarketData;
 use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
+use App\Feature\MarketPairs\Data\RelatedMarketPairMarketData;
 use App\Feature\MarketPairs\Model\MarketPair;
+use App\Feature\MarketPrice\Model\MarketPrice;
 use DateTimeInterface;
 use Exact\Collection\LazySeq;
 use Exact\Collection\Vec;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use UnexpectedValueException;
 
 class MarketPairRepository
@@ -28,7 +32,7 @@ class MarketPairRepository
     public function findOrFail(int $id): MarketPair
     {
         return $this->model->newQuery()
-            ->with(['marketType'])
+            ->with(['marketType', 'relatedPairs'])
             ->withCount('prices')
             ->findOrFail($id);
     }
@@ -71,15 +75,34 @@ class MarketPairRepository
 
     public function create(MarketPairDefinition $definition): MarketPair
     {
-        return $this->model->newQuery()->create($this->attributesFrom($definition));
+        if ($definition->relatedMarketPairs === null) {
+            return $this->model->newQuery()->create($this->attributesFrom($definition));
+        }
+
+        return DB::transaction(function () use ($definition): MarketPair {
+            $pair = $this->model->newQuery()->create($this->attributesFrom($definition));
+            $this->syncRelatedPairs($pair, $definition->relatedMarketPairs ?? []);
+
+            return $pair;
+        });
     }
 
     public function update(int $id, MarketPairDefinition $definition): MarketPair
     {
-        $record = $this->model->newQuery()->findOrFail($id);
-        $record->update($this->attributesFrom($definition));
+        if ($definition->relatedMarketPairs === null) {
+            $record = $this->model->newQuery()->findOrFail($id);
+            $record->update($this->attributesFrom($definition));
 
-        return $record;
+            return $record;
+        }
+
+        return DB::transaction(function () use ($id, $definition): MarketPair {
+            $record = $this->model->newQuery()->findOrFail($id);
+            $record->update($this->attributesFrom($definition));
+            $this->syncRelatedPairs($record, $definition->relatedMarketPairs ?? []);
+
+            return $record;
+        });
     }
 
     /**
@@ -113,15 +136,57 @@ class MarketPairRepository
             ->where('base', strtoupper($base))
             ->where('quote', strtoupper($quote))
             ->when($marketPairId !== null, fn ($query) => $query->whereKey($marketPairId))
+            ->with('relatedPairs')
             ->orderBy('id')
             ->firstOrFail();
 
+        $relatedMarketPairs = [];
+        foreach ($pair->relatedPairs as $relatedPair) {
+            $relatedTimeframeTypeId = $relatedPair->pivot->timeframe_type_id === null
+                ? $timeframeTypeId
+                : (int) $relatedPair->pivot->timeframe_type_id;
+            $relatedMarketPairs[] = new RelatedMarketPairMarketData(
+                marketPairId: (int) $relatedPair->id,
+                base: $relatedPair->base,
+                quote: $relatedPair->quote,
+                timeframeTypeId: $relatedTimeframeTypeId,
+                candles: $this->candlesBetween($relatedPair, $from, $to, $relatedTimeframeTypeId),
+            );
+        }
+        $candles = $this->candlesBetween($pair, $from, $to, $timeframeTypeId);
+
+        $quantityUnitValue = $pair->quantity_unit ?? MarketPairQuantityUnit::Units->value;
+        $quantityUnit = MarketPairQuantityUnit::tryFrom($quantityUnitValue);
+        if ($quantityUnit === null) {
+            throw new UnexpectedValueException("Unsupported market pair quantity unit: {$quantityUnitValue}.");
+        }
+        $contractSize = is_numeric($pair->contract_size) ? (string) $pair->contract_size : '1';
+
+        return new MarketPairMarketData(
+            candles: $candles,
+            quantityUnit: $quantityUnit,
+            contractSize: $contractSize,
+            marketPairId: (int) $pair->id,
+            base: $pair->base,
+            quote: $pair->quote,
+            relatedMarketPairs: $relatedMarketPairs,
+        );
+    }
+
+    /**
+     * @return Vec<MarketPrice>
+     */
+    private function candlesBetween(
+        MarketPair $pair,
+        DateTimeInterface $from,
+        DateTimeInterface $to,
+        ?int $timeframeTypeId,
+    ): Vec {
         $warmupQuery = $pair->prices()
             ->where('price_date', '<', $from)
             ->orderByDesc('price_date')
             ->orderByDesc('id')
             ->limit(200);
-
         $pricesQuery = $pair->prices()
             ->whereBetween('price_date', [$from, $to])
             ->orderBy('price_date')
@@ -132,22 +197,26 @@ class MarketPairRepository
             $pricesQuery->where('timeframe_type_id', $timeframeTypeId);
         }
 
-        $warmupPrices = Vec::fromArray($warmupQuery->get()->all())->reverse();
-        $prices = Vec::fromArray($pricesQuery->get()->all());
+        return Vec::fromArray($warmupQuery->get()->all())
+            ->reverse()
+            ->concat(Vec::fromArray($pricesQuery->get()->all()));
+    }
 
-        $quantityUnitValue = $pair->quantity_unit ?? MarketPairQuantityUnit::Units->value;
-        $quantityUnit = MarketPairQuantityUnit::tryFrom($quantityUnitValue);
-        if ($quantityUnit === null) {
-            throw new UnexpectedValueException("Unsupported market pair quantity unit: {$quantityUnitValue}.");
+    /** @param array<int, int|null> $relatedMarketPairs */
+    private function syncRelatedPairs(MarketPair $pair, array $relatedMarketPairs): void
+    {
+        if (array_key_exists((int) $pair->id, $relatedMarketPairs)
+            && $relatedMarketPairs[(int) $pair->id] === null) {
+            throw ValidationException::withMessages([
+                'related_market_pair_ids' => 'A market pair requires an explicit timeframe when related to itself.',
+            ]);
         }
-        $contractSize = is_numeric($pair->contract_size) ? (string) $pair->contract_size : '1';
-        $candles = $warmupPrices->concat($prices);
 
-        return new MarketPairMarketData(
-            candles: $candles,
-            quantityUnit: $quantityUnit,
-            contractSize: $contractSize,
-        );
+        $syncData = [];
+        foreach ($relatedMarketPairs as $relatedMarketPairId => $timeframeTypeId) {
+            $syncData[$relatedMarketPairId] = ['timeframe_type_id' => $timeframeTypeId];
+        }
+        $pair->relatedPairs()->sync($syncData);
     }
 
     /**

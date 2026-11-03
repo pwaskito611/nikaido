@@ -28,6 +28,7 @@ use Iterator;
 use IteratorIterator;
 use LogicException;
 use Nikaido\Strategy\Enums\StrategySignal;
+use Nikaido\Strategy\Models\RelatedMarketPairData;
 use Nikaido\Strategy\Models\StrategyDecision;
 use Nikaido\Strategy\Models\StrategyExecutionContext;
 use Traversable;
@@ -54,10 +55,26 @@ class SpecificPairBacktestProcess
         $configuredQuantityMultiplier = $marketData->contractSize;
         $quantityMultiplier = $quantityUnit === 'units' ? 1.0 : (float) $configuredQuantityMultiplier;
         $candles = $marketData->candles;
+        $relatedMarketPairs = [];
+        foreach ($marketData->relatedMarketPairs as $relatedPair) {
+            $relatedMarketPairs[$relatedPair->marketPairId] = new RelatedMarketPairData(
+                $relatedPair->marketPairId,
+                $relatedPair->base,
+                $relatedPair->quote,
+                $relatedPair->timeframeTypeId,
+                $relatedPair->candles,
+            );
+        }
         $context = new StrategyExecutionContext(
             $config->initialCapital,
             $quantityUnit,
             $quantityMultiplier,
+            $marketData->marketPairId,
+            $marketData->base !== null && $marketData->quote !== null
+                ? $marketData->base.'/'.$marketData->quote
+                : null,
+            $relatedMarketPairs,
+            $config->timeframeTypeId,
         );
         $decisions = $this->strategy->execute($candles, $context);
 

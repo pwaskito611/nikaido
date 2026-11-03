@@ -13,5 +13,13 @@
         <div class="detail-card"><span class="eyebrow">PAIR ID</span><strong class="mono">MP-{{ str_pad((string) $marketPair->id, 4, '0', STR_PAD_LEFT) }}</strong></div>
         <div class="detail-card"><span class="eyebrow">STRATEGY QUANTITY</span><strong>{{ match ($marketPair->quantity_unit ?? 'units') { 'contract' => 'Contracts', 'lot' => 'Lots', default => 'Units / shares / quantity' } }}</strong><span class="detail-caption">{{ ($marketPair->quantity_unit ?? 'units') === 'contract' ? number_format((float) $marketPair->contract_size, 8).' quote-currency units per price point per contract' : ((($marketPair->quantity_unit ?? 'units') === 'lot') ? number_format((float) $marketPair->contract_size, 8).' units per lot' : 'Strategy quantity is used directly') }}</span></div>
     </div>
+    <section class="form-panel" style="margin-top:20px">
+        <div class="panel-top"><div><span class="eyebrow">STRATEGY DATA DEPENDENCIES</span><h2>Related Market Pairs</h2></div></div>
+        @forelse ($marketPair->relatedPairs as $relatedPair)
+            <span class="tag">{{ $relatedPair->base }}/{{ $relatedPair->quote }}</span>
+        @empty
+            <p class="field-hint">No related market pairs configured.</p>
+        @endforelse
+    </section>
     <div class="inline-warning">A market pair cannot be deleted while it has price history.</div>
 @endsection

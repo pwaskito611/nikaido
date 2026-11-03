@@ -70,5 +70,44 @@ class MarketPairDefinitionTest extends TestCase
                 $this->assertTrue(true);
             }
         }
+
+    }
+
+    public function test_it_rejects_invalid_related_pair_or_timeframe_ids(): void
+    {
+        foreach ([
+            [0 => 1],
+            [-1 => 1],
+            [1 => 0],
+            [1 => '2'],
+        ] as $relatedPairs) {
+            try {
+                MarketPairDefinition::create(
+                    7,
+                    'EUR',
+                    'USD',
+                    MarketPairQuantityUnit::Units,
+                    Option::none(),
+                    $relatedPairs,
+                );
+                $this->fail('Expected invalid related market pair IDs to be rejected.');
+            } catch (InvalidArgumentException) {
+                $this->assertTrue(true);
+            }
+        }
+    }
+
+    public function test_it_accepts_related_pairs_with_individual_timeframes_or_primary_timeframe_fallback(): void
+    {
+        $definition = MarketPairDefinition::create(
+            7,
+            'EUR',
+            'GBP',
+            MarketPairQuantityUnit::Units,
+            Option::none(),
+            [12 => 4, 13 => null],
+        );
+
+        $this->assertSame([12 => 4, 13 => null], $definition->relatedMarketPairs);
     }
 }

@@ -158,6 +158,17 @@ tr:hover td { background: #fbfcf8; }
 .capital-risk-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .field-row > div { min-width: 0; }
 .field-row .text-input { width: 100%; }
+.related-pair-search { margin-bottom: 8px; }
+.related-pair-list { max-height: 340px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid #e4e8e1; border-radius: 5px; background: #fbfcf9; }
+.related-pair-list-inner { padding: 0 10px; }
+.related-pair-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(145px, 190px); align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid #edf0ea; }
+.related-pair-row:last-child { border-bottom: 0; }
+.related-pair-row[hidden] { display: none; }
+.related-pair-row label { display: flex; align-items: center; gap: 8px; min-width: 0; color: #405148; font-size: 10px; }
+.related-pair-row label input { flex: 0 0 auto; accent-color: #698b54; }
+.related-pair-row .text-input { min-height: 34px; padding: 7px 9px; }
+.related-pair-empty { margin: 0; padding: 16px 10px; color: #909b91; font-size: 10px; text-align: center; }
+.related-pair-empty[hidden] { display: none; }
 .pair-slash { padding-bottom: 11px; color: #93a08f; font-family: 'DM Mono', monospace; text-align: center; }
 .detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .detail-card, .metric-card { min-height: 108px; display: flex; flex-direction: column; justify-content: center; padding: 17px 19px; border: 1px solid #e4e8e0; border-radius: 7px; background: #fbfcf9; }
@@ -308,6 +319,8 @@ tr:hover td { background: #fbfcf8; }
     .form-actions { margin-right: 14px; margin-left: 14px; }
     .pair-slash { display: none; }
     .form-panel:not(.test-form) .field-row { grid-template-columns: 1fr; }
+    .related-pair-row { grid-template-columns: 1fr; gap: 7px; }
+    .related-pair-row .text-input { margin-left: 26px; width: calc(100% - 26px); }
     .data-import-form, .data-import-form-inner { grid-template-columns: 1fr; }
     .data-import-field, .data-import-full, .data-import-token, .data-import-api-example { grid-column: 1; }
     .data-import-token, .data-import-api-example { margin-right: 14px; margin-left: 14px; }

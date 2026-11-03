@@ -8,6 +8,7 @@ use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Feature\MarketTypes\Model\MarketType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MarketPair extends Model
@@ -36,5 +37,15 @@ class MarketPair extends Model
     public function prices(): HasMany
     {
         return $this->hasMany(MarketPrice::class, 'pair_id');
+    }
+
+    public function relatedPairs(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            self::class,
+            'market_pair_related_pairs',
+            'market_pair_id',
+            'related_market_pair_id',
+        )->withPivot('timeframe_type_id')->withTimestamps();
     }
 }

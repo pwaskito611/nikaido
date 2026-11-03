@@ -11,6 +11,7 @@ final readonly class MarketPairDefinition
 {
     /**
      * @param  Option<string>  $contractSize
+     * @param  array<int, int|null>|null  $relatedMarketPairs
      */
     private function __construct(
         public int $marketTypeId,
@@ -18,6 +19,7 @@ final readonly class MarketPairDefinition
         public string $quote,
         public MarketPairQuantityUnit $quantityUnit,
         public string $contractSize,
+        public ?array $relatedMarketPairs,
     ) {}
 
     /**
@@ -29,6 +31,7 @@ final readonly class MarketPairDefinition
         string $quote,
         MarketPairQuantityUnit $quantityUnit,
         Option $contractSize,
+        ?array $relatedMarketPairs = null,
     ): self {
         $base = strtoupper(trim($base));
         $quote = strtoupper(trim($quote));
@@ -41,6 +44,16 @@ final readonly class MarketPairDefinition
         }
         if ($quote === '' || strlen($quote) > 10) {
             throw new InvalidArgumentException('A market pair quote symbol must contain between 1 and 10 characters.');
+        }
+        if ($relatedMarketPairs !== null) {
+            foreach ($relatedMarketPairs as $relatedMarketPairId => $timeframeTypeId) {
+                if (! is_int($relatedMarketPairId) || $relatedMarketPairId < 1) {
+                    throw new InvalidArgumentException('Related market pair IDs must be positive integers.');
+                }
+                if ($timeframeTypeId !== null && (! is_int($timeframeTypeId) || $timeframeTypeId < 1)) {
+                    throw new InvalidArgumentException('Related market pair timeframe IDs must be positive integers or null.');
+                }
+            }
         }
         $validatedContractSize = $contractSize->map(static function (mixed $size): string {
             if (! is_string($size)
@@ -65,6 +78,7 @@ final readonly class MarketPairDefinition
                         'Contract and lot quantities require a contract size.',
                     ),
                 ),
+            $relatedMarketPairs,
         );
     }
 }

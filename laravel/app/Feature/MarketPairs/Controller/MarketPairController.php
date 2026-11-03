@@ -65,16 +65,30 @@ class MarketPairController
     }
 
     /**
-     * @param  array{market_type_id: int|string, base: string, quote: string, quantity_unit: string, contract_size?: string|null}  $validated
+     * @param  array{market_type_id: int|string, base: string, quote: string, quantity_unit: string, contract_size?: string|null, related_market_pair_ids?: list<int|string>, related_market_pairs_present?: string, related_timeframes?: array<string, int|string|null>}  $validated
      */
     private function definitionFrom(array $validated): MarketPairDefinition
     {
+        $relatedMarketPairs = null;
+        if (array_key_exists('related_market_pairs_present', $validated)
+            || array_key_exists('related_market_pair_ids', $validated)) {
+            $relatedMarketPairs = [];
+            foreach ($validated['related_market_pair_ids'] ?? [] as $relatedMarketPairId) {
+                $relatedMarketPairId = (int) $relatedMarketPairId;
+                $timeframeTypeId = $validated['related_timeframes'][(string) $relatedMarketPairId] ?? null;
+                $relatedMarketPairs[$relatedMarketPairId] = $timeframeTypeId === null || $timeframeTypeId === ''
+                    ? null
+                    : (int) $timeframeTypeId;
+            }
+        }
+
         return MarketPairDefinition::create(
             (int) $validated['market_type_id'],
             $validated['base'],
             $validated['quote'],
             MarketPairQuantityUnit::from($validated['quantity_unit']),
             Option::from(isset($validated['contract_size']) ? (string) $validated['contract_size'] : null),
+            $relatedMarketPairs,
         );
     }
 }

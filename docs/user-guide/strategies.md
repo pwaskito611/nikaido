@@ -42,10 +42,29 @@ short position by itself. The engine owns fill timing, quote selection,
 partial-fill behavior, costs, order history, and P&L.
 
 The context exposes `currentCapital`, `quantityUnit`, and
-`quantityMultiplier`. `currentCapital` is updated by the backtest as its
-simulation proceeds; the strategy uses it to size each new risk request. The
-engine does not automatically cap the strategy's quantity to a notional,
-margin, or maximum-position limit.
+`quantityMultiplier`. Configured pair backtests also expose
+`primaryMarketPairId`, `primaryMarketPairSymbol`, and a `relatedMarketPairs`
+map keyed by related pair ID. `primaryTimeframeTypeId` identifies the selected
+backtest timeframe. Each related series has `base`, `quote`,
+`timeframeTypeId`, `candlesByTimestamp`, and `candleAt($timestamp)`. Related
+series are keyed by market pair ID; a pair configured at another timeframe
+can include the primary pair ID as well. For example:
+
+```php
+$gbpUsd = $context->relatedMarketPairs[$relatedPairId] ?? null;
+$alignedGbpUsdCandle = $gbpUsd?->candleAt($primaryCandle->price_date);
+```
+
+`candleAt()` returns `null` when that pair has no observation at the requested
+timestamp. It never substitutes the nearest candle. Each related series contains its configured timeframe's candles within the
+backtest range plus up to 200 preceding warm-up candles, and retains each
+candle's own timestamp. A null related timeframe uses the primary backtest
+timeframe.
+Related pairs are directional data dependencies only; their candles do not
+produce additional strategy decisions or orders. `currentCapital` is updated
+by the backtest as its simulation proceeds; the strategy uses it to size each
+new risk request. The engine does not automatically cap the strategy's
+quantity to a notional, margin, or maximum-position limit.
 
 ## Example: execute the strategy that is actually provided
 

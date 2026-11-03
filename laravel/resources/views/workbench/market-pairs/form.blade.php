@@ -38,6 +38,83 @@
             <small class="field-hint" id="quantity-multiplier-hint">Configure the instrument's actual multiplier.</small>
         </div>
         <small class="field-hint">The strategy supplies the quantity for each entry. Unit/share/quantity passes through directly; contracts retain contract quantity and apply the multiplier to P&amp;L and risk; lots convert to underlying units using units per lot.</small>
+        <div class="field-row" style="margin-top:20px">
+            <div>
+                <span class="field-label">Related Market Pairs</span>
+                <input type="hidden" name="related_market_pairs_present" value="1">
+                @php
+                    $savedRelatedPairs = $marketPair->exists
+                        ? $marketPair->relatedPairs->keyBy('id')
+                        : collect();
+                    $selectedRelatedPairIds = old(
+                        'related_market_pair_ids',
+                        old('related_market_pairs_present') ? [] : $savedRelatedPairs->keys()->all(),
+                    );
+                    $selectedRelatedPairIds = array_map('strval', $selectedRelatedPairIds);
+                @endphp
+                <label class="field-label" for="related-market-pair-search">Search pairs</label>
+                <input
+                    class="text-input related-pair-search"
+                    id="related-market-pair-search"
+                    type="search"
+                    placeholder="Search by pair or market type..."
+                    autocomplete="off"
+                    aria-controls="related-market-pair-list"
+                >
+                <div class="related-pair-list">
+                    <div class="related-pair-list-inner" id="related-market-pair-list">
+                    @foreach ($availableMarketPairs as $relatedPair)
+                        @php
+                            $isSelected = in_array((string) $relatedPair->id, $selectedRelatedPairIds, true);
+                            $savedTimeframeId = $savedRelatedPairs->get($relatedPair->id)?->pivot?->timeframe_type_id;
+                            $selectedTimeframeId = old("related_timeframes.{$relatedPair->id}", $savedTimeframeId);
+                            $isPrimaryPair = $marketPair->exists && $relatedPair->id === $marketPair->id;
+                            $selectedRelatedPairIndex = array_search((string) $relatedPair->id, $selectedRelatedPairIds, true);
+                        @endphp
+                        <div class="related-pair-row" data-related-pair-row>
+                            <label>
+                                <input
+                                    type="checkbox"
+                                    name="related_market_pair_ids[]"
+                                    value="{{ $relatedPair->id }}"
+                                    @checked($isSelected)
+                                    data-related-pair-checkbox
+                                >
+                                {{ $relatedPair->base }}/{{ $relatedPair->quote }} · {{ $relatedPair->marketType?->name ?? 'Unclassified' }}@if ($isPrimaryPair) (same pair, alternate timeframe)@endif
+                            </label>
+                            <select
+                                class="text-input"
+                                name="related_timeframes[{{ $relatedPair->id }}]"
+                                aria-label="Timeframe for {{ $relatedPair->base }}/{{ $relatedPair->quote }}"
+                                @disabled(! $isSelected)
+                                data-related-pair-timeframe
+                            >
+                                @unless ($isPrimaryPair)
+                                    <option value="">Use backtest timeframe</option>
+                                @endunless
+                                @foreach ($availableTimeframes as $timeframe)
+                                    <option value="{{ $timeframe->id }}" @selected((string) $selectedTimeframeId === (string) $timeframe->id)>
+                                        {{ $timeframe->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @if ($selectedRelatedPairIndex !== false)
+                                @error('related_market_pair_ids.' . $selectedRelatedPairIndex)
+                                    <div class="field-error">{{ $message }}</div>
+                                @enderror
+                            @endif
+                            @error('related_timeframes.' . $relatedPair->id)
+                                <div class="field-error">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    @endforeach
+                    </div>
+                    <p class="related-pair-empty" data-related-pair-empty hidden>No market pairs match your search.</p>
+                </div>
+                <small class="field-hint">Choose the timeframe independently for each related series. “Use backtest timeframe” preserves the default. Related pairs are directional data dependencies only; they do not run separate backtests.</small>
+                @error('related_market_pair_ids') <div class="field-error">{{ $message }}</div> @enderror
+            </div>
+        </div>
         <div class="field-hint">Symbols are stored in uppercase. Each pair must be unique within its market type.</div>
         <div class="form-actions"><a class="button button-secondary" href="{{ route('workbench.market-pairs.index') }}">Cancel</a><button class="button button-primary" type="submit" @disabled($marketTypes->isEmpty())>{{ $marketPair->exists ? 'Save changes' : 'Create market pair' }} <span>→</span></button></div>
     </form>
@@ -59,5 +136,29 @@
         };
         quantityUnit.addEventListener('change', updateQuantityUnitFields);
         updateQuantityUnitFields();
+
+        document.querySelectorAll('[data-related-pair-checkbox]').forEach((checkbox) => {
+            checkbox.addEventListener('change', () => {
+                checkbox.closest('.related-pair-row')
+                    .querySelector('[data-related-pair-timeframe]')
+                    .disabled = !checkbox.checked;
+            });
+        });
+
+        const relatedPairSearch = document.getElementById('related-market-pair-search');
+        const relatedPairRows = [...document.querySelectorAll('[data-related-pair-row]')];
+        const relatedPairEmpty = document.querySelector('[data-related-pair-empty]');
+        relatedPairSearch.addEventListener('input', () => {
+            const query = relatedPairSearch.value.trim().toLocaleLowerCase();
+            let visibleRows = 0;
+
+            relatedPairRows.forEach((row) => {
+                const matches = row.textContent.toLocaleLowerCase().includes(query);
+                row.hidden = !matches;
+                visibleRows += Number(matches);
+            });
+
+            relatedPairEmpty.hidden = visibleRows > 0;
+        });
     </script>
 @endsection

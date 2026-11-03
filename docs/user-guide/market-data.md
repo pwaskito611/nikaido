@@ -65,6 +65,18 @@ the requested start and end. A pair with fewer than 200 earlier candles can
 still run, but the supplied strategy returns no signals until it has enough
 indicator history. No rows are synthesized for missing timestamps.
 
+Market pairs can be configured with directional related-pair dependencies,
+and each dependency can select its own timeframe. A blank timeframe follows
+the primary backtest timeframe. This also allows the primary pair to be
+selected as a related series at a different timeframe (for example, EUR/GBP
+1h with EUR/GBP 1d and GBP/USD 1d). Each related series is loaded once for the
+requested date range, with its own up-to-200-candle warm-up. Related candles
+remain keyed by their actual timestamps in the strategy context; an exact
+timestamp lookup returns `null` when the related pair has no candle at that
+time. Different sessions and holidays are not forward-filled or resampled.
+Related pairs provide strategy data only and do not run additional backtests
+or create additional orders.
+
 Manual market-price validation rejects a duplicate pair/timeframe/timestamp
 key, and the push API updates an existing candle for that key. The database
 itself has no composite unique constraint for this key, so

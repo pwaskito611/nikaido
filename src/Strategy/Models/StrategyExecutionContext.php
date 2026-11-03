@@ -19,6 +19,7 @@ class StrategyExecutionContext
         public readonly ?string $primaryMarketPairSymbol = null,
         public readonly array $relatedMarketPairs = [],
         public readonly ?int $primaryTimeframeTypeId = null,
+        private readonly FundamentalDataCollection $fundamentalData = new FundamentalDataCollection,
     ) {
         if (! is_finite($currentCapital) || $currentCapital <= 0) {
             throw new InvalidArgumentException('Current capital must be a positive finite number.');
@@ -46,5 +47,10 @@ class StrategyExecutionContext
                 throw new InvalidArgumentException('Related market pairs must be uniquely keyed by market pair ID.');
             }
         }
+    }
+
+    public function fundamentals(): FundamentalDataCollection
+    {
+        return $this->fundamentalData;
     }
 }

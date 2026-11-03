@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Feature\MarketPairs\Model;
 
+use App\Feature\Fundamentals\Model\Fundamental;
 use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Feature\MarketTypes\Model\MarketType;
 use Illuminate\Database\Eloquent\Model;
@@ -47,5 +48,15 @@ class MarketPair extends Model
             'market_pair_id',
             'related_market_pair_id',
         )->withPivot('timeframe_type_id')->withTimestamps();
+    }
+
+    public function fundamentals(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Fundamental::class,
+            'fundamental_related',
+            'pair_id',
+            'fundamental_id',
+        )->withTimestamps();
     }
 }

@@ -96,6 +96,39 @@ one related timeframe; related data is never forward-filled or resampled.
 See [Market data](market-data.md#related-market-pair-data) for configuration
 and data-loading behavior.
 
+## Fundamental observations
+
+The context also exposes preloaded, point-in-time fundamental observations
+through `fundamentals()`. Each linked fundamental entity is keyed by its ID;
+unlinked entities are not included. Observations without a `released_at`
+timestamp are retained in the Workbench but are not passed into strategy
+data. At a decision time, use that candle's timestamp as the knowledge
+boundary:
+
+```php
+$economy = $context->fundamentals()->get($fundamentalId);
+$latestCpi = $economy?->latestAvailable('CPI', $primaryCandle->price_date);
+$cpiForPeriod = $economy?->valueAt(
+    'CPI',
+    new DateTimeImmutable('2026-08-01'),
+    $primaryCandle->price_date,
+);
+```
+
+`observations($code, $knownAt)` returns the eligible observations loaded for
+the backtest range for one indicator, including the latest prior observation
+period before that range. `latestAvailable()` returns the latest observation
+period released
+by `$knownAt`; `valueAt()` matches an exact observation timestamp, and
+`has()` checks whether any eligible observation exists. A missing entity or
+value stays missing: there is no interpolation, forward-fill, or fallback
+from period date to release date. The relevant linked observations are loaded
+before replay, so these lookups do not issue database queries per candle. The
+fundamental schema does not yet retain data revisions or provider provenance;
+avoid overwriting revised historical values if point-in-time vintages matter.
+See [Backtesting fundamentals](../concepts/backtesting-fundamentals.md) for
+the release-time policy and schema details.
+
 ## Example: execute the strategy that is actually provided
 
 This example uses the actual Laravel adapter and strategy types; it does not create

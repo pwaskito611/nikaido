@@ -92,63 +92,71 @@ one strategy observing synchronized markets while making decisions. See
 [Capital and risk](capital-and-risk.md) and
 [multi-pair backtesting](../features/multi-pair-backtesting.md).
 
-## Extending Nikaido for economic and fundamental research
+## Fundamental data management
 
-Nikaido can be extended in application code to test systematic strategies
-using economic or company-fundamental data, but that is **not a built-in
-capability today**. The current market-data schema stores candles; the
-migration tests explicitly assert that `country_economics_data` and
-`economics_events` tables do not exist. There is no economic-data UI,
-fundamental provider, financial-statement importer, or strategy selector.
+The Workbench includes a Fundamental feature for manually managing economic
+or company entities and their historical indicator observations. A
+fundamental entity (for example, a national economy or a company) can be
+linked to one or more market pairs. Only entities linked to the pair being
+backtested are added to that run's strategy context. The feature does not
+provide an external data provider, financial-statement importer, economic
+calendar, or strategy selector.
 
-The current strategy boundary receives an ordered iterable of
-[`MarketPrice`](../user-guide/strategies.md) candles and a
-`StrategyExecutionContext`. Adding a table alone will therefore not make
-economic or fundamental values available to a backtest. A custom implementation
-would need to provide at least these pieces:
+The schema separates:
 
-1. **Define and persist the observations.** Add migrations and typed models
-   for the data being researched, plus identifiers that map each observation
-   to its country, issuer, security, or instrument. A possible observation
-   shape is: subject ID, metric/series ID, observation period, value, unit,
-   publication/availability timestamp, source, and revision/vintage. This is
-   a design example, not an existing Nikaido schema.
-2. **Ingest and validate the source.** Implement an importer for the chosen
-   provider or for data you own. Normalize units, identifiers, timestamps,
-   missing values, and revisions before persistence. The existing external
-   candle-provider contract returns only OHLC candles, so a non-price data
-   source needs an appropriate importer/contract rather than being forced
-   through `MarketPriceRepository`.
-3. **Load observations as of each decision.** Extend the backtest input path
-   so the strategy can receive the historical observations that were
-   available at that decision time. The relevant current path is
-   `RunSpecificPairBacktestAction` → `MarketPairRepository` →
-   `SpecificPairBacktestProcess` → `Strategy::execute`; the strategy contract
-   and these callers would need to change to pass additional data.
-4. **Test and explain the timing rules.** Add fixtures and tests for release
-   dates, missing observations, revisions, identifier mapping, and decisions
-   before and after publication. Document the new inputs, supported sources,
-   and limits for users.
+- `fundamentals`: entity name, optional description, and category.
+- `fundamental_contents`: indicator `code` and display `name`, JSON `value`,
+  observation-period `datetime`, and optional publication time `released_at`.
+- `fundamental_related`: the many-to-many relationship between an entity and
+  market pairs.
 
-For example, a macro strategy could use an inflation or policy-rate release
-only after its publication became available, or an equity strategy could use
-reported revenue only after the filing/release timestamp. Do not align an
-observation to its economic period end and expose it to the strategy from
-that date if the information was published later. For revised series and
-restated financial statements, preserve historical vintages or otherwise
-prevent later revisions from leaking into earlier decisions. Without
-point-in-time availability data, a backtest can contain look-ahead bias even
-when its price candles are correctly ordered.
+An indicator can have multiple dated observations. A unique constraint
+prevents duplicate `(fundamental_id, code, datetime)` periods. JSON values may
+be scalars or objects. The Workbench stores full timestamps; month names are
+only presentation.
 
-This extension could support systematic macro, fundamental, or combined
-price/fundamental research and investment analysis. It would not by itself
-make results investable or predictive: source coverage, survivorship and
-selection bias, publication delays, corporate actions, instrument mapping,
-currency/units, and execution assumptions still need explicit handling. For
-the existing market-data schema and request boundary, see
-[Data models](../reference/data-models.md),
-[Data ingestion and validation](../features/data-ingestion-and-validation.md),
-and [Strategies](../user-guide/strategies.md).
+### Point-in-time availability
+
+`datetime` is the period represented by an observation; it does not mean that
+the value was known to the market at that time. The strategy can only see
+observations with a non-null `released_at` no later than its query time. An
+observation with no release timestamp remains stored and visible in the
+Workbench, but is deliberately excluded from the strategy data. There is no
+fallback that treats its period date as a release date.
+
+At backtest initialization, Nikaido loads the pair's linked fundamentals and
+observations released during the configured range, plus the latest prior
+observation period for each indicator that was already released before the
+start. This provides a warm-start value without loading the entire lifetime
+history. The data is passed once into `StrategyExecutionContext`; strategy
+access does not query the database per candle. The context offers:
+
+```php
+$series = $context->fundamentals()->get($fundamentalId);
+$observations = $series?->observations('CPI', $currentTime) ?? [];
+$latest = $series?->latestAvailable('CPI', $currentTime);
+$periodValue = $series?->valueAt('CPI', $periodDate, $currentTime);
+$available = $series?->has('CPI', $currentTime) ?? false;
+```
+
+`observations($code, $knownAt)` returns the eligible observations loaded for
+the backtest range for one indicator. `latestAvailable()` chooses the
+observation with the latest observation
+period among those already released by `$currentTime`; `valueAt()` matches an
+exact observation timestamp and returns the most recently released match.
+Absent entities or codes return `null`, `false`, or an empty list rather than
+an inferred or interpolated value. The context intentionally does not expose
+all observations before the range; it keeps the latest prior period per
+indicator and every eligible observation in the range.
+
+The current schema stores one value per indicator and observation timestamp;
+it does not model source provenance, revisions, or point-in-time vintages.
+When importing revised series manually, overwriting an earlier value can
+introduce look-ahead bias in historical research. Preserve vintages in a
+future schema extension before relying on revised data. Also normalize
+indicator units and identifiers consistently; Nikaido does not infer them.
+See [Strategies](../user-guide/strategies.md) for the execution context and
+example usage.
 
 The resulting statistics describe the selected historical sample under the
 implemented model. They do not establish that a strategy has a durable edge,

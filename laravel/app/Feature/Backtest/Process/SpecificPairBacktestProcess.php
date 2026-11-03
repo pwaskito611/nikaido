@@ -28,6 +28,7 @@ use Iterator;
 use IteratorIterator;
 use LogicException;
 use Nikaido\Strategy\Enums\StrategySignal;
+use Nikaido\Strategy\Models\FundamentalDataCollection;
 use Nikaido\Strategy\Models\RelatedMarketPairData;
 use Nikaido\Strategy\Models\StrategyDecision;
 use Nikaido\Strategy\Models\StrategyExecutionContext;
@@ -50,6 +51,7 @@ class SpecificPairBacktestProcess
     public function execute(
         SpecificPairTestConfig $config,
         MarketPairMarketData $marketData,
+        FundamentalDataCollection $fundamentals,
     ): SpecificPairBacktestResult {
         $quantityUnit = $marketData->quantityUnit->value;
         $configuredQuantityMultiplier = $marketData->contractSize;
@@ -75,6 +77,7 @@ class SpecificPairBacktestProcess
                 : null,
             $relatedMarketPairs,
             $config->timeframeTypeId,
+            $fundamentals,
         );
         $decisions = $this->strategy->execute($candles, $context);
 

@@ -7,6 +7,7 @@ namespace App\Feature\Backtest\Action;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Data\SpecificPairBacktestResult;
 use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
+use App\Feature\Fundamentals\Action\LoadFundamentalDataForBacktestAction;
 use App\Feature\MarketPairs\Repository\MarketPairRepository;
 use Illuminate\Validation\ValidationException;
 
@@ -15,6 +16,7 @@ class RunSpecificPairBacktestAction
     public function __construct(
         private readonly MarketPairRepository $marketPairs,
         private readonly SpecificPairBacktestProcess $backtest,
+        private readonly LoadFundamentalDataForBacktestAction $loadFundamentals,
     ) {}
 
     public function execute(SpecificPairTestConfig $config): SpecificPairBacktestResult
@@ -42,7 +44,13 @@ class RunSpecificPairBacktestAction
                 continue;
             }
 
-            return $this->backtest->execute($config, $marketData);
+            $fundamentals = $this->loadFundamentals->execute(
+                (int) $marketData->marketPairId,
+                $config->from,
+                $config->to,
+            );
+
+            return $this->backtest->execute($config, $marketData, $fundamentals);
         }
 
         throw ValidationException::withMessages([

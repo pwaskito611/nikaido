@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Feature\Backtest\Action\RunSpecificPairBacktestAction;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
+use App\Feature\Fundamentals\Action\LoadFundamentalDataForBacktestAction;
 use App\Feature\MarketPairs\Model\MarketPair;
 use App\Feature\MarketPairs\Repository\MarketPairRepository;
 use App\Feature\MarketPrice\Model\MarketPrice;
@@ -252,6 +253,7 @@ class RelatedMarketPairsTest extends TestCase
         $result = (new RunSpecificPairBacktestAction(
             app(MarketPairRepository::class),
             new SpecificPairBacktestProcess($strategy),
+            app(LoadFundamentalDataForBacktestAction::class),
         ))->execute($config);
 
         $this->assertCount(0, $result->orders);

@@ -1,6 +1,18 @@
 import './bootstrap';
 import flatpickr from 'flatpickr';
 
+const pairSearch = document.querySelector('[data-pair-search]');
+const pairSelect = document.querySelector('[data-pair-select]');
+
+if (pairSearch instanceof HTMLInputElement && pairSelect instanceof HTMLSelectElement) {
+    pairSearch.addEventListener('input', () => {
+        const query = pairSearch.value.trim().toLocaleLowerCase();
+        for (const option of pairSelect.options) {
+            option.hidden = option.value !== '' && !(option.textContent ?? '').toLocaleLowerCase().includes(query);
+        }
+    });
+}
+
 document.querySelectorAll('[data-flatpickr]').forEach((input) => {
     if (!(input instanceof HTMLInputElement)) {
         return;
@@ -48,6 +60,72 @@ if (fullDayToggle instanceof HTMLInputElement) {
 }
 
 const marketChart = document.querySelector('[data-market-chart]');
+const runStrategyButton = document.querySelector('[data-run-strategy]');
+
+if (runStrategyButton instanceof HTMLButtonElement) {
+    runStrategyButton.addEventListener('click', async () => {
+        const filters = document.querySelector('[data-exploration-filters]');
+        const status = document.querySelector('[data-strategy-status]');
+        const summary = document.querySelector('[data-strategy-summary]');
+
+        if (!(filters instanceof HTMLFormElement) || !(status instanceof HTMLElement)) {
+            return;
+        }
+
+        runStrategyButton.disabled = true;
+        runStrategyButton.textContent = 'Running...';
+        status.textContent = '';
+        if (summary instanceof HTMLElement) {
+            summary.hidden = true;
+        }
+        if (marketChart instanceof HTMLCanvasElement) {
+            marketChart.dispatchEvent(new CustomEvent('strategy-results', { detail: [] }));
+        }
+
+        try {
+            const response = await fetch(runStrategyButton.dataset.endpoint, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams(new FormData(filters)),
+            });
+            const result = await response.json();
+
+            if (!response.ok) {
+                const validationErrors = Object.values(result.errors ?? {}).flat();
+                throw new Error(validationErrors.join(' ') || result.message || 'The strategy could not be run.');
+            }
+
+            const counts = result.summary;
+            for (const [selector, value] of [
+                ['[data-strategy-trades]', counts.trades],
+                ['[data-strategy-wins]', counts.wins],
+                ['[data-strategy-losses]', counts.losses],
+                ['[data-strategy-closed]', counts.closed_trades],
+            ]) {
+                const output = document.querySelector(selector);
+                if (output instanceof HTMLElement) {
+                    output.textContent = String(value);
+                }
+            }
+
+            if (summary instanceof HTMLElement) {
+                summary.hidden = false;
+            }
+            status.textContent = `${counts.trades} trades found. Entry and exit positions are marked on the chart.`;
+            if (marketChart instanceof HTMLCanvasElement) {
+                marketChart.dispatchEvent(new CustomEvent('strategy-results', { detail: result.trades }));
+            }
+        } catch (error) {
+            status.textContent = error instanceof Error ? error.message : 'The strategy could not be run.';
+        } finally {
+            runStrategyButton.disabled = false;
+            runStrategyButton.innerHTML = 'Run strategy <span>→</span>';
+        }
+    });
+}
 
 if (marketChart instanceof HTMLCanvasElement) {
     const scrollContainer = marketChart.closest('[data-chart-scroll]');
@@ -57,13 +135,57 @@ if (marketChart instanceof HTMLCanvasElement) {
     const chartHeight = 480;
 
     if (scrollContainer instanceof HTMLElement && track instanceof HTMLElement && Array.isArray(candles)) {
+        const candleIndexes = new Map(candles.map((candle, index) => [candle.time, index]));
+        let strategyMarkers = [];
         let candleStep = 14;
-        let minPrice = Number.POSITIVE_INFINITY;
-        let maxPrice = Number.NEGATIVE_INFINITY;
-        for (const candle of candles) {
-            minPrice = Math.min(minPrice, candle.low);
-            maxPrice = Math.max(maxPrice, candle.high);
-        }
+
+        const drawStrategyMarkers = (context, firstIndex, lastIndex, priceY, scrollLeft) => {
+            for (const marker of strategyMarkers) {
+                if (marker.index < firstIndex || marker.index >= lastIndex) {
+                    continue;
+                }
+
+                const x = marker.index * candleStep - scrollLeft + candleStep / 2;
+                const y = priceY(marker.price);
+                const markerLabel = marker.kind === 'entry' ? 'E' : 'C';
+
+                context.save();
+                context.shadowColor = 'rgba(22, 32, 27, 0.55)';
+                context.shadowBlur = 7;
+                context.shadowOffsetY = 2;
+                context.beginPath();
+                context.arc(x, y, 11, 0, Math.PI * 2);
+                context.fillStyle = '#ffffff';
+                context.fill();
+                context.lineWidth = 2;
+                context.strokeStyle = '#17251d';
+                context.stroke();
+                context.shadowColor = 'transparent';
+                context.fillStyle = marker.color;
+                context.beginPath();
+                if (marker.kind === 'entry') {
+                    context.arc(x, y, 8, 0, Math.PI * 2);
+                } else {
+                    context.roundRect(x - 7, y - 7, 14, 14, 2);
+                }
+                context.fill();
+                context.fillStyle = marker.kind === 'entry' ? '#302800' : '#ffffff';
+                context.font = 'bold 10px "DM Mono", monospace';
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText(markerLabel, x, y + 0.5);
+
+                const directionArrow = marker.direction === 'long' ? '↑' : '↓';
+                context.beginPath();
+                context.arc(x + 8, y - 8, 7, 0, Math.PI * 2);
+                context.fillStyle = '#17251d';
+                context.fill();
+                context.fillStyle = '#ffffff';
+                context.font = 'bold 10px sans-serif';
+                context.fillText(directionArrow, x + 8, y - 7.5);
+                context.restore();
+            }
+        };
 
         const resizeAndDraw = () => {
             const width = scrollContainer.clientWidth;
@@ -82,7 +204,27 @@ if (marketChart instanceof HTMLCanvasElement) {
 
             context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
             context.clearRect(0, 0, width, chartHeight);
-            const range = maxPrice - minPrice || Math.max(Math.abs(maxPrice) * 0.001, 0.000001);
+            const firstIndex = Math.max(0, Math.floor(scrollContainer.scrollLeft / candleStep));
+            const lastIndex = Math.min(candles.length, Math.ceil((scrollContainer.scrollLeft + width) / candleStep) + 1);
+            let minPrice = Number.POSITIVE_INFINITY;
+            let maxPrice = Number.NEGATIVE_INFINITY;
+
+            for (let index = firstIndex; index < lastIndex; index += 1) {
+                minPrice = Math.min(minPrice, candles[index].low);
+                maxPrice = Math.max(maxPrice, candles[index].high);
+            }
+            for (const marker of strategyMarkers) {
+                if (marker.index >= firstIndex && marker.index < lastIndex) {
+                    minPrice = Math.min(minPrice, marker.price);
+                    maxPrice = Math.max(maxPrice, marker.price);
+                }
+            }
+
+            const rawRange = maxPrice - minPrice || Math.max(Math.abs(maxPrice) * 0.001, 0.000001);
+            const padding = rawRange * 0.08;
+            minPrice -= padding;
+            maxPrice += padding;
+            const range = maxPrice - minPrice;
             const plotTop = 20;
             const plotBottom = chartHeight - 34;
             const plotHeight = plotBottom - plotTop;
@@ -104,8 +246,6 @@ if (marketChart instanceof HTMLCanvasElement) {
                 context.fillText(price.toFixed(6), 8, Math.max(10, y - 9));
             }
 
-            const firstIndex = Math.max(0, Math.floor(scrollContainer.scrollLeft / candleStep));
-            const lastIndex = Math.min(candles.length, Math.ceil((scrollContainer.scrollLeft + width) / candleStep) + 1);
             for (let index = firstIndex; index < lastIndex; index += 1) {
                 const candle = candles[index];
                 const x = index * candleStep - scrollContainer.scrollLeft + candleStep / 2;
@@ -130,7 +270,30 @@ if (marketChart instanceof HTMLCanvasElement) {
                     context.fillText(candle.time, x, chartHeight - 15);
                 }
             }
+
+            drawStrategyMarkers(context, firstIndex, lastIndex, priceY, scrollContainer.scrollLeft);
         };
+
+        marketChart.addEventListener('strategy-results', (event) => {
+            strategyMarkers = [];
+            for (const trade of event.detail) {
+                const entryColor = '#f2c400';
+                for (const fill of trade.entry_fills) {
+                    const index = candleIndexes.get(fill.date.slice(0, 16));
+                    if (index !== undefined) {
+                        strategyMarkers.push({ index, price: fill.price, color: entryColor, kind: 'entry', direction: trade.signal });
+                    }
+                }
+                for (const fill of trade.exit_fills) {
+                    const index = candleIndexes.get(fill.date.slice(0, 16));
+                    if (index !== undefined) {
+                        strategyMarkers.push({ index, price: fill.price, color: '#2563eb', kind: 'exit', direction: trade.signal });
+                    }
+                }
+            }
+
+            resizeAndDraw();
+        });
 
         scrollContainer.addEventListener('scroll', resizeAndDraw, { passive: true });
         window.addEventListener('resize', resizeAndDraw);

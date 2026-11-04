@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Feature\MarketTypes\Controller;
 
-use App\Feature\MarketTypes\Model\MarketType;
 use App\Feature\MarketTypes\Action\CreateMarketTypeAction;
 use App\Feature\MarketTypes\Action\DeleteMarketTypeAction;
 use App\Feature\MarketTypes\Action\ListMarketTypesAction;
+use App\Feature\MarketTypes\Action\LoadMarketTypeFormPageAction;
 use App\Feature\MarketTypes\Action\UpdateMarketTypeAction;
 use App\Feature\MarketTypes\Action\ViewMarketTypeAction;
 use App\Feature\MarketTypes\Request\MarketTypeRequest;
@@ -21,9 +21,9 @@ class MarketTypeController
         return view('workbench.market-types.index', ['marketTypes' => $action->execute()]);
     }
 
-    public function create(): View
+    public function create(LoadMarketTypeFormPageAction $loadForm): View
     {
-        return view('workbench.market-types.form', ['marketType' => new MarketType]);
+        return view('workbench.market-types.form', ['marketType' => $loadForm->execute()]);
     }
 
     public function store(MarketTypeRequest $request, CreateMarketTypeAction $action): RedirectResponse
@@ -40,10 +40,10 @@ class MarketTypeController
         ]);
     }
 
-    public function edit(int $marketType, ViewMarketTypeAction $action): View
+    public function edit(int $marketType, LoadMarketTypeFormPageAction $loadForm): View
     {
         return view('workbench.market-types.form', [
-            'marketType' => $action->execute($marketType),
+            'marketType' => $loadForm->execute($marketType),
         ]);
     }
 

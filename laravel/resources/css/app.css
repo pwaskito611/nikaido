@@ -234,14 +234,26 @@ tr:hover td { background: #fbfcf8; }
 .test-submit > span { color: #89948b; font-size: 9px; }
 .result-separator { padding: 0 4px; color: #9da99b; }
 .analysis-note { margin: -12px 0 20px; padding: 12px 15px; border: 1px solid #dce6d5; border-radius: 5px; color: #526258; background: #f0f6eb; font-size: 11px; line-height: 1.6; }
-.exploration-filters { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)) auto; gap: 13px; align-items: end; padding: 19px 21px 22px; }
+.exploration-filters { display: grid; grid-template-columns: repeat(5, minmax(110px, 1fr)) auto; gap: 13px; align-items: end; padding: 19px 21px 22px; }
 .exploration-field { display: grid; gap: 7px; color: #405148; font-size: 10px; font-weight: 800; }
 .exploration-submit { min-height: 39px; }
 .exploration-chart-panel { margin-top: 18px; }
+.exploration-chart-actions { display: flex; align-items: center; gap: 14px; }
+.exploration-strategy-summary[hidden] { display: none; }
+.exploration-strategy-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; padding: 14px 20px 0; }
+.exploration-strategy-summary .metric-card { min-height: 82px; padding: 12px 14px; }
+.exploration-strategy-summary .metric-card strong { display: block; font-size: 21px; }
+.exploration-strategy-status { min-height: 0; margin: 0; padding: 0 20px; color: #9c5548; font-size: 10px; }
+.exploration-strategy-status:empty { display: none; }
 .exploration-chart-scroll { overflow: auto hidden; background: #fbfcf9; cursor: grab; touch-action: pan-y; scrollbar-color: #b9c9ae #edf0eb; scrollbar-width: thin; }
 .exploration-chart-scroll:active { cursor: grabbing; }
 .exploration-chart-track { height: 480px; }
 .exploration-chart { position: sticky; left: 0; display: block; }
+.chart-marker-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 9px 20px; color: #405148; font-size: 9px; font-weight: 800; }
+.chart-marker-legend-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.entry-marker-key, .exit-marker-key { display: inline-flex; width: 36px; height: 24px; align-items: center; justify-content: center; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 1px 5px #1f302a88; color: #17251d; font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 800; }
+.entry-marker-key { margin-left: 2px; background: #f2c400; }
+.exit-marker-key { border-radius: 4px; background: #2563eb; color: #fff; }
 .chart-ohlc { min-height: 36px; padding: 11px 20px; color: #536258; font-family: 'DM Mono', monospace; font-size: 10px; }
 .chart-scroll-hint { padding: 11px 20px; border-top: 1px solid #e9ece6; color: #89958c; font-size: 9px; }
 .metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }

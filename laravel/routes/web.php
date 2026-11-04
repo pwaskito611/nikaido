@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 require app_path('Feature/Dashboard/routes.php');
 require app_path('Feature/MarketTypes/routes.php');
 require app_path('Feature/MarketPairs/routes.php');

@@ -9,8 +9,8 @@ use App\Feature\Fundamentals\Data\FundamentalDefinition;
 use App\Feature\Fundamentals\Model\Fundamental;
 use App\Feature\Fundamentals\Model\FundamentalContent;
 use DateTimeInterface;
+use Exact\Collection\Vec;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Nikaido\Strategy\Models\FundamentalDataCollection;
 use Nikaido\Strategy\Models\FundamentalEntityData;
@@ -31,12 +31,13 @@ class FundamentalRepository
             ->paginate($perPage);
     }
 
-    /** @return Collection<int, Fundamental> */
-    public function allForImport(): Collection
+    /** @return Vec<Fundamental> */
+    public function allForImport(): Vec
     {
-        return $this->model->newQuery()
+        return Vec::fromArray($this->model->newQuery()
             ->orderBy('name')
-            ->get(['id', 'name', 'category']);
+            ->get(['id', 'name', 'category'])
+            ->all());
     }
 
     public function findOrFail(int $id): Fundamental

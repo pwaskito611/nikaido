@@ -15,7 +15,6 @@ use App\Feature\MarketPairs\Repository\MarketPairRepository;
 use App\Feature\Timeframes\Model\TimeframeType;
 use App\Feature\Timeframes\Repository\TimeframeTypeRepository;
 use Exact\Collection\Vec;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 class LoadDataImportPageAction
 {
@@ -33,7 +32,7 @@ class LoadDataImportPageAction
      *     timeframes: Vec<TimeframeType>,
      *     activeSessions: Vec<DataImportSession>,
      *     recentSessions: Vec<DataImportSession>,
-     *     fundamentals: EloquentCollection<int, Fundamental>,
+     *     fundamentals: Vec<Fundamental>,
      *     activeFundamentalSessions: list<FundamentalImportSession>,
      *     recentFundamentalSessions: list<FundamentalImportSession>
      * }

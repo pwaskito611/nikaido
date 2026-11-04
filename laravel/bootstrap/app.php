@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Platform\Console\Commands\NikaidoStartCommand;
 use App\Platform\Console\Commands\NikaidoStopCommand;
 use App\Platform\Infrastructure\NikaidoLaravelApplication;
@@ -14,6 +16,7 @@ $app = NikaidoLaravelApplication::configure(basePath: $projectRoot)
             $projectRoot.'/laravel/app/Feature/Backtest/api.php',
             $projectRoot.'/laravel/app/Feature/DataImport/api.php',
             $projectRoot.'/laravel/app/Feature/Fundamentals/api.php',
+            $projectRoot.'/laravel/app/Feature/MarketExploration/api.php',
         ],
         commands: __DIR__.'/../routes/console.php',
         health: '/up',

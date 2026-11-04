@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Feature;
 
 use App\Feature\MarketPairs\Model\MarketPair;
@@ -90,6 +92,7 @@ class WorkbenchFeatureTest extends TestCase
         $this->get('/workbench/market-exploration')
             ->assertOk()
             ->assertSee('Choose market and date range')
+            ->assertSee('data-pair-search', false)
             ->assertSee('data-flatpickr="date"', false)
             ->assertDontSee('data-market-chart', false);
 
@@ -97,11 +100,41 @@ class WorkbenchFeatureTest extends TestCase
             ->assertOk()
             ->assertSee('data-market-chart', false)
             ->assertSee('data-chart-scroll', false)
+            ->assertSee('data-run-strategy', false)
             ->assertSee('1 CANDLES')
             ->assertSee('2026-10-10 23:59')
             ->assertDontSee('2026-10-09 09:00')
             ->assertDontSee('2.100000')
             ->assertDontSee('3.100000');
+    }
+
+    public function test_market_exploration_runs_strategy_and_returns_a_basic_trade_summary(): void
+    {
+        $pair = $this->createMarketPair($this->createMarketType());
+        $timeframe = TimeframeType::create(['name' => '1h']);
+        MarketPrice::create([
+            'pair_id' => $pair->id,
+            'price_date' => '2026-10-10 12:00:00',
+            'timeframe_type_id' => $timeframe->id,
+            'open' => '1.100000',
+            'high' => '1.120000',
+            'low' => '1.090000',
+            'close' => '1.110000',
+            ...$this->quoteValues('1.100000', '1.120000', '1.090000', '1.110000'),
+        ]);
+
+        $this->postJson('/api/market-exploration/run-strategy', [
+            'pair_id' => $pair->id,
+            'timeframe_type_id' => $timeframe->id,
+            'from' => '2026-10-10',
+            'to' => '2026-10-10',
+        ])
+            ->assertOk()
+            ->assertJsonPath('summary.trades', 0)
+            ->assertJsonPath('summary.wins', 0)
+            ->assertJsonPath('summary.losses', 0)
+            ->assertJsonPath('summary.closed_trades', 0)
+            ->assertJsonPath('trades', []);
     }
 
     public function test_market_exploration_validates_required_filters_and_date_order(): void

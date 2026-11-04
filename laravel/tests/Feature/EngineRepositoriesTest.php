@@ -1,12 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Feature;
 
+use App\Feature\MarketPairs\Data\MarketPairDefinition;
+use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
 use App\Feature\MarketPairs\Repository\MarketPairRepository;
 use App\Feature\MarketPrice\Repository\MarketPriceRepository;
 use App\Feature\MarketTypes\Repository\MarketTypeRepository;
-use App\Feature\MarketPairs\Data\MarketPairDefinition;
-use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
 use Exact\Collection\Vec;
 use Exact\Type\Option\Option;
 use Illuminate\Foundation\Testing\RefreshDatabase;

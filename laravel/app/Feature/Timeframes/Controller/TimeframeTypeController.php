@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Feature\Timeframes\Controller;
 
-use App\Feature\Timeframes\Model\TimeframeType;
 use App\Feature\Timeframes\Action\CreateTimeframeTypeAction;
 use App\Feature\Timeframes\Action\DeleteTimeframeTypeAction;
 use App\Feature\Timeframes\Action\ListTimeframeTypesAction;
+use App\Feature\Timeframes\Action\LoadTimeframeTypeFormPageAction;
 use App\Feature\Timeframes\Action\UpdateTimeframeTypeAction;
 use App\Feature\Timeframes\Action\ViewTimeframeTypeAction;
 use App\Feature\Timeframes\Request\TimeframeTypeRequest;
@@ -21,9 +21,9 @@ class TimeframeTypeController
         return view('workbench.timeframes.index', ['timeframes' => $action->execute()]);
     }
 
-    public function create(): View
+    public function create(LoadTimeframeTypeFormPageAction $loadForm): View
     {
-        return view('workbench.timeframes.form', ['timeframe' => new TimeframeType]);
+        return view('workbench.timeframes.form', ['timeframe' => $loadForm->execute()]);
     }
 
     public function store(TimeframeTypeRequest $request, CreateTimeframeTypeAction $action): RedirectResponse
@@ -39,9 +39,9 @@ class TimeframeTypeController
         return view('workbench.timeframes.show', ['timeframe' => $action->execute($timeframe)]);
     }
 
-    public function edit(int $timeframe, ViewTimeframeTypeAction $action): View
+    public function edit(int $timeframe, LoadTimeframeTypeFormPageAction $loadForm): View
     {
-        return view('workbench.timeframes.form', ['timeframe' => $action->execute($timeframe)]);
+        return view('workbench.timeframes.form', ['timeframe' => $loadForm->execute($timeframe)]);
     }
 
     public function update(TimeframeTypeRequest $request, int $timeframe, UpdateTimeframeTypeAction $action): RedirectResponse

@@ -1,15 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Unit\Engine\Repositories;
 
-use App\Feature\MarketPairs\Model\MarketPair;
-use App\Feature\MarketPrice\Model\MarketPrice;
-use App\Feature\MarketTypes\Model\MarketType;
-use App\Feature\MarketPairs\Repository\MarketPairRepository;
-use App\Feature\MarketPrice\Repository\MarketPriceRepository;
-use App\Feature\MarketTypes\Repository\MarketTypeRepository;
 use App\Feature\MarketPairs\Data\MarketPairDefinition;
 use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
+use App\Feature\MarketPairs\Model\MarketPair;
+use App\Feature\MarketPairs\Repository\MarketPairRepository;
+use App\Feature\MarketPrice\Model\MarketPrice;
+use App\Feature\MarketPrice\Repository\MarketPriceRepository;
+use App\Feature\MarketTypes\Model\MarketType;
+use App\Feature\MarketTypes\Repository\MarketTypeRepository;
 use Exact\Type\Option\Option;
 use Illuminate\Database\Eloquent\Builder;
 use Mockery;

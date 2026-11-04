@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Feature\MarketExploration\Controller;
 
 use App\Feature\MarketExploration\Action\LoadMarketExplorationPageAction;
+use App\Feature\MarketExploration\Action\RunMarketExplorationStrategyAction;
 use App\Feature\MarketExploration\Request\MarketExplorationRequest;
+use Illuminate\Http\JsonResponse;
 use Illuminate\View\View;
 
 class MarketExplorationController
@@ -23,6 +25,22 @@ class MarketExplorationController
             $selectedTimeframeId,
             $filters['from'] ?? null,
             $filters['to'] ?? null,
+        ));
+    }
+
+    public function runStrategy(
+        MarketExplorationRequest $request,
+        RunMarketExplorationStrategyAction $runStrategy,
+    ): JsonResponse {
+        set_time_limit(0);
+
+        $filters = $request->validated();
+
+        return response()->json($runStrategy->execute(
+            (int) $filters['pair_id'],
+            (int) $filters['timeframe_type_id'],
+            $filters['from'],
+            $filters['to'],
         ));
     }
 }

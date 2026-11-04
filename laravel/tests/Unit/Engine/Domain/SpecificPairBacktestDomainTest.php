@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Unit\Engine\Domain;
 
 use App\Feature\Backtest\Action\RunSpecificPairBacktestAction;

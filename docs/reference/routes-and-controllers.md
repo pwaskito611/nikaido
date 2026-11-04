@@ -58,7 +58,8 @@ The following non-resource Workbench routes are also registered:
 | Method and path | Route name | Controller action | Request/response |
 |---|---|---|---|
 | `GET /workbench` | `workbench.index` | `DashboardController@index` | Renders the dashboard view. |
-| `GET /workbench/market-exploration` | `workbench.market-exploration.index` | `MarketExplorationController@index` | Optional `pair_id`, `timeframe_type_id`, `from`, and `to` query filters. When supplied, identifiers must exist; dates use `Y-m-d`, and `to` must be on or after `from`. Renders a view. |
+| `GET /workbench/market-exploration` | `workbench.market-exploration.index` | `MarketExplorationController@index` | Optional `pair_id`, `timeframe_type_id`, `from`, and `to` query filters. When supplied, identifiers must exist; dates use `Y-m-d`, and `to` must be on or after `from`. Renders a view with searchable pairs and an OHLC chart. |
+| `POST /api/market-exploration/run-strategy` | `market-exploration.run-strategy` | `MarketExplorationController@runStrategy` | Requires `pair_id`, `timeframe_type_id`, `from`, and `to`. Runs the configured strategy with default execution settings and returns trade counts plus entry/exit fills for chart markers. |
 | `GET /workbench/data-import` | `workbench.data-import.index` | `DataImportController@index` | Renders the import/session page. |
 | `POST /workbench/data-import/incoming-sessions` | `workbench.data-import.incoming-sessions.start` | `DataImportController@startIncoming` | Requires existing `pair_id` and `timeframe_type_id`; redirects back with the raw bearer token shown once. |
 | `POST /workbench/data-import/incoming-sessions/{sessionId}/stop` | `workbench.data-import.incoming-sessions.stop` | `DataImportController@stopIncoming` | `sessionId` must be numeric; stops the active session and redirects back. |

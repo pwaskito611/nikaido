@@ -15,9 +15,11 @@ of surrounding tooling and configuration low.
 
 - **Flexible strategy inputs:** Implement strategy logic in `src/`. The
   `main()` entry point receives ordered candles and a prepared execution
-  context, so strategies do not need to query the database. The context can
-  include configured related market pairs at their own timeframes and
-  point-in-time fundamental observations.
+  context, so strategies do not need to query the database. This context can
+  include configured related market-pair data at other timeframes and
+  fundamental data observations available as of each decision time, helping
+  strategies combine market and fundamental context without look-ahead from
+  unreleased observations.
 - **Native-code option:** The isolated strategy boundary makes it practical to
   connect strategy calculations to C/C++ through PHP FFI when the runtime and
   FFI bridge are configured; a C++ strategy runner is not built in.

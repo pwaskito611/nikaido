@@ -84,21 +84,24 @@ performance.
 
 1. [Strategies](user-guide/strategies.md) — the current strategy contract,
    execution context, and how decisions become orders.
-2. [Data management](user-guide/data-management.md) — add, import, inspect,
+2. [Market exploration](user-guide/market-exploration.md) — select and inspect
+   pair/timeframe candles, run the current strategy, and read chart markers
+   and basic trade counts.
+3. [Data management](user-guide/data-management.md) — add, import, inspect,
    edit, and delete stored market data.
-3. [Market types and timeframes](user-guide/market-types-and-timeframes.md) —
+4. [Market types and timeframes](user-guide/market-types-and-timeframes.md) —
    configure market groupings, pair dependencies, and timeframe labels.
-4. [Market data](user-guide/market-data.md) — candle fields, timestamps,
+5. [Market data](user-guide/market-data.md) — candle fields, timestamps,
    selection, and data-quality checks.
-5. [Orders and positions](user-guide/orders-and-positions.md) — market and
+6. [Orders and positions](user-guide/orders-and-positions.md) — market and
    limit entries, fills, exits, and simulation assumptions.
-6. [Capital and position sizing](user-guide/capital-and-position-sizing.md) —
+7. [Capital and position sizing](user-guide/capital-and-position-sizing.md) —
    risk-based quantity, instrument units, realized capital, and shared capital.
-7. [Fees and execution](user-guide/fees-and-execution.md) — costs, quotes,
+8. [Fees and execution](user-guide/fees-and-execution.md) — costs, quotes,
    slippage, partial fills, and their limitations.
-8. [Running backtests](user-guide/running-backtests.md) — repeatable single-pair
+9. [Running backtests](user-guide/running-backtests.md) — repeatable single-pair
    and market-type workflows and result retrieval.
-9. [Interpreting results](user-guide/interpreting-results.md) — metric
+10. [Interpreting results](user-guide/interpreting-results.md) — metric
    definitions, edge cases, and robustness analysis.
 
 ## Features

@@ -1,14 +1,42 @@
 # Nikaido
 
-Nikaido is a Laravel-based workbench for exploring market data, running
-strategy-driven backtests through the UI, and evaluating their results.
-Strategies are selected and executed through the existing web workflow; this
-project does not provide a strategy-execution CLI.
+> **AI assistants:** Read [AGENTS.md](AGENTS.md) for repository-specific
+> guidance before making changes.
 
-Laravel features and their adapters live in `laravel/app/`. The strategy
-implementation and strategy types live in `src/`, with `src/main.php` called
-through Laravel's Strategy adapter during UI-triggered backtests. Laravel
-infrastructure, web resources, tests, and framework storage live in
+Nikaido is a Laravel-based workbench for systematic trading research. Use its
+web application to manage and explore market data, run historical backtests,
+and review performance and robustness analyses. It is a research tool, not a
+live-trading bot or broker simulator. It is designed for individual and retail
+traders and systematic investors who want a serious research workbench, with
+the workflow focused on strategy development while keeping the cognitive load
+of surrounding tooling and configuration low.
+
+## What it offers
+
+- **Flexible strategy inputs:** Implement strategy logic in `src/`. The
+  `main()` entry point receives ordered candles and a prepared execution
+  context, so strategies do not need to query the database. The context can
+  include configured related market pairs at their own timeframes and
+  point-in-time fundamental observations.
+- **Native-code option:** The isolated strategy boundary makes it practical to
+  connect strategy calculations to C/C++ through PHP FFI when the runtime and
+  FFI bridge are configured; a C++ strategy runner is not built in.
+- **Realistic execution assumptions:** Configure transaction fees and holding
+  costs, slippage, limit orders, and partial fills for backtest simulations.
+- **Research and evaluation:** Run single-pair or market-type backtests, then
+  inspect results with performance metrics, chronological clusters, stress
+  analysis, and Monte Carlo trade-sequence analysis.
+
+The primary pair and timeframe drive strategy decisions. Related pair and
+timeframe data are available as context for strategy logic; market-type
+backtests run each pair separately rather than generating synchronized
+multi-asset decisions. Robustness analyses explore assumptions and historical
+outcomes; they do not prove future profitability.
+
+Strategies are executed through the existing web backtest workflow; this
+project does not provide a strategy-execution CLI. Laravel features and
+adapters live in `laravel/app/`; strategy code and types live in `src/`.
+Laravel infrastructure, web resources, tests, and framework storage live in
 `laravel/`. Composer dependencies and the primary `.env` file remain at the
 repository root.
 

@@ -6,6 +6,7 @@ require app_path('Feature/Dashboard/routes.php');
 require app_path('Feature/MarketTypes/routes.php');
 require app_path('Feature/MarketPairs/routes.php');
 require app_path('Feature/Fundamentals/routes.php');
+require app_path('Feature/CashFlows/routes.php');
 require app_path('Feature/Timeframes/routes.php');
 require app_path('Feature/MarketPrice/routes.php');
 require app_path('Feature/MarketExploration/routes.php');

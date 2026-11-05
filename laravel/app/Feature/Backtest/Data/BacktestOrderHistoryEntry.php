@@ -89,6 +89,8 @@ class BacktestOrderHistoryEntry implements JsonSerializable
         public readonly float $requestedPositionSize,
         public readonly float $capitalAtOpen,
         public readonly ?float $requestedEntryPrice = null,
+        public readonly int $priority = 0,
+        public readonly ?string $decisionDate = null,
     ) {
         $this->remainingEntryQuantity = $requestedPositionSize;
         $this->closestToStopLoss = Option::none();
@@ -370,6 +372,8 @@ class BacktestOrderHistoryEntry implements JsonSerializable
      *     favorable_extreme: ?array{price: float, date: string, source: string},
      *     risk_amount: float,
      *     requested_risk_amount: float,
+     *     priority: int,
+     *     decision_date?: string,
      *     strategy_quantity: int|float|string,
      *     quantity_unit: string,
      *     quantity_multiplier: float,
@@ -433,6 +437,8 @@ class BacktestOrderHistoryEntry implements JsonSerializable
             )->getOrNull(),
             'risk_amount' => $this->riskAmount,
             'requested_risk_amount' => $this->requestedRiskAmount,
+            'priority' => $this->priority,
+            'decision_date' => $this->decisionDate,
             'strategy_quantity' => $this->strategyQuantity,
             'quantity_unit' => $this->quantityUnit,
             'quantity_multiplier' => $this->quantityMultiplier,

@@ -16,7 +16,7 @@ The dependency chain is:
 4. Add or import candles for the selected pair and timeframe.
 
 Use the Workbench links **Market Types**, **Market Pairs**, **Timeframes**,
-**Market Prices**, and **Data Import** from the navigation. A new market-price
+**Market Prices**, **Cash Flows**, and **Data Import** from the navigation. A new market-price
 form cannot be submitted until at least one pair and timeframe exist. Details
 about market type and timeframe edits/deletion are in the dedicated
 [guide](market-types-and-timeframes.md).
@@ -110,6 +110,67 @@ for request limits, validation, authentication, and duplicate handling.
 
 There is no built-in provider integration or CSV/Excel upload. For manual
 correction or a small data set, use the Market Prices form.
+
+## Record asset cash flows
+
+The **Cash Flows** page (`/workbench/cash-flows`) stores event-based income
+directly against a market pair, including dividends, interest, staking rewards,
+and other distributions. Each event has a positive per-unit amount, event
+status, and optional announcement, ex-, record-, and payment dates. Amounts
+are assumed to already use Nikaido's account currency; the record deliberately
+has no payout-currency field. `available_at` is required and records when the
+event information became knowable, rather than assuming it was available from
+the ex-date.
+
+Events can be created, viewed, edited, deleted, and filtered by pair in the
+Workbench. Market pairs with cash flow history cannot be deleted.
+
+## Feed cash flow events through the API
+
+On **Data Import**, start a cash flow receiver for one market pair. It has a
+separate bearer token from the candle and fundamental receivers and accepts
+`events` at `POST /api/data-import/cash-flows/events`. Stop the session when
+finished; the token is then invalidated. The feed does not retrieve provider
+data itself.
+
+Example:
+
+```json
+{
+  "events": [
+    {
+      "event_type": "dividend",
+      "amount_per_unit": 0.50,
+      "announced_at": "2026-03-01 09:00:00",
+      "available_at": "2026-03-01 09:00:00",
+      "ex_date": "2026-03-20 00:00:00",
+      "record_date": "2026-03-21 00:00:00",
+      "payable_at": "2026-04-05 00:00:00",
+      "status": "confirmed",
+      "source": "provider",
+      "external_id": "DIV-2026-001"
+    }
+  ]
+}
+```
+
+Send 1–1,000 events per request. `event_type` is one of `dividend`,
+`interest`, `staking_reward`, `distribution`, or `other`. Amounts must be
+positive with up to 12 decimal places. Timestamps use `Y-m-d H:i:s`;
+`available_at` is required and the other dates are optional. Status is one of
+`announced`, `confirmed`, `paid`, or `cancelled`. A stable `external_id`,
+unique within its pair, lets repeated feed submissions update the same event;
+events without an ID are matched by their event details when re-sent. No
+payout-currency field is accepted because values are already in account
+currency. Cash flows can be enabled before running a backtest; the option
+defaults to off. When enabled, confirmed or paid events are visible in
+Strategy Context only from `available_at`, and are recognized on the ex-date
+for a position held before that candle is processed. Long positions receive
+the distribution and short positions pay it. The recognized amount is
+per-unit amount multiplied by the eligible position quantity and instrument
+multiplier. Events announced after the ex-date, cancelled events, and
+positions first opened on the ex-date are not applied. The result reports the
+net recognized cash flows separately and includes them in ending capital.
 
 ## Receive candle batches through the push API
 

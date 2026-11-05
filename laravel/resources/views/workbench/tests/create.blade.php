@@ -44,6 +44,17 @@
                         </select>
                     </div>
                     <div id="market-type-fields" hidden>
+                        <label class="field-label" for="decision_mode">Decision mode <span>*</span></label>
+                        <select class="text-input" id="decision_mode" name="decision_mode">
+                            <option value="per_market_pair" @selected(old('decision_mode', 'per_market_pair') === 'per_market_pair')>Per market pair</option>
+                            <option value="portfolio_target" @selected(old('decision_mode') === 'portfolio_target')>Portfolio target</option>
+                        </select>
+                        <small class="field-hint">Per market pair keeps the existing independent pair decisions. Portfolio target combines pair decisions chronologically and enforces a shared gross-leverage limit.</small>
+                        <div id="portfolio-target-fields" hidden>
+                            <label class="field-label" for="max_gross_leverage">Maximum gross leverage <span>*</span></label>
+                            <input class="text-input" id="max_gross_leverage" name="max_gross_leverage" type="number" min="0.01" max="1000" step="any" value="{{ old('max_gross_leverage', '1.0') }}">
+                            <small class="field-hint">For example, 2.0 allows total long plus short notional up to 2× portfolio equity. Existing positions are never reduced to make room. New orders that exceed the limit are rejected; higher numeric values mean higher priority.</small>
+                        </div>
                         <label class="field-label" for="market_type_id">Market type <span>*</span></label>
                         <select class="text-input" id="market_type_id" name="market_type_id">
                             <option value="">Select a market type</option>
@@ -94,6 +105,10 @@
                         <input class="text-input" id="initial_capital" name="initial_capital" type="number" min="0.01" step="0.01" value="{{ old('initial_capital', '10000.00') }}" required>
                         <small class="field-hint" id="initial-capital-hint">For a specific-pair test, enter the amount in the pair's quote currency, such as USD for EUR/USD.</small>
                     </div>
+                    <label class="check-row">
+                        <input type="checkbox" id="include_cash_flows" name="include_cash_flows" value="1" @checked(old('include_cash_flows'))>
+                        <span><strong>Include asset cash flows</strong><small>Include confirmed/paid cash-flow events from the selected pair(s). Income is credited on ex-date for positions held before that candle; short positions pay the equivalent amount. Cash flows default to off.</small></span>
+                    </label>
                 </div>
             </div>
             <div class="form-section">
@@ -318,6 +333,9 @@
         const marketTypeSelect = document.getElementById('market_type_id');
         const capitalModeField = document.getElementById('capital-mode-field');
         const capitalModeSelect = document.getElementById('capital_mode');
+        const decisionModeSelect = document.getElementById('decision_mode');
+        const portfolioTargetFields = document.getElementById('portfolio-target-fields');
+        const maxGrossLeverageInput = document.getElementById('max_gross_leverage');
         const initialCapitalHint = document.getElementById('initial-capital-hint');
         const exclusionOptions = [...document.querySelectorAll('[data-excluded-pair-option]')];
         const exclusionEmpty = document.getElementById('pair-exclusion-empty');
@@ -339,8 +357,10 @@
                 : 'This market type has no pairs yet.';
         };
         if (testType) {
+            let previousCapitalMode = capitalModeSelect.value;
             const updateTestTypeFields = () => {
                 const parallel = testType.value === 'market_type';
+                const portfolioTarget = parallel && decisionModeSelect.value === 'portfolio_target';
                 pairFields.hidden = parallel;
                 marketTypeFields.hidden = !parallel;
                 pairSelect.required = !parallel;
@@ -348,16 +368,32 @@
                 marketTypeSelect.required = parallel;
                 marketTypeSelect.disabled = !parallel;
                 capitalModeField.hidden = !parallel;
-                capitalModeSelect.required = parallel;
-                capitalModeSelect.disabled = !parallel;
+                portfolioTargetFields.hidden = !portfolioTarget;
+                decisionModeSelect.required = parallel;
+                decisionModeSelect.disabled = !parallel;
+                maxGrossLeverageInput.required = portfolioTarget;
+                maxGrossLeverageInput.disabled = !portfolioTarget;
+                if (portfolioTarget) {
+                    if (!capitalModeSelect.disabled) {
+                        previousCapitalMode = capitalModeSelect.value;
+                    }
+                    capitalModeSelect.value = 'shared';
+                } else if (capitalModeSelect.disabled) {
+                    capitalModeSelect.value = previousCapitalMode;
+                }
+                capitalModeSelect.required = parallel && !portfolioTarget;
+                capitalModeSelect.disabled = !parallel || portfolioTarget;
                 initialCapitalHint.textContent = !parallel
                     ? "For a specific-pair test, enter the amount in the pair's quote currency, such as USD for EUR/USD."
+                    : portfolioTarget
+                        ? 'This is one shared portfolio equity amount. The portfolio-target engine uses it as the initial equity for the gross-leverage limit.'
                     : capitalModeSelect.value === 'shared'
                         ? 'This is one shared risk-capital budget. Pair risk and P/L values are combined as reported; no FX conversion is performed, so use a common account unit.'
                         : 'Each successful pair starts with this amount. Overall capital is the sum across pairs; values are combined as reported with no FX conversion.';
                 updatePairExclusionOptions();
             };
             testType.addEventListener('change', updateTestTypeFields);
+            decisionModeSelect.addEventListener('change', updateTestTypeFields);
             updateTestTypeFields();
             marketTypeSelect.addEventListener('change', updatePairExclusionOptions);
             capitalModeSelect.addEventListener('change', updateTestTypeFields);

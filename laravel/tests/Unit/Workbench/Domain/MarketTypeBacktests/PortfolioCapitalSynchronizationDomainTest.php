@@ -45,6 +45,40 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
         $this->assertSame(0.0, $result['orders'][0]['exit_fills'][0]['profit_loss']);
     }
 
+    public function test_cash_flow_is_applied_once_even_when_the_order_has_multiple_exit_fills(): void
+    {
+        $order = $this->order('EUR/USD', 1, '2026-10-10 10:00:00', '2026-10-10 12:00:00', 1, 10, 1);
+        $order['exit_fills'] = [
+            [
+                'quantity' => 0.5,
+                'price' => 100.5,
+                'date' => '2026-10-10 11:00:00',
+                'profit_loss' => 0.5,
+            ],
+            [
+                'quantity' => 0.5,
+                'price' => 101.0,
+                'date' => '2026-10-10 12:00:00',
+                'profit_loss' => 0.5,
+            ],
+        ];
+        $orders = Vec::of(PortfolioManagedOrder::fromPersistedArray($order, 0));
+
+        $result = (new SynchronizeMarketTypePortfolioCapitalAction)->applySeparateCapitalTimeline(
+            100.0,
+            $orders,
+            [[
+                'date' => '2026-10-10 11:30:00',
+                'pair' => 'EUR/USD',
+                'order_id' => 1,
+                'order_index' => 0,
+                'amount' => 10.0,
+            ]],
+        );
+
+        $this->assertSame(111.0, $result->endingCapital);
+    }
+
     public function test_decimal_risk_demands_equal_to_available_capital_are_not_scaled_down(): void
     {
         $orders = [

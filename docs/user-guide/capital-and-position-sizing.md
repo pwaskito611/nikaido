@@ -88,6 +88,16 @@ requested-risk, and P&L values are denominated compatibly. If pair data has no
 candle for a period, it contributes no event at that time; missing candles
 are not interpolated.
 
+Market-type **Portfolio target** mode uses a separate gross-leverage gate.
+It preserves the strategy-requested quantity, calculates long and short
+notional at entry, and marks open quantities using the latest available candle
+close before each portfolio event. New entries that exceed the configured
+multiple of mark-to-market equity are rejected; positions are not resized or
+closed to make room. Price changes can move an already-open portfolio above
+the configured limit, but the engine does not force-liquidate it. This mode
+does not convert quote currencies and is not a broker margin or liquidation
+model.
+
 Per-pair concurrent positions are possible in a market-type portfolio, but
 the single-pair process permits only one active order/position at a time. For
 shared runs, inspect each pair's allocated risk, allocation factor, and
@@ -100,6 +110,8 @@ capital-before/after fields along with the top-level run summary.
 - The single-pair runner does not reserve notional, enforce leverage or margin,
   cap quantity by capital, or prevent total costs from making capital
   negative.
+- Portfolio-target gross leverage limits apply only to market-type portfolio
+  runs; they govern new entries and do not guarantee maintenance margin.
 - No FX conversion is applied across quote currencies.
 - The supplied strategy's risk amount is computed from its stop distance; a
   stop equal to the reference entry cannot size an order and invalid entry

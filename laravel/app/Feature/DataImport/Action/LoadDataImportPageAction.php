@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Feature\DataImport\Action;
 
+use App\Feature\CashFlows\Model\CashFlowImportSession;
+use App\Feature\CashFlows\Repository\CashFlowImportSessionRepository;
 use App\Feature\DataImport\Model\DataImportSession;
 use App\Feature\DataImport\Repository\DataImportSessionRepository;
 use App\Feature\Fundamentals\Model\Fundamental;
@@ -24,6 +26,7 @@ class LoadDataImportPageAction
         private readonly DataImportSessionRepository $sessions,
         private readonly FundamentalRepository $fundamentals,
         private readonly FundamentalImportSessionRepository $fundamentalSessions,
+        private readonly CashFlowImportSessionRepository $cashFlowSessions,
     ) {}
 
     /**
@@ -34,7 +37,9 @@ class LoadDataImportPageAction
      *     recentSessions: Vec<DataImportSession>,
      *     fundamentals: Vec<Fundamental>,
      *     activeFundamentalSessions: list<FundamentalImportSession>,
-     *     recentFundamentalSessions: list<FundamentalImportSession>
+     *     recentFundamentalSessions: list<FundamentalImportSession>,
+     *     activeCashFlowSessions: list<CashFlowImportSession>,
+     *     recentCashFlowSessions: list<CashFlowImportSession>
      * }
      */
     public function execute(): array
@@ -47,6 +52,8 @@ class LoadDataImportPageAction
             'fundamentals' => $this->fundamentals->allForImport(),
             'activeFundamentalSessions' => $this->fundamentalSessions->activeAll(),
             'recentFundamentalSessions' => $this->fundamentalSessions->recentAll(),
+            'activeCashFlowSessions' => $this->cashFlowSessions->activeAll(),
+            'recentCashFlowSessions' => $this->cashFlowSessions->recentAll(),
         ];
     }
 }

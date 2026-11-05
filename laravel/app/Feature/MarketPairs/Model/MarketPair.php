@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Feature\MarketPairs\Model;
 
+use App\Feature\CashFlows\Model\MarketPairCashFlow;
 use App\Feature\Fundamentals\Model\Fundamental;
 use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Feature\MarketTypes\Model\MarketType;
@@ -38,6 +39,11 @@ class MarketPair extends Model
     public function prices(): HasMany
     {
         return $this->hasMany(MarketPrice::class, 'pair_id');
+    }
+
+    public function cashFlows(): HasMany
+    {
+        return $this->hasMany(MarketPairCashFlow::class);
     }
 
     public function relatedPairs(): BelongsToMany

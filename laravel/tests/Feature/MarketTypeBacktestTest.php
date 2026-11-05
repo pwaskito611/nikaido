@@ -58,6 +58,7 @@ class MarketTypeBacktestTest extends TestCase
         $this->get('/workbench/tests/create')
             ->assertOk()
             ->assertSee('Exclude pairs')
+            ->assertSee('Include asset cash flows')
             ->assertSee('Shared portfolio capital')
             ->assertSee('Separate capital per pair')
             ->assertSee('EUR/GBP');
@@ -73,6 +74,7 @@ class MarketTypeBacktestTest extends TestCase
             'partial_fill_enabled' => '1',
             'partial_fill_ratio' => '0.25',
             'unfilled_order_policy' => 'cancel',
+            'include_cash_flows' => '1',
         ]))->assertRedirect('/workbench/tests/market-type-runs/1');
 
         $run = MarketTypeBacktestRun::query()->findOrFail(1);
@@ -90,6 +92,7 @@ class MarketTypeBacktestTest extends TestCase
         $this->assertTrue(filter_var($run->configuration['partial_fill_enabled'], FILTER_VALIDATE_BOOLEAN));
         $this->assertSame('0.25', $run->configuration['partial_fill_ratio']);
         $this->assertSame('cancel', $run->configuration['unfilled_order_policy']);
+        $this->assertTrue(filter_var($run->configuration['include_cash_flows'], FILTER_VALIDATE_BOOLEAN));
         Bus::assertDispatched(RunMarketTypeBacktestPairJob::class, 2);
 
         foreach ([$eligibleOne, $eligibleTwo] as $pair) {
@@ -145,6 +148,7 @@ class MarketTypeBacktestTest extends TestCase
         $this->assertSame('separate', $run->configuration['capital_mode']);
         $this->assertSame(0, $run->total_pairs);
         $this->assertSame('completed', $run->status);
+        $this->assertFalse(filter_var($run->configuration['include_cash_flows'], FILTER_VALIDATE_BOOLEAN));
         $this->assertNotNull($run->completed_at);
         Bus::assertNotDispatched(RunMarketTypeBacktestPairJob::class);
     }

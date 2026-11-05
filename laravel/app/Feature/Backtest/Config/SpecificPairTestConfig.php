@@ -8,6 +8,7 @@ use App\Feature\Backtest\Rules\ActiveTradingSchedule;
 use DateTimeImmutable;
 use Exact\Collection\Vec;
 use InvalidArgumentException;
+use Nikaido\Strategy\Enums\DecisionMode;
 
 class SpecificPairTestConfig
 {
@@ -36,6 +37,8 @@ class SpecificPairTestConfig
         public readonly FixedSlippageConfig $slippage = new FixedSlippageConfig,
         public readonly PartialFillConfig $partialFill = new PartialFillConfig,
         public readonly TradeCostConfig $tradeCosts = new TradeCostConfig,
+        public readonly DecisionMode $decisionMode = DecisionMode::PerMarketPair,
+        public readonly bool $includeCashFlows = false,
     ) {
         if ($activeFrom instanceof ActiveTradingSchedule) {
             if ($activeUntil !== null) {

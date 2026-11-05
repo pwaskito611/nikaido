@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Feature\Backtest\Action\RunSpecificPairBacktestAction;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
+use App\Feature\CashFlows\Action\LoadMarketPairCashFlowsForBacktestAction;
 use App\Feature\Fundamentals\Action\LoadFundamentalDataForBacktestAction;
 use App\Feature\Fundamentals\Model\Fundamental;
 use App\Feature\Fundamentals\Model\FundamentalContent;
@@ -239,6 +240,7 @@ class FundamentalFeatureTest extends TestCase
             app(MarketPairRepository::class),
             new SpecificPairBacktestProcess($strategy),
             app(LoadFundamentalDataForBacktestAction::class),
+            app(LoadMarketPairCashFlowsForBacktestAction::class),
         ))->execute($config);
 
         $this->assertCount(0, $result->orders);

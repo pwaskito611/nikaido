@@ -11,6 +11,7 @@ final readonly class SpecificPairBacktestResult
     /**
      * @param  Vec<BacktestDecision>  $decisions
      * @param  Vec<BacktestOrderHistoryEntry>  $orders
+     * @param  Vec<array<string, int|float|string>>|null  $cashFlows
      */
     public function __construct(
         public Vec $decisions,
@@ -21,6 +22,7 @@ final readonly class SpecificPairBacktestResult
         public float $quantityMultiplier,
         public float $endingCapital,
         public BacktestExecutionConfiguration $executionConfiguration,
+        public ?Vec $cashFlows = null,
     ) {}
 
 }

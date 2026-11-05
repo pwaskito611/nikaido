@@ -53,6 +53,22 @@ class DatabaseMigrationsTest extends TestCase
                 'volume',
                 'volume_type',
             ],
+            'market_pair_cash_flows' => [
+                'id',
+                'market_pair_id',
+                'event_type',
+                'amount_per_unit',
+                'announced_at',
+                'available_at',
+                'ex_date',
+                'record_date',
+                'payable_at',
+                'status',
+                'source',
+                'external_id',
+                'created_at',
+                'updated_at',
+            ],
         ];
 
         foreach ($expectedColumns as $table => $columns) {
@@ -88,6 +104,57 @@ class DatabaseMigrationsTest extends TestCase
         ));
         $this->assertTrue($marketPriceIndexes->contains(
             fn (array $index): bool => $index['columns'] === ['timeframe_type_id']
+        ));
+
+        $cashFlowIndexes = collect(Schema::getIndexes('market_pair_cash_flows'));
+        $cashFlowSessionIndexes = collect(Schema::getIndexes('market_pair_cash_flow_import_sessions'));
+
+        $this->assertTrue($cashFlowIndexes->contains(
+            fn (array $index): bool => $index['unique']
+                && $index['columns'] === ['market_pair_id', 'external_id']
+        ));
+        $this->assertTrue($cashFlowSessionIndexes->contains(
+            fn (array $index): bool => $index['unique'] && $index['columns'] === ['active_market_pair_id']
+        ));
+        $this->assertTrue($cashFlowSessionIndexes->contains(
+            fn (array $index): bool => $index['unique'] && $index['columns'] === ['token_hash']
+        ));
+        $this->assertFalse(Schema::hasColumn('market_pair_cash_flows', 'payout_currency'));
+
+        foreach (array_merge(
+            array_column($cashFlowIndexes->all(), 'name'),
+            array_column($cashFlowSessionIndexes->all(), 'name'),
+        ) as $indexName) {
+            $this->assertLessThanOrEqual(64, strlen($indexName), "Index name exceeds MySQL limit: {$indexName}");
+        }
+    }
+
+    public function test_cash_flow_migration_repairs_indexes_after_a_partial_mysql_migration_failure(): void
+    {
+        Schema::table('market_pair_cash_flow_import_sessions', function ($table): void {
+            $table->dropUnique('cash_flow_sessions_active_pair_unique');
+            $table->dropUnique('cash_flow_sessions_token_hash_unique');
+            $table->dropIndex('market_pair_cash_flow_sessions_selection_index');
+        });
+
+        $migration = require database_path(
+            'migrations/2026_11_04_000000_create_market_pair_cash_flows_and_import_sessions.php',
+        );
+        $migration->up();
+
+        $this->assertTrue(Schema::hasIndex(
+            'market_pair_cash_flow_import_sessions',
+            ['active_market_pair_id'],
+            'unique',
+        ));
+        $this->assertTrue(Schema::hasIndex(
+            'market_pair_cash_flow_import_sessions',
+            ['token_hash'],
+            'unique',
+        ));
+        $this->assertTrue(Schema::hasIndex(
+            'market_pair_cash_flow_import_sessions',
+            'market_pair_cash_flow_sessions_selection_index',
         ));
     }
 

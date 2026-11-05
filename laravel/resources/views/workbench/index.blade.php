@@ -7,7 +7,7 @@
         <div>
             <span class="eyebrow">SYSTEMATIC TRADING / RESEARCH WORKBENCH</span>
             <h1>Research workspace</h1>
-            <p>Configure market data, run reproducible historical tests, and inspect strategy outcomes.</p>
+            <p>Manage historical market, fundamental, and asset cash-flow data; run configured backtests; and review strategy outcomes.</p>
         </div>
         <a class="button button-primary" href="{{ route('workbench.tests.create') }}">Configure backtest <span>→</span></a>
     </div>
@@ -20,17 +20,17 @@
         <div class="overview-cycle">
             <div class="overview-cycle-step">
                 <span class="overview-step-index">01</span>
-                <div><strong>Prepare the universe</strong><p>Define market types, pairs, and candle intervals used by the engine.</p></div>
+                <div><strong>Prepare the universe and research data</strong><p>Define pairs and timeframes, then link company or economic fundamentals and asset cash-flow events.</p></div>
                 <a href="{{ route('workbench.market-types.index') }}">Market types <span>↗</span></a>
             </div>
             <div class="overview-cycle-step">
                 <span class="overview-step-index">02</span>
-                <div><strong>Load and inspect prices</strong><p>Import provider data, receive pushed candles, or inspect historical OHLC.</p></div>
+                <div><strong>Feed and explore historical data</strong><p>Enter records manually or receive pushed data from your sender, then inspect candles and run a strategy on an explored range.</p></div>
                 <a href="{{ route('workbench.data-import.index') }}">Data import <span>↗</span></a>
             </div>
             <div class="overview-cycle-step">
                 <span class="overview-step-index">03</span>
-                <div><strong>Run and evaluate</strong><p>Test a specific pair or schedule eligible pairs within a market type.</p></div>
+                <div><strong>Configure and evaluate a backtest</strong><p>Run a pair or market type, choose portfolio-target leverage controls, and review performance and robustness outputs.</p></div>
                 <a href="{{ route('workbench.tests.create') }}">Backtest setup <span>↗</span></a>
             </div>
         </div>
@@ -63,14 +63,24 @@
                     <span class="overview-link-copy"><strong>Market prices</strong><small>Browse, filter, and maintain historical OHLC prices.</small></span>
                     <span class="overview-link-arrow">↗</span>
                 </a>
-                <a href="{{ route('workbench.data-import.index') }}">
+                <a href="{{ route('workbench.fundamentals.index') }}">
                     <span class="overview-link-code">05</span>
-                    <span class="overview-link-copy"><strong>Data import</strong><small>Pull from a configured provider or enable a scoped push session.</small></span>
+                    <span class="overview-link-copy"><strong>Fundamentals</strong><small>Manage company or economic entities and dated observations linked to pairs.</small></span>
+                    <span class="overview-link-arrow">↗</span>
+                </a>
+                <a href="{{ route('workbench.cash-flows.index') }}">
+                    <span class="overview-link-code">06</span>
+                    <span class="overview-link-copy"><strong>Asset cash flows</strong><small>Record per-unit distributions and other cash returns in the account currency.</small></span>
+                    <span class="overview-link-arrow">↗</span>
+                </a>
+                <a href="{{ route('workbench.data-import.index') }}">
+                    <span class="overview-link-code">07</span>
+                    <span class="overview-link-copy"><strong>Data import</strong><small>Start scoped push receivers for candles, fundamentals, and cash-flow events; Nikaido does not fetch providers.</small></span>
                     <span class="overview-link-arrow">↗</span>
                 </a>
                 <a href="{{ route('workbench.market-exploration.index') }}">
-                    <span class="overview-link-code">06</span>
-                    <span class="overview-link-copy"><strong>Market exploration</strong><small>Inspect historical candles in a scrollable naked chart.</small></span>
+                    <span class="overview-link-code">08</span>
+                    <span class="overview-link-copy"><strong>Market exploration</strong><small>Search pairs, inspect a candle chart, and run the strategy with visible entry and exit markers.</small></span>
                     <span class="overview-link-arrow">↗</span>
                 </a>
             </div>
@@ -84,21 +94,21 @@
             <div class="overview-link-list">
                 <a href="{{ route('workbench.tests.create') }}">
                     <span class="overview-link-code">01</span>
-                    <span class="overview-link-copy"><strong>Backtest configuration</strong><small>Run one pair or queue eligible pairs for a market type.</small></span>
+                    <span class="overview-link-copy"><strong>Backtest configuration</strong><small>Run one pair or queue eligible pairs; configure schedules, execution assumptions, costs, and optional cash-flow accounting.</small></span>
                     <span class="overview-link-arrow">↗</span>
                 </a>
                 <div class="overview-capability">
                     <span class="overview-link-code">02</span>
-                    <span class="overview-link-copy"><strong>Result analysis</strong><small>Review decisions, order history, capital movement, and cluster summaries.</small></span>
+                    <span class="overview-link-copy"><strong>Portfolio target</strong><small>Apply a shared gross-leverage limit to chronological pair orders; numeric strategy priority decides which competing entries are considered first.</small></span>
                 </div>
                 <div class="overview-capability">
                     <span class="overview-link-code">03</span>
-                    <span class="overview-link-copy"><strong>Robustness evaluation</strong><small>Run fluctuation stress scenarios and Monte Carlo simulations on saved results.</small></span>
+                    <span class="overview-link-copy"><strong>Results and robustness</strong><small>Review trade and capital metrics, cluster summaries, fluctuation stress scenarios, and Monte Carlo simulations.</small></span>
                 </div>
             </div>
             <div class="overview-architecture">
-                <span class="eyebrow">PROJECT BOUNDARIES</span>
-                <p><strong>Strategy</strong> defines trading decisions. <strong>Engine</strong> loads price history, simulates orders, and produces backtest results. The Workbench configures research runs and presents their analysis.</p>
+                <span class="eyebrow">HOW PORTFOLIO TARGET WORKS</span>
+                <p><strong>Strategy</strong> generates decisions per pair; the <strong>Engine</strong> simulates orders and applies portfolio constraints. Pair histories are produced independently before portfolio leverage filtering. Priority orders competing entries, but the strategy does not receive a live snapshot of all holdings or candidates; rejected entries do not trigger strategy replay. Cash-flow accounting is optional and defaults off. No FX conversion or forced liquidation is modeled.</p>
                 <a href="{{ route('workbench.tests.create') }}">Start a research run <span>→</span></a>
             </div>
         </section>

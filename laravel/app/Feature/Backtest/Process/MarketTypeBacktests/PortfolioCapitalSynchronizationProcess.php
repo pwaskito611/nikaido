@@ -17,10 +17,27 @@ use InvalidArgumentException;
 class PortfolioCapitalSynchronizationProcess
 {
     /**
+     * Synchronize realized equity without resizing strategy-requested quantities.
+     *
      * @param  Vec<PortfolioManagedOrder>  $orders
      */
-    public function applySeparateCapitalTimeline(float $initialCapital, Vec $orders): PortfolioCapitalSynchronizationResult
-    {
+    public function applyCapitalTimeline(
+        float $initialCapital,
+        Vec $orders,
+        array $cashFlows = [],
+    ): PortfolioCapitalSynchronizationResult {
+        return $this->applySeparateCapitalTimeline($initialCapital, $orders, $cashFlows);
+    }
+
+    /**
+     * @param  Vec<PortfolioManagedOrder>  $orders
+     * @param  list<array{date: string, pair: string, order_id: int, order_index: int, amount: float}>  $cashFlows
+     */
+    public function applySeparateCapitalTimeline(
+        float $initialCapital,
+        Vec $orders,
+        array $cashFlows = [],
+    ): PortfolioCapitalSynchronizationResult {
         $events = Vec::empty();
         $sequence = 0;
 
@@ -65,6 +82,18 @@ class PortfolioCapitalSynchronizationProcess
                 ));
             }
         }
+        foreach ($cashFlows as $cashFlow) {
+            $events = $events->append(new PortfolioCapitalEvent(
+                date: $cashFlow['date'],
+                isExit: true,
+                orderIndex: $cashFlow['order_index'],
+                fillIndex: Option::none(),
+                pair: $cashFlow['pair'],
+                orderId: $cashFlow['order_id'],
+                sequence: $sequence++,
+                cashFlowAmount: $cashFlow['amount'],
+            ));
+        }
 
         $orderedEvents = Vec::fromIterable(SortedSet::fromIterable(
             $events,
@@ -82,6 +111,13 @@ class PortfolioCapitalSynchronizationProcess
         $capital = $initialCapital;
         foreach ($orderedEvents as $event) {
             $order = $orders->at($event->orderIndex);
+            if ($event->cashFlowAmount !== null) {
+                if (! $order->entryRejected) {
+                    $capital = (float) Number::of($capital)->add($event->cashFlowAmount)->value();
+                }
+
+                continue;
+            }
             if (! $event->isExit) {
                 $fillIndex = $event->fillIndex->getOrElseThrow(
                     new InvalidArgumentException('An entry-cost event requires an entry fill index.'),
@@ -114,12 +150,15 @@ class PortfolioCapitalSynchronizationProcess
 
     /**
      * @param  Vec<PortfolioManagedOrder>  $orders
+     * @param  list<string>  $perOrderCostComponents
+     * @param  list<array{date: string, pair: string, order_id: int, order_index: int, amount: float}>  $cashFlows
      */
     public function execute(
         float $initialCapital,
         Vec $orders,
         UnfilledOrderPolicy $unfilledOrderPolicy = UnfilledOrderPolicy::Keep,
         array $perOrderCostComponents = [],
+        array $cashFlows = [],
     ): PortfolioCapitalSynchronizationResult {
         if (! is_finite($initialCapital) || $initialCapital <= 0) {
             throw new InvalidArgumentException('Shared portfolio capital must be a positive finite number.');
@@ -130,6 +169,12 @@ class PortfolioCapitalSynchronizationProcess
         $sequence = 0;
 
         foreach ($orders as $order) {
+            if ($order->entryRejected) {
+                $riskPerUnit = $riskPerUnit->append($order->riskPerUnit());
+                $activeRisk = $activeRisk->append(0.0);
+
+                continue;
+            }
             $unitRisk = $order->riskPerUnit();
             if (! is_finite($unitRisk)) {
                 throw new InvalidArgumentException('A portfolio-managed order has a non-finite stop-loss risk per quantity unit.');
@@ -188,6 +233,18 @@ class PortfolioCapitalSynchronizationProcess
                 ));
             }
         }
+        foreach ($cashFlows as $cashFlow) {
+            $events = $events->append(new PortfolioCapitalEvent(
+                date: $cashFlow['date'],
+                isExit: true,
+                orderIndex: $cashFlow['order_index'],
+                fillIndex: Option::none(),
+                pair: $cashFlow['pair'],
+                orderId: $cashFlow['order_id'],
+                sequence: $sequence++,
+                cashFlowAmount: $cashFlow['amount'],
+            ));
+        }
 
         $orderedEvents = Vec::fromIterable(SortedSet::fromIterable(
             $events,
@@ -223,6 +280,14 @@ class PortfolioCapitalSynchronizationProcess
             foreach ($dateEvents->filter(static fn (PortfolioCapitalEvent $event): bool => $event->isExit) as $event) {
                 $order = $orders->at($event->orderIndex);
                 if ($order->entryRejected) {
+                    continue;
+                }
+                if ($event->cashFlowAmount !== null) {
+                    $allocationFactor = $order->allocationFactor->getOrElse(1.0);
+                    $capital = (float) Number::of($capital)
+                        ->add($event->cashFlowAmount * $allocationFactor)
+                        ->value();
+
                     continue;
                 }
 

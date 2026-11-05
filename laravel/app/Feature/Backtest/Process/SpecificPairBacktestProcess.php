@@ -28,6 +28,7 @@ use Iterator;
 use IteratorIterator;
 use LogicException;
 use Nikaido\Strategy\Enums\StrategySignal;
+use Nikaido\Strategy\Models\CashFlowDataCollection;
 use Nikaido\Strategy\Models\FundamentalDataCollection;
 use Nikaido\Strategy\Models\RelatedMarketPairData;
 use Nikaido\Strategy\Models\StrategyDecision;
@@ -52,7 +53,9 @@ class SpecificPairBacktestProcess
         SpecificPairTestConfig $config,
         MarketPairMarketData $marketData,
         FundamentalDataCollection $fundamentals,
+        ?CashFlowDataCollection $cashFlows = null,
     ): SpecificPairBacktestResult {
+        $cashFlows ??= new CashFlowDataCollection;
         $quantityUnit = $marketData->quantityUnit->value;
         $configuredQuantityMultiplier = $marketData->contractSize;
         $quantityMultiplier = $quantityUnit === 'units' ? 1.0 : (float) $configuredQuantityMultiplier;
@@ -78,6 +81,8 @@ class SpecificPairBacktestProcess
             $relatedMarketPairs,
             $config->timeframeTypeId,
             $fundamentals,
+            $config->decisionMode,
+            $cashFlows,
         );
         $decisions = $this->strategy->execute($candles, $context);
 
@@ -88,6 +93,7 @@ class SpecificPairBacktestProcess
             $quantityUnit,
             $configuredQuantityMultiplier,
             $context,
+            $cashFlows,
         );
     }
 
@@ -102,6 +108,7 @@ class SpecificPairBacktestProcess
         string $quantityUnit,
         string $configuredQuantityMultiplier,
         StrategyExecutionContext $context,
+        CashFlowDataCollection $cashFlows,
     ): SpecificPairBacktestResult {
         /** @var list<BacktestDecision> $results */
         $results = [];
@@ -110,9 +117,11 @@ class SpecificPairBacktestProcess
         $orderHistory = Vec::empty();
         $openOrderIndex = null;
         $entryDecisionIndex = null;
-        /** @var array{decision: StrategyDecision, decision_index: int}|null $pendingEntry */
+        /** @var array{decision: StrategyDecision, decision_index: int, decision_date: string}|null $pendingEntry */
         $pendingEntry = null;
         $currentCapital = $config->initialCapital;
+        $cashFlowHistory = [];
+        $processedCashFlows = [];
         $slippageCalculator = new SlippageCalculator($config->slippage);
         $decisionIterator = $this->decisionIterator($decisions);
         $decisionIterator->rewind();
@@ -137,6 +146,46 @@ class SpecificPairBacktestProcess
             $hadOpenOrder = $openOrderIndex !== null || $pendingEntry !== null;
             $filledLimitThisCandle = false;
 
+            if ($config->includeCashFlows) {
+                foreach ($cashFlows->availableAt($candle->price_date) as $cashFlow) {
+                    if ($cashFlow->exDate === null
+                        || $cashFlow->exDate > $candle->price_date
+                        || $cashFlow->availableAt > $cashFlow->exDate
+                        || ! in_array($cashFlow->status, ['confirmed', 'paid'], true)
+                        || isset($processedCashFlows[$cashFlow->id])) {
+                        continue;
+                    }
+
+                    $processedCashFlows[$cashFlow->id] = true;
+                    if ($openOrderIndex === null) {
+                        continue;
+                    }
+
+                    $order = $orderHistory->at($openOrderIndex);
+                    $eligibleQuantity = $order->remainingPositionSize;
+                    if ($eligibleQuantity <= 0.000000000001) {
+                        continue;
+                    }
+
+                    $direction = $order->signal === StrategySignal::Short->value ? -1.0 : 1.0;
+                    $amount = $cashFlow->amountPerUnit
+                        * $eligibleQuantity
+                        * $order->pnlMultiplier
+                        * $direction;
+                    $currentCapital = (float) Number::of($currentCapital)->add($amount)->value();
+                    $cashFlowHistory[] = [
+                        'event_id' => $cashFlow->id,
+                        'event_type' => $cashFlow->eventType,
+                        'ex_date' => $cashFlow->exDate->format('Y-m-d H:i:s'),
+                        'recognized_at' => $candle->price_date->format('Y-m-d H:i:s'),
+                        'order_id' => $order->id,
+                        'quantity' => $eligibleQuantity,
+                        'amount_per_unit' => $cashFlow->amountPerUnit,
+                        'amount' => $amount,
+                    ];
+                }
+            }
+
             if ($pendingEntry !== null) {
                 $limitFill = $this->limitEntryPrice(
                     $candle,
@@ -150,6 +199,7 @@ class SpecificPairBacktestProcess
                         $limitFill->second(),
                         $candle,
                         $candle->price_date->format('Y-m-d H:i:s'),
+                        $pendingEntry['decision_date'],
                         $orderHistory->count() + 1,
                         $currentCapital,
                         $quantityUnit,
@@ -325,6 +375,7 @@ class SpecificPairBacktestProcess
                     $pendingEntry = [
                         'decision' => $decision,
                         'decision_index' => $decisionIndex,
+                        'decision_date' => $candle->price_date->format('Y-m-d H:i:s'),
                     ];
                     $decisionStatuses[$decisionIndex] = 'pending';
                 } else {
@@ -334,6 +385,7 @@ class SpecificPairBacktestProcess
                         $entry->first(),
                         $entry->second(),
                         $candle,
+                        $candle->price_date->format('Y-m-d H:i:s'),
                         $candle->price_date->format('Y-m-d H:i:s'),
                         $orderHistory->count() + 1,
                         $currentCapital,
@@ -384,7 +436,13 @@ class SpecificPairBacktestProcess
             unitsPerLot: $quantityUnit === 'lot' ? (float) $configuredQuantityMultiplier : 1.0,
             quantityMultiplier: $quantityUnit === 'units' ? 1.0 : (float) $configuredQuantityMultiplier,
             endingCapital: $currentCapital,
-            executionConfiguration: new BacktestExecutionConfiguration($config->slippage, $config->partialFill, $config->tradeCosts),
+            executionConfiguration: new BacktestExecutionConfiguration(
+                $config->slippage,
+                $config->partialFill,
+                $config->tradeCosts,
+                $config->includeCashFlows,
+            ),
+            cashFlows: Vec::fromArray($cashFlowHistory),
         );
     }
 
@@ -410,6 +468,7 @@ class SpecificPairBacktestProcess
         string $entryPriceSource,
         MarketPrice $candle,
         string $openDate,
+        string $decisionDate,
         int $id,
         float $capital,
         string $quantityUnit,
@@ -454,6 +513,8 @@ class SpecificPairBacktestProcess
             requestedPositionSize: (float) $requestedPositionSize->value(),
             capitalAtOpen: $capital,
             requestedEntryPrice: $decision->limitPrice,
+            priority: $decision->priority,
+            decisionDate: $decisionDate,
         );
         $fillQuantity = $this->fillQuantity(
             $requestedPositionSize,

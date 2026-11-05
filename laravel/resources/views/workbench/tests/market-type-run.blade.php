@@ -7,7 +7,11 @@
         <div>
             <span class="eyebrow">PARALLEL BACKTEST / RUN #{{ $run->id }}</span>
             <h1>{{ $run->market_type_name }}</h1>
-            <p>{{ $run->configuration['timeframe_name'] }} <span class="result-separator">/</span> {{ $run->configuration['from'] }} — {{ $run->configuration['to'] }}</p>
+            <p>{{ $run->configuration['timeframe_name'] }} <span class="result-separator">/</span> {{ $run->configuration['from'] }} — {{ $run->configuration['to'] }}
+                @if (($run->configuration['decision_mode'] ?? 'per_market_pair') === 'portfolio_target')
+                    <span class="result-separator">/</span> Portfolio target · max gross leverage {{ number_format((float) $run->configuration['max_gross_leverage'], 2) }}×
+                @endif
+            </p>
         </div>
         <div class="heading-actions">
             @if (in_array($run->status, ['completed', 'completed_with_failures'], true) && $counts['succeeded'] > 0)

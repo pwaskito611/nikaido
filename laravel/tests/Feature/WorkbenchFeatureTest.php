@@ -27,11 +27,17 @@ class WorkbenchFeatureTest extends TestCase
             ->assertSee('Data import')
             ->assertSee('Market types')
             ->assertSee('Market pairs')
+            ->assertSee('Fundamentals')
+            ->assertSee('Asset cash flows')
             ->assertSee('Timeframes')
             ->assertSee('Market prices')
-            ->assertSee('Market exploration')
+            ->assertSee('visible entry and exit markers')
             ->assertSee('Run a test')
-            ->assertSee('fluctuation stress scenarios and Monte Carlo simulations')
+            ->assertSee('Portfolio target')
+            ->assertSee('numeric strategy priority')
+            ->assertSee('optional and defaults off')
+            ->assertSee('Nikaido does not fetch providers')
+            ->assertSee('fluctuation stress scenarios, and Monte Carlo simulations')
             ->assertSee('Strategy')
             ->assertSee('Engine')
             ->assertDontSee('LIVE DATASET')
@@ -732,7 +738,10 @@ class WorkbenchFeatureTest extends TestCase
             ->assertSee('partial_fill_enabled')
             ->assertSee('Trade cost settings')
             ->assertSee('trade_costs[commission][method]')
-            ->assertSee('trade_costs[financing_fee][rate]');
+            ->assertSee('trade_costs[financing_fee][rate]')
+            ->assertSee('Per market pair')
+            ->assertSee('Portfolio target')
+            ->assertSee('max_gross_leverage');
 
         $this->from('/workbench/tests/create')
             ->post('/workbench/tests', [
@@ -763,6 +772,45 @@ class WorkbenchFeatureTest extends TestCase
                 'trade_costs.commission.method',
                 'trade_costs.commission.rate',
             ]);
+    }
+
+    public function test_portfolio_target_backtest_requires_a_positive_gross_leverage_limit(): void
+    {
+        $marketType = $this->createMarketType();
+        $this->createMarketPair($marketType);
+        TimeframeType::create(['name' => '1h']);
+
+        $this->from('/workbench/tests/create')
+            ->post('/workbench/tests', [
+                'test_type' => 'market_type',
+                'decision_mode' => 'portfolio_target',
+                'market_type_id' => (string) $marketType->id,
+                'timeframe_type_id' => '1',
+                'initial_capital' => '10000',
+                'from' => '2026-10-09T00:00',
+                'to' => '2026-10-09T23:59',
+                'active_from' => '09:00',
+                'active_until' => '17:00',
+            ])
+            ->assertRedirect('/workbench/tests/create')
+            ->assertSessionHasErrors(['max_gross_leverage']);
+
+        $this->from('/workbench/tests/create')
+            ->post('/workbench/tests', [
+                'test_type' => 'market_type',
+                'decision_mode' => 'portfolio_target',
+                'capital_mode' => 'separate',
+                'market_type_id' => (string) $marketType->id,
+                'timeframe_type_id' => '1',
+                'initial_capital' => '10000',
+                'max_gross_leverage' => '2',
+                'from' => '2026-10-09T00:00',
+                'to' => '2026-10-09T23:59',
+                'active_from' => '09:00',
+                'active_until' => '17:00',
+            ])
+            ->assertRedirect('/workbench/tests/create')
+            ->assertSessionHasErrors(['capital_mode']);
     }
 
     private function createMarketType(): MarketType

@@ -23,6 +23,7 @@
                 <a href="{{ route('workbench.market-types.index') }}" class="{{ request()->routeIs('workbench.market-types.*') ? 'active' : '' }}"><span class="nav-icon">◈</span> Market types</a>
                 <a href="{{ route('workbench.market-pairs.index') }}" class="{{ request()->routeIs('workbench.market-pairs.*') ? 'active' : '' }}"><span class="nav-icon">⇄</span> Market pairs</a>
                 <a href="{{ route('workbench.fundamentals.index') }}" class="{{ request()->routeIs('workbench.fundamentals.*') ? 'active' : '' }}"><span class="nav-icon">◈</span> Fundamentals</a>
+                <a href="{{ route('workbench.cash-flows.index') }}" class="{{ request()->routeIs('workbench.cash-flows.*') ? 'active' : '' }}"><span class="nav-icon">$</span> Cash flows</a>
                 <a href="{{ route('workbench.timeframes.index') }}" class="{{ request()->routeIs('workbench.timeframes.*') ? 'active' : '' }}"><span class="nav-icon">◷</span> Timeframes</a>
                 <a href="{{ route('workbench.market-prices.index') }}" class="{{ request()->routeIs('workbench.market-prices.*') ? 'active' : '' }}"><span class="nav-icon">⌁</span> Market prices</a>
                 <a href="{{ route('workbench.data-import.index') }}" class="{{ request()->routeIs('workbench.data-import.*') ? 'active' : '' }}"><span class="nav-icon">⇩</span> Data import</a>

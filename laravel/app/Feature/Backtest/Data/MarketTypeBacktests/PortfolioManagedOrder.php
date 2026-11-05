@@ -44,6 +44,7 @@ final readonly class PortfolioManagedOrder
         public Option $capitalAfterClose,
         public bool $entryRejected,
         public PortfolioOrderDetails $details,
+        public string $rejectionReason,
     ) {}
 
     /**
@@ -113,6 +114,9 @@ final readonly class PortfolioManagedOrder
             capitalAfterClose: self::optionalNumber($order, 'capital_after_close'),
             entryRejected: $entryRejected,
             details: PortfolioOrderDetails::fromPersistedArray($order),
+            rejectionReason: is_string($order['portfolio_rejection_reason'] ?? null)
+                ? $order['portfolio_rejection_reason']
+                : 'portfolio_capital_unavailable',
         );
     }
 
@@ -193,7 +197,7 @@ final readonly class PortfolioManagedOrder
         });
     }
 
-    public function rejected(): self
+    public function rejected(string $reason = 'portfolio_capital_unavailable'): self
     {
         return $this->copy(
             profitLoss: Option::none(),
@@ -208,6 +212,7 @@ final readonly class PortfolioManagedOrder
             entryFills: Vec::empty(),
             exitFills: Vec::empty(),
             entryRejected: true,
+            rejectionReason: $reason,
         );
     }
 
@@ -217,6 +222,7 @@ final readonly class PortfolioManagedOrder
         $order = [
             'id' => $this->id,
             'pair' => $this->pair,
+            'priority' => $this->details->priority,
             'open_date' => $this->openDate,
             'close_date' => $this->closeDate->getOrNull(),
             ...$this->details->toArray(),
@@ -267,7 +273,8 @@ final readonly class PortfolioManagedOrder
             $order['portfolio_entry_rejected'] = true;
             $order['entry_status'] = 'cancelled';
             $order['close_date'] = null;
-            $order['close_reason'] = 'portfolio_capital_unavailable';
+            $order['close_reason'] = $this->rejectionReason;
+            $order['portfolio_rejection_reason'] = $this->rejectionReason;
             $order['close_price'] = null;
             $order['profit_loss'] = null;
         }
@@ -383,6 +390,7 @@ final readonly class PortfolioManagedOrder
         ?Option $capitalAtOpen = null,
         ?Option $capitalAfterClose = null,
         ?bool $entryRejected = null,
+        ?string $rejectionReason = null,
     ): self {
         return new self(
             $this->index,
@@ -412,6 +420,7 @@ final readonly class PortfolioManagedOrder
             $capitalAfterClose ?? $this->capitalAfterClose,
             $entryRejected ?? $this->entryRejected,
             $this->details,
+            $rejectionReason ?? $this->rejectionReason,
         );
     }
 

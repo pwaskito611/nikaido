@@ -36,6 +36,8 @@ class RunConfiguredPairBacktestAction
             slippage: $input->slippage,
             partialFill: $input->partialFill,
             tradeCosts: $input->tradeCosts,
+            decisionMode: $input->decisionMode,
+            includeCashFlows: $input->includeCashFlows,
         );
         $backtest = $this->runBacktest->execute($config);
 

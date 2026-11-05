@@ -19,6 +19,7 @@ final readonly class PortfolioOrderDetails
      * @param  Option<float>  $takeProfit
      * @param  Option<float>  $closePrice
      * @param  Option<float>  $requestedEntryPrice
+     * @param  Option<string>  $decisionDate
      * @param  Option<string>  $entryOrderType
      * @param  Option<PortfolioOrderExtreme>  $closestToStopLoss
      * @param  Option<PortfolioOrderExtreme>  $closestToTakeProfit
@@ -31,6 +32,7 @@ final readonly class PortfolioOrderDetails
         public Option $closeReason,
         public Option $entryPrice,
         public Option $requestedEntryPrice,
+        public Option $decisionDate,
         public Option $entryOrderType,
         public Option $stopLoss,
         public Option $takeProfit,
@@ -46,6 +48,7 @@ final readonly class PortfolioOrderDetails
         public float $quantityMultiplier,
         public float $pnlMultiplier,
         public float $capitalAtOpen,
+        public int $priority,
     ) {}
 
     /** @param array<string, mixed> $order */
@@ -69,11 +72,19 @@ final readonly class PortfolioOrderDetails
         $quantityMultiplier = self::requiredNumber($order, 'quantity_multiplier');
         $pnlMultiplier = self::requiredNumber($order, 'pnl_multiplier');
         $capitalAtOpen = self::requiredNumber($order, 'capital_at_open');
+        $priority = $order['priority'] ?? 0;
+        if (! is_int($priority) || $priority < 0) {
+            throw new UnexpectedValueException('Portfolio order priority must be a non-negative integer.');
+        }
         if ($quantityMultiplier <= 0 || $pnlMultiplier <= 0 || $capitalAtOpen <= 0) {
             throw new UnexpectedValueException('Portfolio quantity, P/L, and capital multipliers must be positive.');
         }
         $entryOrderType = self::optionalString($order, 'entry_order_type');
         $requestedEntryPrice = self::optionalNumber($order, 'requested_entry_price');
+        $decisionDate = self::optionalString($order, 'decision_date');
+        if ($decisionDate->isSome() && strtotime($decisionDate->getOrElse('')) === false) {
+            throw new UnexpectedValueException('Portfolio order decision date must be valid when present.');
+        }
         if ($entryOrderType->isSome()
             && ! in_array($entryOrderType->getOrNull(), ['market', 'limit'], true)) {
             throw new UnexpectedValueException('Portfolio entry order type must be market or limit.');
@@ -97,6 +108,7 @@ final readonly class PortfolioOrderDetails
             closeReason: self::optionalString($order, 'close_reason'),
             entryPrice: Option::some(self::requiredNumber($order, 'entry_price')),
             requestedEntryPrice: $requestedEntryPrice,
+            decisionDate: $decisionDate,
             entryOrderType: $entryOrderType,
             stopLoss: Option::some(self::requiredNumber($order, 'stop_loss')),
             takeProfit: Option::some(self::requiredNumber($order, 'take_profit')),
@@ -118,6 +130,7 @@ final readonly class PortfolioOrderDetails
             quantityMultiplier: $quantityMultiplier,
             pnlMultiplier: $pnlMultiplier,
             capitalAtOpen: $capitalAtOpen,
+            priority: $priority,
         );
     }
 
@@ -131,6 +144,7 @@ final readonly class PortfolioOrderDetails
             'entry_status' => $this->entryStatus,
             'exit_status' => $this->exitStatus,
             'requested_entry_price' => $this->requestedEntryPrice->getOrNull(),
+            'decision_date' => $this->decisionDate->getOrNull(),
             'entry_price_source' => $this->entryPriceSource->getOrNull(),
             'stop_loss' => $this->stopLoss->getOrNull(),
             'take_profit' => $this->takeProfit->getOrNull(),
@@ -153,6 +167,7 @@ final readonly class PortfolioOrderDetails
             'quantity_multiplier' => $this->quantityMultiplier,
             'pnl_multiplier' => $this->pnlMultiplier,
             'capital_at_open' => $this->capitalAtOpen,
+            'priority' => $this->priority,
         ];
     }
 

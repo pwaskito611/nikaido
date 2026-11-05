@@ -8,8 +8,10 @@ use App\Feature\Backtest\Action\MarketTypeBacktests\CombineMarketTypeBacktestRes
 use App\Feature\Backtest\Model\MarketTypeBacktestPairRun;
 use App\Feature\Backtest\Model\MarketTypeBacktestRun;
 use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioCapitalSynchronizationProcess;
+use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioLeverageLimitProcess;
 use Exact\Collection\Vec;
 use InvalidArgumentException;
+use Nikaido\Strategy\Enums\DecisionMode;
 use Tests\TestCase;
 use UnexpectedValueException;
 
@@ -17,7 +19,7 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
 {
     public function test_it_rejects_empty_pair_results_and_unknown_capital_modes(): void
     {
-        $combiner = new CombineMarketTypeBacktestResultsAction(new PortfolioCapitalSynchronizationProcess);
+        $combiner = $this->combiner();
         $run = new MarketTypeBacktestRun([
             'market_type_name' => 'Forex',
             'configuration' => [
@@ -115,7 +117,7 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
             ]);
         }
 
-        $result = (new CombineMarketTypeBacktestResultsAction(new PortfolioCapitalSynchronizationProcess))
+        $result = $this->combiner()
             ->execute($run, Vec::fromArray($pairRuns));
 
         $this->assertSame(100.0, $result['initial_capital']);
@@ -227,7 +229,7 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
             ]),
         ];
 
-        $result = (new CombineMarketTypeBacktestResultsAction(new PortfolioCapitalSynchronizationProcess))
+        $result = $this->combiner()
             ->execute($run, Vec::fromArray($pairRuns));
 
         $this->assertSame('Overall · Forex', $result['pair']);
@@ -246,5 +248,170 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
         $this->assertSame(2.5, $result['execution_config']['maximum_slippage']);
         $this->assertSame('normal', $result['execution_config']['distribution']);
         $this->assertSame(91, $result['execution_config']['random_seed']);
+    }
+
+    public function test_portfolio_target_keeps_strategy_sizing_when_the_position_fits_the_leverage_limit(): void
+    {
+        $run = new MarketTypeBacktestRun([
+            'market_type_name' => 'Forex',
+            'configuration' => [
+                'initial_capital' => 1000,
+                'capital_mode' => 'shared',
+                'decision_mode' => DecisionMode::PortfolioTarget->value,
+                'max_gross_leverage' => 1.0,
+                'timeframe_name' => '1h',
+                'from' => '2026-10-10 00:00:00',
+                'to' => '2026-10-10 23:59:59',
+            ],
+        ]);
+        $pairRun = new MarketTypeBacktestPairRun([
+            'pair_name' => 'EUR/USD',
+            'result' => [
+                'initial_capital' => 1000,
+                'ending_capital' => 1050,
+                'results' => [[
+                    'result' => true,
+                    'signal' => 'long',
+                    'candle' => [
+                        'price_date' => '2026-10-10 10:00:00',
+                        'close' => 100.0,
+                    ],
+                ]],
+                'order_history' => [[
+                    'id' => 1,
+                    'signal' => 'long',
+                    'open_date' => '2026-10-10 10:00:00',
+                    'decision_date' => '2026-10-10 10:00:00',
+                    'close_date' => '2026-10-10 11:00:00',
+                    'entry_price' => 100.0,
+                    'entry_price_source' => 'ask_open',
+                    'stop_loss' => 90.0,
+                    'take_profit' => 120.0,
+                    'close_price' => 105.0,
+                    'strategy_quantity' => 8.0,
+                    'quantity_unit' => 'units',
+                    'quantity_multiplier' => 1.0,
+                    'pnl_multiplier' => 1.0,
+                    'requested_position_size' => 8.0,
+                    'position_size' => 8.0,
+                    'remaining_entry_quantity' => 0.0,
+                    'remaining_position_size' => 0.0,
+                    'closed_position_size' => 8.0,
+                    'risk_amount' => 80.0,
+                    'requested_risk_amount' => 80.0,
+                    'capital_at_open' => 1000.0,
+                    'entry_fills' => [[
+                        'quantity' => 8.0,
+                        'price' => 100.0,
+                        'date' => '2026-10-10 10:00:00',
+                    ]],
+                    'exit_fills' => [[
+                        'quantity' => 8.0,
+                        'price' => 105.0,
+                        'date' => '2026-10-10 11:00:00',
+                        'profit_loss' => 40.0,
+                    ]],
+                ]],
+            ],
+        ]);
+
+        $result = $this->combiner()->execute($run, Vec::of($pairRun));
+
+        $this->assertSame(DecisionMode::PortfolioTarget->value, $result['decision_mode']);
+        $this->assertSame(1.0, $result['max_gross_leverage']);
+        $this->assertSame(8.0, $result['order_history'][0]['position_size']);
+        $this->assertArrayNotHasKey('portfolio_entry_rejected', $result['order_history'][0]);
+        $this->assertSame(1040.0, $result['ending_capital']);
+    }
+
+    public function test_portfolio_target_marks_a_leverage_rejected_signal_as_not_executed(): void
+    {
+        $run = new MarketTypeBacktestRun([
+            'market_type_name' => 'Forex',
+            'configuration' => [
+                'initial_capital' => 1000,
+                'capital_mode' => 'shared',
+                'decision_mode' => DecisionMode::PortfolioTarget->value,
+                'max_gross_leverage' => 1.0,
+                'include_cash_flows' => '1',
+                'timeframe_name' => '1h',
+                'from' => '2026-10-10 00:00:00',
+                'to' => '2026-10-10 23:59:59',
+            ],
+        ]);
+        $pairRun = new MarketTypeBacktestPairRun([
+            'pair_name' => 'EUR/USD',
+            'result' => [
+                'initial_capital' => 1000,
+                'ending_capital' => 1100,
+                'results' => [[
+                    'result' => true,
+                    'signal' => 'long',
+                    'candle' => [
+                        'price_date' => '2026-10-10 10:00:00',
+                        'close' => 100.0,
+                    ],
+                ]],
+                'order_history' => [[
+                    'id' => 1,
+                    'signal' => 'long',
+                    'open_date' => '2026-10-10 10:00:00',
+                    'decision_date' => '2026-10-10 10:00:00',
+                    'close_date' => '2026-10-10 11:00:00',
+                    'entry_price' => 100.0,
+                    'entry_price_source' => 'ask_open',
+                    'stop_loss' => 90.0,
+                    'take_profit' => 120.0,
+                    'close_price' => 105.0,
+                    'strategy_quantity' => 20.0,
+                    'quantity_unit' => 'units',
+                    'quantity_multiplier' => 1.0,
+                    'pnl_multiplier' => 1.0,
+                    'requested_position_size' => 20.0,
+                    'position_size' => 20.0,
+                    'remaining_entry_quantity' => 0.0,
+                    'remaining_position_size' => 0.0,
+                    'closed_position_size' => 20.0,
+                    'risk_amount' => 200.0,
+                    'requested_risk_amount' => 200.0,
+                    'capital_at_open' => 1000.0,
+                    'entry_fills' => [[
+                        'quantity' => 20.0,
+                        'price' => 100.0,
+                        'date' => '2026-10-10 10:00:00',
+                    ]],
+                    'exit_fills' => [[
+                        'quantity' => 20.0,
+                        'price' => 105.0,
+                        'date' => '2026-10-10 11:00:00',
+                        'profit_loss' => 100.0,
+                    ]],
+                ]],
+                'cash_flows' => [[
+                    'order_id' => 1,
+                    'recognized_at' => '2026-10-10 10:30:00',
+                    'amount' => 10.0,
+                ]],
+            ],
+        ]);
+
+        $result = $this->combiner()->execute($run, Vec::of($pairRun));
+
+        $this->assertFalse($result['results'][0]['result']);
+        $this->assertSame('rejected', $result['results'][0]['entry_order_status']);
+        $this->assertSame('portfolio_leverage_limit', $result['results'][0]['entry_rejection_reason']);
+        $this->assertTrue($result['order_history'][0]['portfolio_entry_rejected']);
+        $this->assertSame(1000.0, $result['ending_capital']);
+        $this->assertSame([], $result['cash_flows']);
+        $this->assertSame(0, $result['cash_flow_total']);
+        $this->assertTrue($result['execution_config']['include_cash_flows']);
+    }
+
+    private function combiner(): CombineMarketTypeBacktestResultsAction
+    {
+        return new CombineMarketTypeBacktestResultsAction(
+            new PortfolioCapitalSynchronizationProcess,
+            new PortfolioLeverageLimitProcess,
+        );
     }
 }

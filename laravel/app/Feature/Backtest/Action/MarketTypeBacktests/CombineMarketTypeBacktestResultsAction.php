@@ -10,16 +10,19 @@ use App\Feature\Backtest\Data\MarketTypeBacktests\PortfolioManagedOrder;
 use App\Feature\Backtest\Model\MarketTypeBacktestPairRun;
 use App\Feature\Backtest\Model\MarketTypeBacktestRun;
 use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioCapitalSynchronizationProcess;
+use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioLeverageLimitProcess;
 use Exact\Collection\Map;
 use Exact\Collection\Vec;
 use Exact\Query\Query;
 use InvalidArgumentException;
+use Nikaido\Strategy\Enums\DecisionMode;
 use UnexpectedValueException;
 
 class CombineMarketTypeBacktestResultsAction
 {
     public function __construct(
         private readonly PortfolioCapitalSynchronizationProcess $portfolioCapital,
+        private readonly PortfolioLeverageLimitProcess $portfolioLeverage,
     ) {}
 
     /**
@@ -83,17 +86,116 @@ class CombineMarketTypeBacktestResultsAction
         $managedPortfolioOrders = $orders->enumerate()->map(
             static fn (array $entry): PortfolioManagedOrder => PortfolioManagedOrder::fromPersistedArray($entry[1], $entry[0]),
         );
-        $managedPortfolio = $capitalMode === 'shared'
-            ? $this->portfolioCapital->execute(
+        $orderIndexes = [];
+        foreach ($managedPortfolioOrders as $order) {
+            $orderIndexes[$order->pair.'|'.$order->id] = $order->index;
+        }
+        $cashFlowAdjustments = [];
+        foreach ($pairRuns as $pairRun) {
+            foreach ($pairRun->result['cash_flows'] ?? [] as $cashFlow) {
+                $orderId = $cashFlow['order_id'] ?? null;
+                $date = $cashFlow['recognized_at'] ?? null;
+                $amount = $cashFlow['amount'] ?? null;
+                $key = $pairRun->pair_name.'|'.$orderId;
+                if (! is_numeric($orderId) || ! is_string($date) || ! is_numeric($amount)
+                    || ! isset($orderIndexes[$key])) {
+                    throw new UnexpectedValueException('Cash flow results must reference a valid pair order and date.');
+                }
+                $cashFlowAdjustments[] = [
+                    'date' => $date,
+                    'pair' => $pairRun->pair_name,
+                    'order_id' => (int) $orderId,
+                    'order_index' => $orderIndexes[$key],
+                    'amount' => (float) $amount,
+                ];
+            }
+        }
+        $decisionMode = DecisionMode::from(
+            $run->configuration['decision_mode'] ?? DecisionMode::PerMarketPair->value,
+        );
+        if ($decisionMode === DecisionMode::PortfolioTarget) {
+            $portfolioPrices = [];
+            foreach ($pairRuns as $pairRun) {
+                foreach ($pairRun->result['results'] as $decision) {
+                    $candle = $decision['candle'] ?? [];
+                    $close = $candle['close'] ?? null;
+                    $date = $candle['price_date'] ?? null;
+                    if (! is_string($date) || ! is_numeric($close)) {
+                        throw new UnexpectedValueException('Portfolio target results require dated candle closes.');
+                    }
+                    $portfolioPrices[] = [
+                        'pair' => $pairRun->pair_name,
+                        'date' => $date,
+                        'close' => (float) $close,
+                    ];
+                }
+            }
+            $managedPortfolioOrders = $this->portfolioLeverage->execute(
+                $initialCapital,
+                (float) ($run->configuration['max_gross_leverage'] ?? 0),
+                $managedPortfolioOrders,
+                $portfolioPrices,
+                $cashFlowAdjustments,
+            );
+            $rejectedDecisions = [];
+            foreach ($managedPortfolioOrders as $order) {
+                if (! $order->entryRejected) {
+                    continue;
+                }
+                $decisionDate = $order->details->decisionDate->getOrNull();
+                if ($decisionDate === null) {
+                    throw new UnexpectedValueException('Rejected portfolio entries must retain their strategy decision date.');
+                }
+                $rejectedDecisions[$order->pair.'|'.$decisionDate.'|'.$order->details->signal->value] = $order->rejectionReason;
+            }
+            $results = $results->map(static function (array $decision) use ($rejectedDecisions): array {
+                $key = ($decision['pair'] ?? '').'|'
+                    .($decision['candle']['price_date'] ?? '').'|'
+                    .($decision['signal'] ?? '');
+                if (isset($rejectedDecisions[$key])) {
+                    $decision['result'] = false;
+                    $decision['entry_order_status'] = 'rejected';
+                    $decision['entry_rejection_reason'] = $rejectedDecisions[$key];
+                }
+
+                return $decision;
+            });
+        }
+        $managedPortfolio = $decisionMode === DecisionMode::PortfolioTarget
+            ? $this->portfolioCapital->applyCapitalTimeline(
                 $initialCapital,
                 $managedPortfolioOrders,
-                UnfilledOrderPolicy::from($run->configuration['unfilled_order_policy'] ?? UnfilledOrderPolicy::Keep->value),
-                $this->perOrderCostComponents($run->configuration['trade_costs'] ?? []),
+                $cashFlowAdjustments,
             )
-            : $this->portfolioCapital->applySeparateCapitalTimeline($initialCapital, $managedPortfolioOrders);
+            : ($capitalMode === 'shared'
+                ? $this->portfolioCapital->execute(
+                    $initialCapital,
+                    $managedPortfolioOrders,
+                    UnfilledOrderPolicy::from($run->configuration['unfilled_order_policy'] ?? UnfilledOrderPolicy::Keep->value),
+                    $this->perOrderCostComponents($run->configuration['trade_costs'] ?? []),
+                    $cashFlowAdjustments,
+                )
+                : $this->portfolioCapital->applySeparateCapitalTimeline(
+                    $initialCapital,
+                    $managedPortfolioOrders,
+                    $cashFlowAdjustments,
+                ));
         $orders = $managedPortfolio->orders
             ->map(static fn (PortfolioManagedOrder $order): array => $order->toArray());
         $capital = $managedPortfolio->endingCapital;
+        $cashFlows = [];
+        foreach ($cashFlowAdjustments as $cashFlow) {
+            $order = $managedPortfolio->orders->at($cashFlow['order_index']);
+            if ($order->entryRejected) {
+                continue;
+            }
+            $cashFlows[] = [
+                'pair' => $cashFlow['pair'],
+                'order_id' => $cashFlow['order_id'],
+                'recognized_at' => $cashFlow['date'],
+                'amount' => $cashFlow['amount'] * $order->allocationFactor->getOrElse(1.0),
+            ];
+        }
 
         return [
             'pair' => 'Overall · '.$run->market_type_name,
@@ -102,6 +204,10 @@ class CombineMarketTypeBacktestResultsAction
             'to' => $run->configuration['to'],
             'initial_capital' => $initialCapital,
             'capital_mode' => $capitalMode,
+            'decision_mode' => $decisionMode->value,
+            'max_gross_leverage' => $decisionMode === DecisionMode::PortfolioTarget
+                ? (float) $run->configuration['max_gross_leverage']
+                : null,
             'successful_pair_count' => $pairRuns->count(),
             'average_initial_capital_per_pair' => $averageInitialCapital,
             'average_ending_capital_per_pair' => $averageEndingCapital,
@@ -135,8 +241,11 @@ class CombineMarketTypeBacktestResultsAction
                 'execution_volume_period' => $run->configuration['execution_volume_period'] ?? 'candle',
                 'unfilled_order_policy' => $run->configuration['unfilled_order_policy'] ?? UnfilledOrderPolicy::Keep->value,
                 'trade_costs' => TradeCostConfig::fromArray($run->configuration['trade_costs'] ?? [])->toArray(),
+                'include_cash_flows' => filter_var($run->configuration['include_cash_flows'] ?? false, FILTER_VALIDATE_BOOLEAN),
             ],
             'ending_capital' => $capital,
+            'cash_flows' => $cashFlows,
+            'cash_flow_total' => array_sum(array_column($cashFlows, 'amount')),
             'results' => $results->toArray(),
             'order_history' => $orders->toArray(),
         ];

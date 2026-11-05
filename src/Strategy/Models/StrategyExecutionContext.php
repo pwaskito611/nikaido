@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nikaido\Strategy\Models;
 
 use InvalidArgumentException;
+use Nikaido\Strategy\Enums\DecisionMode;
 
 class StrategyExecutionContext
 {
@@ -20,6 +21,8 @@ class StrategyExecutionContext
         public readonly array $relatedMarketPairs = [],
         public readonly ?int $primaryTimeframeTypeId = null,
         private readonly FundamentalDataCollection $fundamentalData = new FundamentalDataCollection,
+        public readonly DecisionMode $decisionMode = DecisionMode::PerMarketPair,
+        private readonly CashFlowDataCollection $cashFlowData = new CashFlowDataCollection,
     ) {
         if (! is_finite($currentCapital) || $currentCapital <= 0) {
             throw new InvalidArgumentException('Current capital must be a positive finite number.');
@@ -52,5 +55,10 @@ class StrategyExecutionContext
     public function fundamentals(): FundamentalDataCollection
     {
         return $this->fundamentalData;
+    }
+
+    public function cashFlows(): CashFlowDataCollection
+    {
+        return $this->cashFlowData;
     }
 }

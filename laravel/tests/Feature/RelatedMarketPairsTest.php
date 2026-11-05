@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Feature\Backtest\Action\RunSpecificPairBacktestAction;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
 use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
+use App\Feature\CashFlows\Action\LoadMarketPairCashFlowsForBacktestAction;
 use App\Feature\Fundamentals\Action\LoadFundamentalDataForBacktestAction;
 use App\Feature\MarketPairs\Model\MarketPair;
 use App\Feature\MarketPairs\Repository\MarketPairRepository;
@@ -18,6 +19,7 @@ use DateTimeImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Nikaido\Strategy\Enums\DecisionMode;
 use Nikaido\Strategy\Enums\StrategySignal;
 use Nikaido\Strategy\Models\StrategyDecision;
 use Nikaido\Strategy\Models\StrategyExecutionContext;
@@ -248,12 +250,14 @@ class RelatedMarketPairsTest extends TestCase
             activeUntil: false,
             timeframeTypeId: $timeframe->id,
             marketPairId: $primary->id,
+            decisionMode: DecisionMode::PortfolioTarget,
         );
 
         $result = (new RunSpecificPairBacktestAction(
             app(MarketPairRepository::class),
             new SpecificPairBacktestProcess($strategy),
             app(LoadFundamentalDataForBacktestAction::class),
+            app(LoadMarketPairCashFlowsForBacktestAction::class),
         ))->execute($config);
 
         $this->assertCount(0, $result->orders);
@@ -261,6 +265,7 @@ class RelatedMarketPairsTest extends TestCase
         $this->assertSame(2, $strategy->primaryCandleCount);
         $this->assertSame($primary->id, $strategy->context?->primaryMarketPairId);
         $this->assertSame($timeframe->id, $strategy->context?->primaryTimeframeTypeId);
+        $this->assertSame(DecisionMode::PortfolioTarget, $strategy->context?->decisionMode);
         $this->assertSame('EUR/GBP', $strategy->context?->primaryMarketPairSymbol);
         $this->assertArrayHasKey($primary->id, $strategy->context?->relatedMarketPairs);
         $this->assertArrayHasKey($related->id, $strategy->context?->relatedMarketPairs);

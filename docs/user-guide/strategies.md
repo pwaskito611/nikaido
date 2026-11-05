@@ -58,8 +58,10 @@ passes that same object to the strategy for the run. Its fields are:
 | `primaryMarketPairId` | ID of the pair whose candles drive decisions. |
 | `primaryMarketPairSymbol` | Primary pair symbol in `BASE/QUOTE` form. |
 | `primaryTimeframeTypeId` | Timeframe ID selected for the primary backtest candles. |
+| `decisionMode` | `per_market_pair` by default, or `portfolio_target` for market-type portfolio leverage processing. The latter does not add other pairs or current portfolio holdings to this context. |
 | `relatedMarketPairs` | Map of explicitly related pair series, keyed by related market-pair ID. |
 | `fundamentals()` | Collection of Fundamental entities linked directly to the primary pair, keyed by Fundamental ID. |
+| `cashFlows()` | When enabled for the run, per-pair cash-flow events, filtered by `available_at` through `availableAt($knownAt)`. |
 
 The context does not carry every backtest setting. Date range, active schedule,
 slippage, partial-fill rules, trade costs, and execution behavior remain owned
@@ -95,9 +97,27 @@ A null related timeframe uses the primary backtest timeframe.
 
 Related pairs are directional data dependencies only; their candles do not
 produce additional strategy decisions or orders. The primary pair's candle
-iterable still determines the number and order of decisions. The engine does
-not automatically cap the strategy's quantity to a notional, margin, or
-maximum-position limit.
+iterable still determines the number and order of decisions. In the default
+`per_market_pair` mode, the engine does not automatically cap the strategy's
+quantity to a notional, margin, or maximum-position limit. Market-type
+`portfolio_target` mode additionally applies the UI-configured gross-leverage
+limit across those pair decisions; it does not change the strategy's sizing.
+Each `StrategyDecision` can set an optional non-negative integer `priority`
+(default `0`); higher values are considered first for simultaneous portfolio
+entries.
+
+For example, strategy code can assign a higher priority to a stronger entry
+without changing its quantity calculation:
+
+```php
+new StrategyDecision(
+    signal: StrategySignal::Long,
+    stopLoss: $stopLoss,
+    takeProfit: $takeProfit,
+    quantity: $quantity,
+    priority: 5,
+);
+```
 
 The context makes related data available; it does not automatically combine,
 align, or apply that data to strategy decisions. The example `main()` currently

@@ -15,6 +15,7 @@ final readonly class BacktestExecutionConfiguration
         public FixedSlippageConfig $slippage,
         public PartialFillConfig $partialFill,
         public TradeCostConfig $tradeCosts = new TradeCostConfig,
+        public bool $includeCashFlows = false,
     ) {}
 
     /** @return array<string, mixed> */
@@ -46,6 +47,7 @@ final readonly class BacktestExecutionConfiguration
             'execution_volume_period' => $this->partialFill->executionVolumePeriod,
             'unfilled_order_policy' => $this->partialFill->unfilledOrderPolicy->value,
             'trade_costs' => $this->tradeCosts->toArray(),
+            'include_cash_flows' => $this->includeCashFlows,
         ];
     }
 }

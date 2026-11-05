@@ -43,8 +43,9 @@ errors are infrastructure errors, not empty-history results.
    Strategy signals are generated only while the configured schedule is
    active, but existing positions continue to be monitored on candles outside
    those entry hours.
-6. Decide explicitly whether to enable fixed slippage, synthetic partial
-   fills, and additional trade costs. Defaults leave them disabled.
+6. Decide whether to include asset cash flows, fixed slippage, synthetic
+   partial fills, and additional trade costs. Cash flows, slippage, and
+   partial fills default to off.
 7. Submit the form. The browser displays the results for the run.
 
 The active schedule's time-of-day window can cross midnight. Keep its
@@ -55,7 +56,30 @@ stored timestamps.
 
 Select **Market type test**, choose the market type and timeframe, then
 configure the same date range, initial capital, schedule, execution assumptions,
-and costs. Choose shared capital only when pair values use compatible
+and costs. Select **Per market pair** to keep independent pair decisions.
+Select **Portfolio target** to process those strategy-generated pair decisions
+through a shared, chronological portfolio leverage check. The strategy still
+supplies its own signals, quantities, and optional priority; the engine does not
+replace strategy sizing with a fixed risk percentage.
+
+Portfolio target requires shared capital and a **maximum gross leverage**
+setting. Gross exposure counts long and short notionals by absolute value.
+Higher numeric strategy priorities are processed first; the existing strategy
+defaults to priority `0`. If an entry does not fit, it is rejected and an
+existing position is not automatically reduced or closed. A lower-priority
+entry that would exceed the limit is explicitly reported in order history.
+Open positions are marked using the latest completed candle close at each
+portfolio event; exposure is not automatically liquidated if price movement
+later takes it above the limit. No FX conversion is performed, so pair
+notionals and P/L must use a common account currency.
+Pair workers still generate each pair's history independently before the
+portfolio filter runs. A leverage-rejected entry does not cause that pair's
+strategy simulation to be replayed, so later same-pair signals suppressed by
+the independent pair run are not recovered. Treat this mode as portfolio
+leverage filtering of per-pair strategy histories, not as a strategy receiving
+all holdings and making coordinated universe-wide decisions.
+
+Choose shared capital in **Per market pair** mode only when pair values use compatible
 currencies and risk units. In shared mode, pair jobs are synchronized using
 their actual candle timestamps; missing periods are not filled with synthetic
 events. Multiple runs queue in the background.
@@ -75,9 +99,15 @@ Record at least:
 - exact start/end and timestamp convention;
 - starting capital and shared/separate capital mode;
 - active hours and excluded weekdays;
+- cash-flow inclusion and the source/version of per-pair events;
 - slippage enabled/value/pip size;
 - partial-fill ratio and remainder policy; and
 - every enabled fee component, method, rate, and applicable side.
+
+When cash flows are enabled, only confirmed or paid events known by the
+ex-date are recognized for a position held before the ex-date candle; long
+positions receive the amount and short positions pay it. The net cash-flow
+total is included in ending capital and shown separately in results.
 
 Only change one factor at a time when attributing a result difference.
 Changing the input price history, warm-up coverage, timeframe, timezone

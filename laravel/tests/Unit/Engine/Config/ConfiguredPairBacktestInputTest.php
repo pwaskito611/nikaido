@@ -33,6 +33,7 @@ class ConfiguredPairBacktestInputTest extends TestCase
             'volume_source' => 'traded_volume',
             'execution_volume_period' => 'candle',
             'unfilled_order_policy' => 'cancel',
+            'include_cash_flows' => '1',
         ]);
 
         $this->assertSame(12, $input->marketPairId);
@@ -50,6 +51,7 @@ class ConfiguredPairBacktestInputTest extends TestCase
         $this->assertSame('traded_volume', $input->partialFill->volumeSource);
         $this->assertSame('candle', $input->partialFill->executionVolumePeriod);
         $this->assertSame(UnfilledOrderPolicy::Cancel, $input->partialFill->unfilledOrderPolicy);
+        $this->assertTrue($input->includeCashFlows);
     }
 
     public function test_it_applies_execution_defaults_when_optional_configuration_is_absent(): void
@@ -71,6 +73,7 @@ class ConfiguredPairBacktestInputTest extends TestCase
         $this->assertSame(PartialFillMode::Fixed, $input->partialFill->mode);
         $this->assertSame(1.0, $input->partialFill->ratio);
         $this->assertSame(UnfilledOrderPolicy::Keep, $input->partialFill->unfilledOrderPolicy);
+        $this->assertFalse($input->includeCashFlows);
         $this->assertTrue($input->excludedDays->isEmpty());
     }
 }

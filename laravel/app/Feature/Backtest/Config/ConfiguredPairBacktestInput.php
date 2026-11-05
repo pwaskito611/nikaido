@@ -8,6 +8,7 @@ use App\Feature\Backtest\Rules\ActiveTradingSchedule;
 use DateTimeImmutable;
 use Exact\Collection\Vec;
 use InvalidArgumentException;
+use Nikaido\Strategy\Enums\DecisionMode;
 
 final readonly class ConfiguredPairBacktestInput
 {
@@ -26,6 +27,8 @@ final readonly class ConfiguredPairBacktestInput
         public FixedSlippageConfig $slippage,
         public PartialFillConfig $partialFill,
         public TradeCostConfig $tradeCosts,
+        public DecisionMode $decisionMode = DecisionMode::PerMarketPair,
+        public bool $includeCashFlows = false,
     ) {
         if ($marketPairId < 1 || $timeframeTypeId < 1) {
             throw new InvalidArgumentException('Configured backtests require positive pair and timeframe IDs.');
@@ -79,7 +82,9 @@ final readonly class ConfiguredPairBacktestInput
      *     volume_source?: 'traded_volume',
      *     execution_volume_period?: 'candle',
      *     unfilled_order_policy?: 'keep'|'cancel',
-     *     trade_costs?: array<string, mixed>
+     *     trade_costs?: array<string, mixed>,
+     *     decision_mode?: 'per_market_pair'|'portfolio_target',
+     *     include_cash_flows?: bool|string,
      * } $input
      */
     public static function fromArray(array $input): self
@@ -128,6 +133,8 @@ final readonly class ConfiguredPairBacktestInput
                 executionVolumePeriod: $input['execution_volume_period'] ?? 'candle',
             ),
             tradeCosts: TradeCostConfig::fromArray($input['trade_costs'] ?? []),
+            decisionMode: DecisionMode::from($input['decision_mode'] ?? DecisionMode::PerMarketPair->value),
+            includeCashFlows: filter_var($input['include_cash_flows'] ?? false, FILTER_VALIDATE_BOOLEAN),
         );
     }
 }

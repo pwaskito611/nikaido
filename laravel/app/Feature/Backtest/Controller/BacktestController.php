@@ -37,6 +37,8 @@ class BacktestController
                 ->toArray(),
             'initial_capital' => $backtest->initialCapital,
             'ending_capital' => $backtest->endingCapital,
+            'cash_flows' => $backtest->cashFlows?->toArray() ?? [],
+            'cash_flow_total' => array_sum(array_column($backtest->cashFlows?->toArray() ?? [], 'amount')),
             'quantity_unit' => $backtest->quantityUnit,
             'units_per_lot' => $backtest->unitsPerLot,
             'quantity_multiplier' => $backtest->quantityMultiplier,

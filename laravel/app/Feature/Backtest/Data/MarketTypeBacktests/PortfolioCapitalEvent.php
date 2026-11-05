@@ -20,5 +20,6 @@ final readonly class PortfolioCapitalEvent
         public int $orderId,
         public int $sequence,
         public bool $isEntryFill = false,
+        public ?float $cashFlowAmount = null,
     ) {}
 }

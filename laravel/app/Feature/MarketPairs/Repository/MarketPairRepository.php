@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Feature\MarketPairs\Repository;
 
+use App\Feature\CashFlows\Model\MarketPairCashFlow;
 use App\Feature\MarketPairs\Data\MarketPairDefinition;
 use App\Feature\MarketPairs\Data\MarketPairMarketData;
 use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
@@ -71,6 +72,11 @@ class MarketPairRepository
             ->findOrFail($id)
             ->prices()
             ->exists();
+    }
+
+    public function hasCashFlows(int $id): bool
+    {
+        return MarketPairCashFlow::query()->where('market_pair_id', $id)->exists();
     }
 
     public function create(MarketPairDefinition $definition): MarketPair

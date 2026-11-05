@@ -6,13 +6,20 @@ namespace Tests\Feature;
 
 use App\Feature\Backtest\Action\RunSpecificPairBacktestAction;
 use App\Feature\Backtest\Config\SpecificPairTestConfig;
+use App\Feature\CashFlows\Model\MarketPairCashFlow;
 use App\Feature\MarketPairs\Model\MarketPair;
 use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Feature\MarketTypes\Model\MarketType;
 use App\Feature\Timeframes\Model\TimeframeType;
+use App\Platform\Strategy\Strategy;
 use DateTimeImmutable;
+use Exact\Collection\Vec;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use Mockery;
+use Nikaido\Strategy\Enums\StrategySignal;
+use Nikaido\Strategy\Models\StrategyDecision;
+use Nikaido\Strategy\Models\StrategyExecutionContext;
 use Tests\TestCase;
 
 class RunSpecificPairBacktestActionFeatureTest extends TestCase
@@ -83,6 +90,64 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
         $this->assertSame($selectedCandle->id, $results->decisions->first()->candle->id);
     }
 
+    public function test_it_loads_and_applies_cash_flows_only_when_enabled_for_the_backtest(): void
+    {
+        $timeframe = TimeframeType::create(['name' => '1h']);
+        $marketType = MarketType::create(['name' => 'Equities']);
+        $pair = MarketPair::create([
+            'market_type_id' => $marketType->id,
+            'base' => 'AAPL',
+            'quote' => 'USD',
+        ]);
+        foreach (['2026-03-01 00:00:00', '2026-03-02 00:00:00', '2026-03-03 00:00:00'] as $timestamp) {
+            $this->createCandle($pair, $timestamp, $timeframe->id);
+        }
+        MarketPairCashFlow::query()->create([
+            'market_pair_id' => $pair->id,
+            'event_type' => 'dividend',
+            'amount_per_unit' => '0.500000000000',
+            'announced_at' => '2026-03-01 00:00:00',
+            'available_at' => '2026-03-01 00:00:00',
+            'ex_date' => '2026-03-02 00:00:00',
+            'status' => 'confirmed',
+        ]);
+
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')
+            ->once()
+            ->withArgs(function (iterable $candles, StrategyExecutionContext $context): bool {
+                $this->assertCount(1, $context->cashFlows()->availableAt(new DateTimeImmutable('2026-03-02 00:00:00')));
+
+                return true;
+            })
+            ->andReturn(Vec::fromArray([
+                new StrategyDecision(StrategySignal::Long, 0.9, 1.3, 10),
+                new StrategyDecision(StrategySignal::None, null, null),
+                new StrategyDecision(StrategySignal::Close, null, null),
+            ]));
+        $this->app->instance(Strategy::class, $strategy);
+
+        $result = app(RunSpecificPairBacktestAction::class)->execute(new SpecificPairTestConfig(
+            base: 'AAPL',
+            quote: 'USD',
+            from: new DateTimeImmutable('2026-03-01 00:00:00'),
+            to: new DateTimeImmutable('2026-03-03 23:59:59'),
+            activeFrom: false,
+            activeUntil: false,
+            timeframeTypeId: $timeframe->id,
+            initialCapital: 10000,
+            marketPairId: $pair->id,
+            includeCashFlows: true,
+        ));
+
+        $this->assertCount(1, $result->cashFlows);
+        $this->assertSame(5.0, $result->cashFlows->first()['amount']);
+        $this->assertSame(
+            $result->initialCapital + $result->orders->first()->realizedProfitLoss + 5.0,
+            $result->endingCapital,
+        );
+    }
+
     public function test_it_rejects_a_backtest_with_no_candles_in_the_selected_range(): void
     {
         $timeframe = TimeframeType::create(['name' => '1h']);
@@ -145,12 +210,12 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
         }
     }
 
-    private function createCandle(MarketPair $pair, string $timestamp): MarketPrice
+    private function createCandle(MarketPair $pair, string $timestamp, int $timeframeTypeId = 1): MarketPrice
     {
         return MarketPrice::create([
             'pair_id' => $pair->id,
             'price_date' => $timestamp,
-            'timeframe_type_id' => 1,
+            'timeframe_type_id' => $timeframeTypeId,
             'open' => '1.100000',
             'close' => '1.200000',
             'bid_open' => '1.199000',

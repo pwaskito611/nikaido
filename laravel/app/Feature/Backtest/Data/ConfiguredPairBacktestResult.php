@@ -29,6 +29,8 @@ final readonly class ConfiguredPairBacktestResult
             'units_per_lot' => $this->backtest->unitsPerLot,
             'quantity_multiplier' => $this->backtest->quantityMultiplier,
             'ending_capital' => $this->backtest->endingCapital,
+            'cash_flows' => $this->backtest->cashFlows?->toArray() ?? [],
+            'cash_flow_total' => array_sum(array_column($this->backtest->cashFlows?->toArray() ?? [], 'amount')),
             'results' => $this->backtest->decisions
                 ->map(static fn (BacktestDecision $decision): array => $decision->toArray())
                 ->toArray(),

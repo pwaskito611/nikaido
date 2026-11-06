@@ -8,6 +8,7 @@ use App\Feature\CashFlows\Model\MarketPairCashFlow;
 use App\Feature\Fundamentals\Model\Fundamental;
 use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Feature\MarketTypes\Model\MarketType;
+use App\Feature\News\Model\NewsMarketPairImpact;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -25,10 +26,20 @@ class MarketPair extends Model
         'quote',
         'contract_size',
         'quantity_unit',
+        'tick_size',
+        'tick_value',
+        'minimum_quantity',
+        'quantity_step',
+        'initial_margin_rate',
     ];
 
     protected $casts = [
         'contract_size' => 'decimal:8',
+        'tick_size' => 'decimal:10',
+        'tick_value' => 'decimal:10',
+        'minimum_quantity' => 'decimal:8',
+        'quantity_step' => 'decimal:8',
+        'initial_margin_rate' => 'decimal:4',
     ];
 
     public function marketType(): BelongsTo
@@ -64,5 +75,10 @@ class MarketPair extends Model
             'pair_id',
             'fundamental_id',
         )->withTimestamps();
+    }
+
+    public function newsImpacts(): HasMany
+    {
+        return $this->hasMany(NewsMarketPairImpact::class);
     }
 }

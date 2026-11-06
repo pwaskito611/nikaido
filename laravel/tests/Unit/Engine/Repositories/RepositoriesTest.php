@@ -54,7 +54,7 @@ class RepositoriesTest extends TestCase
     public function test_create_returns_the_created_record(string $repositoryClass, string $modelClass): void
     {
         $input = $repositoryClass === MarketPairRepository::class
-            ? MarketPairDefinition::create(1, 'EUR', 'USD', MarketPairQuantityUnit::Units, Option::none())
+            ? MarketPairDefinition::create(1, 'EUR', 'USD', MarketPairQuantityUnit::Units, Option::none(), '0.01', '0.01', '1', '1', '1')
             : ['name' => 'Test'];
         $attributes = $input instanceof MarketPairDefinition
             ? [
@@ -63,6 +63,11 @@ class RepositoriesTest extends TestCase
                 'quote' => 'USD',
                 'quantity_unit' => 'units',
                 'contract_size' => '1',
+                'tick_size' => '0.0100000000',
+                'tick_value' => '0.0100000000',
+                'minimum_quantity' => '1.00000000',
+                'quantity_step' => '1.00000000',
+                'initial_margin_rate' => '1.0000',
             ]
             : $input;
         $record = Mockery::mock($modelClass);
@@ -78,7 +83,7 @@ class RepositoriesTest extends TestCase
     public function test_update_updates_and_returns_the_record(string $repositoryClass, string $modelClass): void
     {
         $input = $repositoryClass === MarketPairRepository::class
-            ? MarketPairDefinition::create(1, 'GBP', 'USD', MarketPairQuantityUnit::Units, Option::none())
+            ? MarketPairDefinition::create(1, 'GBP', 'USD', MarketPairQuantityUnit::Units, Option::none(), '0.01', '0.01', '1', '1', '1')
             : ['name' => 'Updated'];
         $attributes = $input instanceof MarketPairDefinition
             ? [
@@ -87,6 +92,11 @@ class RepositoriesTest extends TestCase
                 'quote' => 'USD',
                 'quantity_unit' => 'units',
                 'contract_size' => '1',
+                'tick_size' => '0.0100000000',
+                'tick_value' => '0.0100000000',
+                'minimum_quantity' => '1.00000000',
+                'quantity_step' => '1.00000000',
+                'initial_margin_rate' => '1.0000',
             ]
             : $input;
         $record = Mockery::mock($modelClass);

@@ -9,6 +9,7 @@ use App\Feature\Backtest\Config\PartialFillMode;
 use App\Feature\Backtest\Config\UnfilledOrderPolicy;
 use App\Feature\Backtest\Rules\ActiveTradingSchedule;
 use Exact\Collection\Vec;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 class ConfiguredPairBacktestInputTest extends TestCase
@@ -75,5 +76,22 @@ class ConfiguredPairBacktestInputTest extends TestCase
         $this->assertSame(UnfilledOrderPolicy::Keep, $input->partialFill->unfilledOrderPolicy);
         $this->assertFalse($input->includeCashFlows);
         $this->assertTrue($input->excludedDays->isEmpty());
+    }
+
+    public function test_it_rejects_persisted_portfolio_target_configuration(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Portfolio target mode is no longer supported.');
+
+        ConfiguredPairBacktestInput::fromArray([
+            'market_pair_id' => 12,
+            'timeframe_type_id' => 4,
+            'initial_capital' => 1000,
+            'from' => '2026-10-10 00:00:00',
+            'to' => '2026-10-10 23:59:59',
+            'active_from' => false,
+            'active_until' => false,
+            'decision_mode' => 'portfolio_target',
+        ]);
     }
 }

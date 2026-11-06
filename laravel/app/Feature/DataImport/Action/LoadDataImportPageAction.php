@@ -14,6 +14,8 @@ use App\Feature\Fundamentals\Repository\FundamentalImportSessionRepository;
 use App\Feature\Fundamentals\Repository\FundamentalRepository;
 use App\Feature\MarketPairs\Model\MarketPair;
 use App\Feature\MarketPairs\Repository\MarketPairRepository;
+use App\Feature\News\Model\NewsImportSession;
+use App\Feature\News\Repository\NewsImportSessionRepository;
 use App\Feature\Timeframes\Model\TimeframeType;
 use App\Feature\Timeframes\Repository\TimeframeTypeRepository;
 use Exact\Collection\Vec;
@@ -27,6 +29,7 @@ class LoadDataImportPageAction
         private readonly FundamentalRepository $fundamentals,
         private readonly FundamentalImportSessionRepository $fundamentalSessions,
         private readonly CashFlowImportSessionRepository $cashFlowSessions,
+        private readonly NewsImportSessionRepository $newsSessions,
     ) {}
 
     /**
@@ -39,7 +42,9 @@ class LoadDataImportPageAction
      *     activeFundamentalSessions: list<FundamentalImportSession>,
      *     recentFundamentalSessions: list<FundamentalImportSession>,
      *     activeCashFlowSessions: list<CashFlowImportSession>,
-     *     recentCashFlowSessions: list<CashFlowImportSession>
+     *     recentCashFlowSessions: list<CashFlowImportSession>,
+     *     activeNewsSessions: list<NewsImportSession>,
+     *     recentNewsSessions: list<NewsImportSession>
      * }
      */
     public function execute(): array
@@ -54,6 +59,8 @@ class LoadDataImportPageAction
             'recentFundamentalSessions' => $this->fundamentalSessions->recentAll(),
             'activeCashFlowSessions' => $this->cashFlowSessions->activeAll(),
             'recentCashFlowSessions' => $this->cashFlowSessions->recentAll(),
+            'activeNewsSessions' => $this->newsSessions->active(),
+            'recentNewsSessions' => $this->newsSessions->recent(),
         ];
     }
 }

@@ -19,7 +19,6 @@ use DateTimeImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Nikaido\Strategy\Enums\DecisionMode;
 use Nikaido\Strategy\Enums\StrategySignal;
 use Nikaido\Strategy\Models\StrategyDecision;
 use Nikaido\Strategy\Models\StrategyExecutionContext;
@@ -41,6 +40,7 @@ class RelatedMarketPairsTest extends TestCase
             'base' => 'AUD',
             'quote' => 'USD',
             'quantity_unit' => 'units',
+            ...$this->cfdProfile(),
             'related_market_pairs_present' => '1',
             'related_market_pair_ids' => [$firstRelated->id, $secondRelated->id],
             'related_timeframes' => [
@@ -60,6 +60,7 @@ class RelatedMarketPairsTest extends TestCase
             'base' => 'AUD',
             'quote' => 'NZD',
             'quantity_unit' => 'units',
+            ...$this->cfdProfile(),
         ])->assertRedirect("/workbench/market-pairs/{$primary->id}");
         $this->assertDatabaseCount('market_pair_related_pairs', 2);
 
@@ -76,6 +77,7 @@ class RelatedMarketPairsTest extends TestCase
             'base' => 'EUR',
             'quote' => 'USD',
             'quantity_unit' => 'units',
+            ...$this->cfdProfile(),
             'related_market_pairs_present' => '1',
             'related_market_pair_ids' => [$secondRelated->id],
             'related_timeframes' => [$secondRelated->id => $timeframe->id],
@@ -104,6 +106,7 @@ class RelatedMarketPairsTest extends TestCase
             'base' => 'EUR',
             'quote' => 'USD',
             'quantity_unit' => 'units',
+            ...$this->cfdProfile(),
         ];
 
         $this->from("/workbench/market-pairs/{$primary->id}/edit")
@@ -250,7 +253,6 @@ class RelatedMarketPairsTest extends TestCase
             activeUntil: false,
             timeframeTypeId: $timeframe->id,
             marketPairId: $primary->id,
-            decisionMode: DecisionMode::PortfolioTarget,
         );
 
         $result = (new RunSpecificPairBacktestAction(
@@ -265,7 +267,6 @@ class RelatedMarketPairsTest extends TestCase
         $this->assertSame(2, $strategy->primaryCandleCount);
         $this->assertSame($primary->id, $strategy->context?->primaryMarketPairId);
         $this->assertSame($timeframe->id, $strategy->context?->primaryTimeframeTypeId);
-        $this->assertSame(DecisionMode::PortfolioTarget, $strategy->context?->decisionMode);
         $this->assertSame('EUR/GBP', $strategy->context?->primaryMarketPairSymbol);
         $this->assertArrayHasKey($primary->id, $strategy->context?->relatedMarketPairs);
         $this->assertArrayHasKey($related->id, $strategy->context?->relatedMarketPairs);
@@ -294,8 +295,21 @@ class RelatedMarketPairsTest extends TestCase
             'base' => $base,
             'quote' => $quote,
             'quantity_unit' => 'units',
-            'contract_size' => '1.00000000',
+            ...$this->cfdProfile(),
         ]);
+    }
+
+    /** @return array<string, string> */
+    private function cfdProfile(): array
+    {
+        return [
+            'contract_size' => '1',
+            'tick_size' => '0.0001',
+            'tick_value' => '1',
+            'minimum_quantity' => '0.00000001',
+            'quantity_step' => '0.00000001',
+            'initial_margin_rate' => '0.01',
+        ];
     }
 
     private function price(MarketPair $pair, TimeframeType $timeframe, string $timestamp, string $price): void

@@ -39,6 +39,11 @@ class EngineRepositoriesTest extends TestCase
             'USD',
             MarketPairQuantityUnit::Units,
             Option::none(),
+            '0.01',
+            '0.01',
+            '1',
+            '1',
+            '1',
         ));
 
         $this->assertSame($record->id, $repository->find($record->id)?->id);
@@ -48,6 +53,11 @@ class EngineRepositoriesTest extends TestCase
             'USD',
             MarketPairQuantityUnit::Units,
             Option::none(),
+            '0.01',
+            '0.01',
+            '1',
+            '1',
+            '1',
         ));
         $this->assertSame('GBP', $updated->base);
         $this->assertTrue($repository->delete($record->id));
@@ -63,6 +73,11 @@ class EngineRepositoriesTest extends TestCase
             'USD',
             MarketPairQuantityUnit::Units,
             Option::none(),
+            '0.01',
+            '0.01',
+            '1',
+            '1',
+            '1',
         ));
         $repository = app(MarketPriceRepository::class);
         $record = $repository->create([

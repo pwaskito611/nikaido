@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Feature\MarketPairs\Repository;
 
 use App\Feature\CashFlows\Model\MarketPairCashFlow;
+use App\Feature\MarketPairs\Data\CfdContractSpecification;
 use App\Feature\MarketPairs\Data\MarketPairDefinition;
 use App\Feature\MarketPairs\Data\MarketPairMarketData;
 use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
@@ -112,7 +113,7 @@ class MarketPairRepository
     }
 
     /**
-     * @return array{market_type_id: int, base: string, quote: string, quantity_unit: string, contract_size: string}
+     * @return array<string, int|string>
      */
     private function attributesFrom(MarketPairDefinition $definition): array
     {
@@ -122,6 +123,11 @@ class MarketPairRepository
             'quote' => $definition->quote,
             'quantity_unit' => $definition->quantityUnit->value,
             'contract_size' => $definition->contractSize,
+            'tick_size' => $definition->tickSize,
+            'tick_value' => $definition->tickValue,
+            'minimum_quantity' => $definition->minimumQuantity,
+            'quantity_step' => $definition->quantityStep,
+            'initial_margin_rate' => $definition->initialMarginRate,
         ];
     }
 
@@ -176,6 +182,7 @@ class MarketPairRepository
             base: $pair->base,
             quote: $pair->quote,
             relatedMarketPairs: $relatedMarketPairs,
+            contractSpecification: CfdContractSpecification::fromPersistedPair($pair->getAttributes()),
         );
     }
 

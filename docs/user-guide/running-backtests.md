@@ -1,10 +1,13 @@
 # Running Backtests
 
-This guide starts after the local setup in
-[Getting Started](../getting-started/installation.md). The current Workbench
-uses the moving-average strategy wired in the application; there is no
-per-run strategy selector or parameter editor. Strategy-period and risk-rule
-changes require code changes and a controlled comparison.
+This guide covers the research workflow for intraday and swing strategy ideas
+using your own historical CFD or spot price data. Start with the local setup
+in [Getting Started](../getting-started/installation.md). The current
+Workbench uses the strategy wired in the application; there is no per-run
+strategy selector or parameter editor. Strategy-period and risk-rule changes
+require code changes and a controlled comparison. Review
+[Market support](../features/market-support.md) before treating a spot run as
+an account-level simulation.
 
 ## Start the application and jobs
 
@@ -43,9 +46,9 @@ errors are infrastructure errors, not empty-history results.
    Strategy signals are generated only while the configured schedule is
    active, but existing positions continue to be monitored on candles outside
    those entry hours.
-6. Decide whether to include asset cash flows, fixed slippage, synthetic
-   partial fills, and additional trade costs. Cash flows, slippage, and
-   partial fills default to off.
+6. Decide whether to include CFD dividend adjustments, fixed slippage,
+   synthetic partial fills, commission, and overnight financing. Adjustments,
+   slippage, and partial fills default to off.
 7. Submit the form. The browser displays the results for the run.
 
 The active schedule's time-of-day window can cross midnight. Keep its
@@ -56,31 +59,15 @@ stored timestamps.
 
 Select **Market type test**, choose the market type and timeframe, then
 configure the same date range, initial capital, schedule, execution assumptions,
-and costs. Select **Per market pair** to keep independent pair decisions.
-Select **Portfolio target** to process those strategy-generated pair decisions
-through a shared, chronological portfolio leverage check. The strategy still
-supplies its own signals, quantities, and optional priority; the engine does not
-replace strategy sizing with a fixed risk percentage.
+and costs. Choose **Shared portfolio capital** to allocate entry risk across
+pair results, or **Separate capital per pair** to keep independent accounts.
+Pair jobs still generate each pair's history independently. Shared mode then
+synchronizes their events by timestamp, releasing risk on exits before
+allocating same-time entries; competing entry risk is reduced proportionally
+when the available shared risk capital is insufficient.
 
-Portfolio target requires shared capital and a **maximum gross leverage**
-setting. Gross exposure counts long and short notionals by absolute value.
-Higher numeric strategy priorities are processed first; the existing strategy
-defaults to priority `0`. If an entry does not fit, it is rejected and an
-existing position is not automatically reduced or closed. A lower-priority
-entry that would exceed the limit is explicitly reported in order history.
-Open positions are marked using the latest completed candle close at each
-portfolio event; exposure is not automatically liquidated if price movement
-later takes it above the limit. No FX conversion is performed, so pair
-notionals and P/L must use a common account currency.
-Pair workers still generate each pair's history independently before the
-portfolio filter runs. A leverage-rejected entry does not cause that pair's
-strategy simulation to be replayed, so later same-pair signals suppressed by
-the independent pair run are not recovered. Treat this mode as portfolio
-leverage filtering of per-pair strategy histories, not as a strategy receiving
-all holdings and making coordinated universe-wide decisions.
-
-Choose shared capital in **Per market pair** mode only when pair values use compatible
-currencies and risk units. In shared mode, pair jobs are synchronized using
+Use shared capital only when pair prices, notional, and P/L use compatible USD
+normalization. Pair jobs are synchronized using
 their actual candle timestamps; missing periods are not filled with synthetic
 events. Multiple runs queue in the background.
 
@@ -104,9 +91,9 @@ Record at least:
 - partial-fill ratio and remainder policy; and
 - every enabled fee component, method, rate, and applicable side.
 
-When cash flows are enabled, only confirmed or paid events known by the
-ex-date are recognized for a position held before the ex-date candle; long
-positions receive the amount and short positions pay it. The net cash-flow
+When dividend adjustments are enabled, only confirmed or paid events known by
+the ex-date are recognized for a position held before the ex-date candle.
+Long and short positions receive opposite USD adjustments. The net adjustment
 total is included in ending capital and shown separately in results.
 
 Only change one factor at a time when attributing a result difference.

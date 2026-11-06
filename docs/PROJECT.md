@@ -2,9 +2,18 @@
 
 ## 1. About the Project
 
-Nikaido is a PHP and Laravel-based backtesting framework for systematic trading research. It focuses on strategy performance evaluation, transaction cost and execution simulation, and robustness testing to understand how sensitive strategy results are to changes in assumptions and market conditions.
+Nikaido is a PHP and Laravel-based research workbench for intraday and swing
+trading research on CFD and spot market data. It helps traders organize and
+explore historical prices and related context, run candle-based backtests, and
+review results under explicit instrument, cost, and execution assumptions.
 
-Nikaido is designed to let users focus on developing and testing trading strategies while the backtesting engine handles simulation and result recording. It serves as a research and evaluation tool, not as a provider of trading strategies or trading bots.
+Nikaido supports research and evaluation, not live order execution, broker
+connectivity, or trading signals. The current backtest requires a CFD contract
+profile for every pair. Spot price histories can be used for price-based
+research, but the engine does not model spot ownership, cash settlement, or
+asset custody; see [Market support](features/market-support.md) for details.
+It does not provide trading strategies or guarantee that historical results
+will predict future performance.
 
 Nikaido uses Laravel as its application foundation, Exact for explicit domain type and data modeling, and Gauss for mathematical operations suited to the project's computational requirements.
 
@@ -12,8 +21,9 @@ Development prioritizes correctness, maintainability, composability, and archite
 
 ## 2. Objectives
 
-- Provide a framework for developing, running, and evaluating systematic trading strategies.
-- Evaluate strategy performance while accounting for transaction costs, execution assumptions, and relevant testing configurations.
+- Provide a focused workflow for researching intraday and swing strategy ideas using user-supplied CFD or spot price histories.
+- Make market data, timeframe selection, research context, instrument assumptions, and test configuration inspectable and repeatable.
+- Evaluate historical strategy behavior while accounting for configurable transaction costs and execution assumptions.
 - Provide robustness testing to measure how sensitive strategy results are to changes in parameters, assumptions, and simulation conditions.
 - Separate strategy logic, backtesting processes, data access, and application interfaces through clearly defined responsibilities.
 - Use explicit domain types to reduce ambiguous states and data representation errors.

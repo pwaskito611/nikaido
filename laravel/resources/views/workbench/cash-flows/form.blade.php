@@ -1,16 +1,16 @@
 @extends('workbench.layout')
 
-@section('title', $cashFlow->exists ? 'Edit cash flow' : 'New cash flow')
+@section('title', $cashFlow->exists ? 'Edit contract adjustment' : 'New contract adjustment')
 
 @section('content')
     <div class="page-heading">
-        <div><span class="eyebrow">ASSET CASH FLOW</span><h1>{{ $cashFlow->exists ? 'Edit event' : 'Add event' }}</h1><p>Amount is per market-pair unit and uses Nikaido's account currency. Availability time prevents look-ahead in strategy data.</p></div>
-        <a class="button button-secondary" href="{{ route('workbench.cash-flows.index') }}">← Back to cash flows</a>
+        <div><span class="eyebrow">CFD CONTRACT ADJUSTMENT</span><h1>{{ $cashFlow->exists ? 'Edit adjustment' : 'Add adjustment' }}</h1><p>Record the USD dividend adjustment per underlying unit. Availability time prevents look-ahead in strategy data.</p></div>
+        <a class="button button-secondary" href="{{ route('workbench.cash-flows.index') }}">← Back to adjustments</a>
     </div>
     <form class="form-panel" method="POST" action="{{ $cashFlow->exists ? route('workbench.cash-flows.update', $cashFlow) : route('workbench.cash-flows.store') }}">
         @csrf
         @if ($cashFlow->exists) @method('PUT') @endif
-        <div class="panel-top"><div><span class="eyebrow">CASH FLOW EVENT</span><h2>Event details</h2></div></div>
+        <div class="panel-top"><div><span class="eyebrow">CONTRACT ADJUSTMENT</span><h2>Adjustment details</h2></div></div>
         <label class="field-label" for="market_pair_id">Market pair <span>*</span></label>
         <select class="text-input" id="market_pair_id" name="market_pair_id" required>
             <option value="">Select pair</option>
@@ -20,11 +20,9 @@
         </select>
         <label class="field-label" for="event_type">Event type <span>*</span></label>
         <select class="text-input" id="event_type" name="event_type" required>
-            @foreach (['dividend' => 'Dividend', 'interest' => 'Interest', 'staking_reward' => 'Staking reward', 'distribution' => 'Distribution', 'other' => 'Other'] as $value => $label)
-                <option value="{{ $value }}" @selected(old('event_type', $cashFlow->event_type ?: 'dividend') === $value)>{{ $label }}</option>
-            @endforeach
+            <option value="dividend_adjustment" @selected(old('event_type', $cashFlow->event_type ?: 'dividend_adjustment') === 'dividend_adjustment')>Dividend / contract adjustment</option>
         </select>
-        <label class="field-label" for="amount_per_unit">Amount per unit <span>*</span></label>
+        <label class="field-label" for="amount_per_unit">USD adjustment per underlying unit <span>*</span></label>
         <input class="text-input" id="amount_per_unit" name="amount_per_unit" type="number" min="0.000000000001" step="0.000000000001" value="{{ old('amount_per_unit', $cashFlow->amount_per_unit) }}" required>
         <label class="field-label" for="status">Status <span>*</span></label>
         <select class="text-input" id="status" name="status" required>

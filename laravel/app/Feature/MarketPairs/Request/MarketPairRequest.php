@@ -6,6 +6,7 @@ namespace App\Feature\MarketPairs\Request;
 
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class MarketPairRequest extends FormRequest
@@ -25,6 +26,23 @@ class MarketPairRequest extends FormRequest
 
     public function rules(): array
     {
+        $pairId = $this->route('marketPair');
+        $existingPair = $pairId === null
+            ? null
+            : DB::table('market_pair')->where('id', (int) $pairId)->first(['market_type_id', 'base', 'quote']);
+        $identityUnchanged = $existingPair !== null
+            && (int) $existingPair->market_type_id === (int) $this->input('market_type_id')
+            && $existingPair->base === $this->input('base')
+            && $existingPair->quote === $this->input('quote');
+        $baseRules = ['required', 'string', 'max:10'];
+        if (! $identityUnchanged) {
+            $baseRules[] = Rule::unique('market_pair', 'base')
+                ->where(fn ($query) => $query
+                    ->where('market_type_id', $this->input('market_type_id'))
+                    ->where('quote', $this->input('quote')))
+                ->ignore($pairId);
+        }
+
         return [
             'market_type_id' => ['required', 'integer', 'exists:market_type,id'],
             'related_market_pair_ids' => ['sometimes', 'array'],
@@ -39,16 +57,12 @@ class MarketPairRequest extends FormRequest
             'related_timeframes.*' => ['nullable', 'integer', Rule::exists('timeframe_type', 'id')],
             'quantity_unit' => ['required', 'in:units,contract,lot'],
             'contract_size' => ['required_if:quantity_unit,contract,lot', 'nullable', 'numeric', 'gt:0', 'decimal:0,8'],
-            'base' => [
-                'required',
-                'string',
-                'max:10',
-                Rule::unique('market_pair', 'base')
-                    ->where(fn ($query) => $query
-                        ->where('market_type_id', $this->input('market_type_id'))
-                        ->where('quote', $this->input('quote')))
-                    ->ignore($this->route('marketPair')),
-            ],
+            'tick_size' => ['required', 'numeric', 'gt:0', 'decimal:0,10'],
+            'tick_value' => ['required', 'numeric', 'gt:0', 'decimal:0,10'],
+            'minimum_quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,8'],
+            'quantity_step' => ['required', 'numeric', 'gt:0', 'decimal:0,8'],
+            'initial_margin_rate' => ['required', 'numeric', 'gt:0', 'lte:100', 'decimal:0,4'],
+            'base' => $baseRules,
             'quote' => ['required', 'string', 'max:10'],
         ];
     }

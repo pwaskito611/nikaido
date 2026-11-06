@@ -10,19 +10,16 @@ use App\Feature\Backtest\Data\MarketTypeBacktests\PortfolioManagedOrder;
 use App\Feature\Backtest\Model\MarketTypeBacktestPairRun;
 use App\Feature\Backtest\Model\MarketTypeBacktestRun;
 use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioCapitalSynchronizationProcess;
-use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioLeverageLimitProcess;
 use Exact\Collection\Map;
 use Exact\Collection\Vec;
 use Exact\Query\Query;
 use InvalidArgumentException;
-use Nikaido\Strategy\Enums\DecisionMode;
 use UnexpectedValueException;
 
 class CombineMarketTypeBacktestResultsAction
 {
     public function __construct(
         private readonly PortfolioCapitalSynchronizationProcess $portfolioCapital,
-        private readonly PortfolioLeverageLimitProcess $portfolioLeverage,
     ) {}
 
     /**
@@ -31,6 +28,11 @@ class CombineMarketTypeBacktestResultsAction
      */
     public function execute(MarketTypeBacktestRun $run, Vec $pairRuns): array
     {
+        if (($run->configuration['decision_mode'] ?? null) === 'portfolio_target'
+            || array_key_exists('max_gross_leverage', $run->configuration)) {
+            throw new UnexpectedValueException('Portfolio target mode is no longer supported.');
+        }
+
         if ($pairRuns->isEmpty()) {
             throw new InvalidArgumentException('At least one successful pair result is required for aggregation.');
         }
@@ -110,76 +112,19 @@ class CombineMarketTypeBacktestResultsAction
                 ];
             }
         }
-        $decisionMode = DecisionMode::from(
-            $run->configuration['decision_mode'] ?? DecisionMode::PerMarketPair->value,
-        );
-        if ($decisionMode === DecisionMode::PortfolioTarget) {
-            $portfolioPrices = [];
-            foreach ($pairRuns as $pairRun) {
-                foreach ($pairRun->result['results'] as $decision) {
-                    $candle = $decision['candle'] ?? [];
-                    $close = $candle['close'] ?? null;
-                    $date = $candle['price_date'] ?? null;
-                    if (! is_string($date) || ! is_numeric($close)) {
-                        throw new UnexpectedValueException('Portfolio target results require dated candle closes.');
-                    }
-                    $portfolioPrices[] = [
-                        'pair' => $pairRun->pair_name,
-                        'date' => $date,
-                        'close' => (float) $close,
-                    ];
-                }
-            }
-            $managedPortfolioOrders = $this->portfolioLeverage->execute(
-                $initialCapital,
-                (float) ($run->configuration['max_gross_leverage'] ?? 0),
-                $managedPortfolioOrders,
-                $portfolioPrices,
-                $cashFlowAdjustments,
-            );
-            $rejectedDecisions = [];
-            foreach ($managedPortfolioOrders as $order) {
-                if (! $order->entryRejected) {
-                    continue;
-                }
-                $decisionDate = $order->details->decisionDate->getOrNull();
-                if ($decisionDate === null) {
-                    throw new UnexpectedValueException('Rejected portfolio entries must retain their strategy decision date.');
-                }
-                $rejectedDecisions[$order->pair.'|'.$decisionDate.'|'.$order->details->signal->value] = $order->rejectionReason;
-            }
-            $results = $results->map(static function (array $decision) use ($rejectedDecisions): array {
-                $key = ($decision['pair'] ?? '').'|'
-                    .($decision['candle']['price_date'] ?? '').'|'
-                    .($decision['signal'] ?? '');
-                if (isset($rejectedDecisions[$key])) {
-                    $decision['result'] = false;
-                    $decision['entry_order_status'] = 'rejected';
-                    $decision['entry_rejection_reason'] = $rejectedDecisions[$key];
-                }
-
-                return $decision;
-            });
-        }
-        $managedPortfolio = $decisionMode === DecisionMode::PortfolioTarget
-            ? $this->portfolioCapital->applyCapitalTimeline(
+        $managedPortfolio = $capitalMode === 'shared'
+            ? $this->portfolioCapital->execute(
                 $initialCapital,
                 $managedPortfolioOrders,
+                UnfilledOrderPolicy::from($run->configuration['unfilled_order_policy'] ?? UnfilledOrderPolicy::Keep->value),
+                $this->perOrderCostComponents($run->configuration['trade_costs'] ?? []),
                 $cashFlowAdjustments,
             )
-            : ($capitalMode === 'shared'
-                ? $this->portfolioCapital->execute(
-                    $initialCapital,
-                    $managedPortfolioOrders,
-                    UnfilledOrderPolicy::from($run->configuration['unfilled_order_policy'] ?? UnfilledOrderPolicy::Keep->value),
-                    $this->perOrderCostComponents($run->configuration['trade_costs'] ?? []),
-                    $cashFlowAdjustments,
-                )
-                : $this->portfolioCapital->applySeparateCapitalTimeline(
-                    $initialCapital,
-                    $managedPortfolioOrders,
-                    $cashFlowAdjustments,
-                ));
+            : $this->portfolioCapital->applySeparateCapitalTimeline(
+                $initialCapital,
+                $managedPortfolioOrders,
+                $cashFlowAdjustments,
+            );
         $orders = $managedPortfolio->orders
             ->map(static fn (PortfolioManagedOrder $order): array => $order->toArray());
         $capital = $managedPortfolio->endingCapital;
@@ -204,10 +149,6 @@ class CombineMarketTypeBacktestResultsAction
             'to' => $run->configuration['to'],
             'initial_capital' => $initialCapital,
             'capital_mode' => $capitalMode,
-            'decision_mode' => $decisionMode->value,
-            'max_gross_leverage' => $decisionMode === DecisionMode::PortfolioTarget
-                ? (float) $run->configuration['max_gross_leverage']
-                : null,
             'successful_pair_count' => $pairRuns->count(),
             'average_initial_capital_per_pair' => $averageInitialCapital,
             'average_ending_capital_per_pair' => $averageEndingCapital,

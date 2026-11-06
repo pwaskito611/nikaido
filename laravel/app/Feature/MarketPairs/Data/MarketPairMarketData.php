@@ -21,5 +21,6 @@ final readonly class MarketPairMarketData
         public ?string $base = null,
         public ?string $quote = null,
         public array $relatedMarketPairs = [],
+        public ?CfdContractSpecification $contractSpecification = null,
     ) {}
 }

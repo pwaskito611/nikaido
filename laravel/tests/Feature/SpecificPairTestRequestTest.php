@@ -22,6 +22,7 @@ class SpecificPairTestRequestTest extends TestCase
             'base' => 'EUR',
             'quote' => 'USD',
             'quantity_unit' => 'units',
+            ...$this->cfdProfile(),
         ]);
 
         MarketPrice::create([
@@ -88,11 +89,34 @@ class SpecificPairTestRequestTest extends TestCase
             ->assertJsonPath('order_history', []);
     }
 
+    public function test_it_returns_a_validation_error_when_the_pair_has_no_cfd_profile(): void
+    {
+        $marketType = MarketType::create(['name' => 'Forex']);
+        MarketPair::create([
+            'market_type_id' => $marketType->id,
+            'base' => 'CAD',
+            'quote' => 'CHF',
+            'quantity_unit' => 'units',
+        ]);
+
+        $this->postJson('/api/engine/specific-pair-test', [
+            'base' => 'CAD',
+            'quote' => 'CHF',
+            'from' => '2026-10-09 00:00:00',
+            'to' => '2026-10-09 23:59:59',
+            'active_from' => false,
+            'active_until' => false,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('market_pair_id');
+    }
+
     public function test_it_rejects_invalid_time_configuration(): void
     {
         $this->postJson('/api/engine/specific-pair-test', [
             'base' => 'EUR',
             'quote' => 'USD',
+            ...$this->cfdProfile(),
             'from' => '2026-10-09 00:00:00',
             'to' => '2026-10-09 23:59:59',
             'active_from' => false,
@@ -129,6 +153,7 @@ class SpecificPairTestRequestTest extends TestCase
             'base' => 'EUR',
             'quote' => 'USD',
             'quantity_unit' => 'units',
+            ...$this->cfdProfile(),
         ]);
         MarketPrice::create([
             'pair_id' => $pair->id,
@@ -196,6 +221,7 @@ class SpecificPairTestRequestTest extends TestCase
             'base' => 'EUR',
             'quote' => 'USD',
             'quantity_unit' => 'units',
+            ...$this->cfdProfile(),
         ]);
         MarketPrice::create([
             'pair_id' => $pair->id,
@@ -287,6 +313,7 @@ class SpecificPairTestRequestTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'EUR',
             'quote' => 'USD',
+            ...$this->cfdProfile(),
         ]);
         MarketPrice::create([
             'pair_id' => $pair->id,
@@ -297,7 +324,7 @@ class SpecificPairTestRequestTest extends TestCase
             ...$this->quotes('1.100000', '1.200000'),
         ]);
 
-        $this->postJson('/api/engine/specific-pair-test', [
+        $response = $this->postJson('/api/engine/specific-pair-test', [
             'base' => 'EUR',
             'quote' => 'USD',
             'from' => '2026-10-09 00:00:00',
@@ -319,6 +346,7 @@ class SpecificPairTestRequestTest extends TestCase
             'base' => 'EUR',
             'quote' => 'USD',
             'quantity_unit' => 'units',
+            ...$this->cfdProfile(),
         ]);
 
         $date = new \DateTimeImmutable('2026-10-08 00:00:00');
@@ -371,7 +399,7 @@ class SpecificPairTestRequestTest extends TestCase
             'high' => '1.100000',
         ]);
 
-        $this->postJson('/api/engine/specific-pair-test', [
+        $response = $this->postJson('/api/engine/specific-pair-test', [
             'base' => 'EUR',
             'quote' => 'USD',
             'from' => '2026-10-09 00:00:00',
@@ -388,8 +416,9 @@ class SpecificPairTestRequestTest extends TestCase
             ->assertJsonPath('order_history.0.closest_to_stop_loss.source', 'bid_close')
             ->assertJsonPath('order_history.0.closest_to_take_profit.price', 1.1)
             ->assertJsonPath('order_history.0.closest_to_take_profit.source', 'bid_high')
-            ->assertJsonPath('initial_capital', 10000)
-            ->assertJsonPath('ending_capital', 9900);
+            ->assertJsonPath('initial_capital', 10000);
+
+        $this->assertEqualsWithDelta(9900, $response->json('ending_capital'), 0.00001);
     }
 
     /**
@@ -406,6 +435,19 @@ class SpecificPairTestRequestTest extends TestCase
             'ask_high' => $close,
             'ask_low' => $open,
             'ask_close' => $close,
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function cfdProfile(): array
+    {
+        return [
+            'contract_size' => '1',
+            'tick_size' => '0.0001',
+            'tick_value' => '1',
+            'minimum_quantity' => '0.00000001',
+            'quantity_step' => '0.00000001',
+            'initial_margin_rate' => '0.01',
         ];
     }
 }

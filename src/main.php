@@ -127,9 +127,7 @@ function entryDecision(
         return new StrategyDecision(StrategySignal::None, null, null);
     }
 
-    $riskMultiplier = Number::of((string) (
-        $context->quantityUnit === 'units' ? 1 : $context->quantityMultiplier
-    ));
+    $riskMultiplier = Number::of((string) $context->pnlPerPriceUnit);
     $riskBudget = Number::of((string) $context->currentCapital)->mul('0.01');
     $quantityNumber = $riskBudget
         ->div($riskDistance->mul($riskMultiplier))

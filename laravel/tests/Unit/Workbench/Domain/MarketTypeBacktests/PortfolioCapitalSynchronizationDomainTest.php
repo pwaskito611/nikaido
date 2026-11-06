@@ -147,6 +147,19 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
         $this->assertSame(210.0, $result['orders'][2]['capital_after_close']);
     }
 
+    public function test_it_releases_initial_margin_before_allocating_same_timestamp_entries(): void
+    {
+        $exiting = $this->order('EUR/USD', 1, '2026-10-10 10:00:00', '2026-10-10 11:00:00', 1, 10, 0);
+        $next = $this->order('GBP/USD', 1, '2026-10-10 11:00:00', '2026-10-10 12:00:00', 1, 10, 0);
+        $exiting['requested_initial_margin'] = 80.0;
+        $next['requested_initial_margin'] = 80.0;
+
+        $result = $this->synchronize(100.0, [$exiting, $next]);
+
+        $this->assertSame(1.0, $result['orders'][1]['portfolio_allocation_factor']);
+        $this->assertSame(80.0, $result['orders'][1]['portfolio_allocated_initial_margin']);
+    }
+
     public function test_it_rejects_an_entry_when_no_risk_capital_is_available(): void
     {
         $orders = [
@@ -429,6 +442,7 @@ class PortfolioCapitalSynchronizationDomainTest extends TestCase
             'quantity_multiplier' => 1.0,
             'pnl_multiplier' => 1.0,
             'requested_position_size' => $quantity,
+            'requested_initial_margin' => 0.0,
             'position_size' => $quantity,
             'remaining_entry_quantity' => 0.0,
             'remaining_position_size' => 0.0,

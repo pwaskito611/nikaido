@@ -82,7 +82,7 @@ class ReceiveCashFlowEventsRequest extends FormRequest
             'events' => ['required', 'array', 'min:1', 'max:1000'],
             'events.*.event_type' => [
                 'required',
-                Rule::in(['dividend', 'interest', 'staking_reward', 'distribution', 'other']),
+                Rule::in(['dividend_adjustment']),
             ],
             'events.*.amount_per_unit' => [
                 'required',

@@ -33,7 +33,7 @@ class CashFlowFeatureTest extends TestCase
         $this->get('/workbench/cash-flows?market_pair_id='.$otherPair->id)
             ->assertOk()
             ->assertDontSee('2026-03-01 09:00:00')
-            ->assertSee('No cash flow events found.');
+            ->assertSee('No contract adjustments found.');
         $this->get("/workbench/cash-flows/{$cashFlow->id}")
             ->assertOk()
             ->assertSee('EX-DATE');
@@ -59,7 +59,7 @@ class CashFlowFeatureTest extends TestCase
         [$pair, $otherPair] = $this->createPairs();
         $this->get('/workbench/data-import')
             ->assertOk()
-            ->assertSee('ASSET CASH FLOW · DISTRIBUTIONS')
+            ->assertSee('CFD CONTRACT ADJUSTMENT')
             ->assertSee('/api/data-import/cash-flows/events');
         $this->post('/workbench/data-import/cash-flow-sessions', ['market_pair_id' => $pair->id])
             ->assertRedirect('/workbench/data-import')
@@ -171,7 +171,7 @@ class CashFlowFeatureTest extends TestCase
     {
         return [
             'market_pair_id' => $pairId,
-            'event_type' => 'dividend',
+            'event_type' => 'dividend_adjustment',
             'amount_per_unit' => '0.500000000000',
             'announced_at' => '2026-03-01T09:00',
             'available_at' => '2026-03-01T09:00',
@@ -188,7 +188,7 @@ class CashFlowFeatureTest extends TestCase
     private function cashFlowEvent(): array
     {
         return [
-            'event_type' => 'dividend',
+            'event_type' => 'dividend_adjustment',
             'amount_per_unit' => 0.50,
             'announced_at' => '2026-03-01 09:00:00',
             'available_at' => '2026-03-01 09:00:00',

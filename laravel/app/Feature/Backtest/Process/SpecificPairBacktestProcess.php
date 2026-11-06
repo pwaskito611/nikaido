@@ -16,6 +16,7 @@ use App\Feature\Backtest\Data\StressTestPriceSource;
 use App\Feature\Backtest\Data\StressTestTimestamp;
 use App\Feature\Backtest\Execution\PartialFill;
 use App\Feature\Backtest\Execution\SlippageCalculator;
+use App\Feature\MarketPairs\Data\CfdContractSpecification;
 use App\Feature\MarketPairs\Data\MarketPairMarketData;
 use App\Feature\MarketPrice\Model\MarketPrice;
 use App\Platform\Strategy\Strategy;
@@ -30,6 +31,7 @@ use LogicException;
 use Nikaido\Strategy\Enums\StrategySignal;
 use Nikaido\Strategy\Models\CashFlowDataCollection;
 use Nikaido\Strategy\Models\FundamentalDataCollection;
+use Nikaido\Strategy\Models\NewsDataCollection;
 use Nikaido\Strategy\Models\RelatedMarketPairData;
 use Nikaido\Strategy\Models\StrategyDecision;
 use Nikaido\Strategy\Models\StrategyExecutionContext;
@@ -54,10 +56,14 @@ class SpecificPairBacktestProcess
         MarketPairMarketData $marketData,
         FundamentalDataCollection $fundamentals,
         ?CashFlowDataCollection $cashFlows = null,
+        ?NewsDataCollection $news = null,
     ): SpecificPairBacktestResult {
         $cashFlows ??= new CashFlowDataCollection;
+        $news ??= new NewsDataCollection;
         $quantityUnit = $marketData->quantityUnit->value;
         $configuredQuantityMultiplier = $marketData->contractSize;
+        $contractSpecification = $marketData->contractSpecification
+            ?? throw new UnexpectedValueException('Complete the CFD contract profile before running a backtest.');
         $quantityMultiplier = $quantityUnit === 'units' ? 1.0 : (float) $configuredQuantityMultiplier;
         $candles = $marketData->candles;
         $relatedMarketPairs = [];
@@ -81,8 +87,9 @@ class SpecificPairBacktestProcess
             $relatedMarketPairs,
             $config->timeframeTypeId,
             $fundamentals,
-            $config->decisionMode,
             $cashFlows,
+            $contractSpecification->pnlPerPriceUnit(),
+            $news,
         );
         $decisions = $this->strategy->execute($candles, $context);
 
@@ -92,6 +99,7 @@ class SpecificPairBacktestProcess
             $config,
             $quantityUnit,
             $configuredQuantityMultiplier,
+            $contractSpecification,
             $context,
             $cashFlows,
         );
@@ -107,6 +115,7 @@ class SpecificPairBacktestProcess
         SpecificPairTestConfig $config,
         string $quantityUnit,
         string $configuredQuantityMultiplier,
+        CfdContractSpecification $contractSpecification,
         StrategyExecutionContext $context,
         CashFlowDataCollection $cashFlows,
     ): SpecificPairBacktestResult {
@@ -114,6 +123,8 @@ class SpecificPairBacktestProcess
         $results = [];
         /** @var array<int, string> $decisionStatuses */
         $decisionStatuses = [];
+        /** @var array<int, string> $decisionRejectionReasons */
+        $decisionRejectionReasons = [];
         $orderHistory = Vec::empty();
         $openOrderIndex = null;
         $entryDecisionIndex = null;
@@ -148,7 +159,8 @@ class SpecificPairBacktestProcess
 
             if ($config->includeCashFlows) {
                 foreach ($cashFlows->availableAt($candle->price_date) as $cashFlow) {
-                    if ($cashFlow->exDate === null
+                    if ($cashFlow->eventType !== 'dividend_adjustment'
+                        || $cashFlow->exDate === null
                         || $cashFlow->exDate > $candle->price_date
                         || $cashFlow->availableAt > $cashFlow->exDate
                         || ! in_array($cashFlow->status, ['confirmed', 'paid'], true)
@@ -170,7 +182,6 @@ class SpecificPairBacktestProcess
                     $direction = $order->signal === StrategySignal::Short->value ? -1.0 : 1.0;
                     $amount = $cashFlow->amountPerUnit
                         * $eligibleQuantity
-                        * $order->pnlMultiplier
                         * $direction;
                     $currentCapital = (float) Number::of($currentCapital)->add($amount)->value();
                     $cashFlowHistory[] = [
@@ -193,6 +204,7 @@ class SpecificPairBacktestProcess
                     $pendingEntry['decision']->limitPrice ?? throw new LogicException('A pending limit entry must have a limit price.'),
                 );
                 if ($limitFill !== null) {
+                    $rejectionReason = null;
                     $opened = $this->openOrder(
                         $pendingEntry['decision'],
                         $limitFill->first(),
@@ -204,17 +216,26 @@ class SpecificPairBacktestProcess
                         $currentCapital,
                         $quantityUnit,
                         $configuredQuantityMultiplier,
+                        $contractSpecification,
                         $config,
                         $remainingCandleCapacity,
                         $slippageCalculator,
+                        $rejectionReason,
                     );
-                    $orderHistory = $orderHistory->append($opened->first());
-                    $openOrderIndex = $orderHistory->count() - 1;
-                    $currentCapital = $opened->second();
                     $entryDecisionIndex = $pendingEntry['decision_index'];
-                    $decisionStatuses[$entryDecisionIndex] = $opened->first()->entryStatus();
+                    $currentCapital = $opened->second();
+                    $order = $opened->first()->getOrNull();
+                    if ($order === null) {
+                        $decisionStatuses[$entryDecisionIndex] = 'rejected';
+                        $decisionRejectionReasons[$entryDecisionIndex] = $rejectionReason ?? 'entry_rejected';
+                        $entryDecisionIndex = null;
+                    } else {
+                        $orderHistory = $orderHistory->append($order);
+                        $openOrderIndex = $orderHistory->count() - 1;
+                        $decisionStatuses[$entryDecisionIndex] = $order->entryStatus();
+                    }
                     $pendingEntry = null;
-                    $filledLimitThisCandle = true;
+                    $filledLimitThisCandle = $order !== null;
                 } elseif ($decision?->signal === StrategySignal::Close) {
                     $decisionStatuses[$pendingEntry['decision_index']] = 'cancelled';
                     $pendingEntry = null;
@@ -380,6 +401,7 @@ class SpecificPairBacktestProcess
                     $decisionStatuses[$decisionIndex] = 'pending';
                 } else {
                     $entry = $this->entryPrice($candle, $decision->signal);
+                    $rejectionReason = null;
                     $opened = $this->openOrder(
                         $decision,
                         $entry->first(),
@@ -391,15 +413,23 @@ class SpecificPairBacktestProcess
                         $currentCapital,
                         $quantityUnit,
                         $configuredQuantityMultiplier,
+                        $contractSpecification,
                         $config,
                         $remainingCandleCapacity,
                         $slippageCalculator,
+                        $rejectionReason,
                     );
-                    $orderHistory = $orderHistory->append($opened->first());
-                    $openOrderIndex = $orderHistory->count() - 1;
-                    $entryDecisionIndex = $decisionIndex;
                     $currentCapital = $opened->second();
-                    $decisionStatuses[$decisionIndex] = $opened->first()->entryStatus();
+                    $order = $opened->first()->getOrNull();
+                    if ($order === null) {
+                        $decisionStatuses[$decisionIndex] = 'rejected';
+                        $decisionRejectionReasons[$decisionIndex] = $rejectionReason ?? 'entry_rejected';
+                    } else {
+                        $orderHistory = $orderHistory->append($order);
+                        $openOrderIndex = $orderHistory->count() - 1;
+                        $entryDecisionIndex = $decisionIndex;
+                        $decisionStatuses[$decisionIndex] = $order->entryStatus();
+                    }
                 }
             }
 
@@ -407,7 +437,8 @@ class SpecificPairBacktestProcess
                 $decisionIndex = count($results);
                 $results[] = new BacktestDecision(
                     candle: $candle,
-                    entered: $decision->signal !== StrategySignal::None,
+                    entered: $decision->signal !== StrategySignal::None
+                        && ($decisionStatuses[$decisionIndex] ?? null) !== 'rejected',
                     signal: $decision->signal,
                     quantity: Option::from($decision->quantity),
                     quantityUnit: $quantityUnit,
@@ -415,6 +446,7 @@ class SpecificPairBacktestProcess
                     takeProfit: Option::from($decision->takeProfit),
                     entryOrderStatus: $decisionStatuses[$decisionIndex] ?? null,
                     entryLimitPrice: $decision->limitPrice,
+                    entryRejectionReason: $decisionRejectionReasons[$decisionIndex] ?? null,
                 );
             }
 
@@ -426,6 +458,7 @@ class SpecificPairBacktestProcess
             decisions: Vec::fromArray(array_map(
                 static fn (BacktestDecision $decision, int $index): BacktestDecision => $decision->withEntryOrderStatus(
                     $decisionStatuses[$index] ?? null,
+                    $decisionRejectionReasons[$index] ?? null,
                 ),
                 $results,
                 array_keys($results),
@@ -460,7 +493,7 @@ class SpecificPairBacktestProcess
     }
 
     /**
-     * @return Pair<BacktestOrderHistoryEntry, float>
+     * @return Pair<Option<BacktestOrderHistoryEntry>, float>
      */
     private function openOrder(
         StrategyDecision $decision,
@@ -473,10 +506,13 @@ class SpecificPairBacktestProcess
         float $capital,
         string $quantityUnit,
         string $configuredQuantityMultiplier,
+        CfdContractSpecification $contractSpecification,
         SpecificPairTestConfig $config,
         ?float &$remainingCandleCapacity,
         SlippageCalculator $slippageCalculator,
+        ?string &$rejectionReason,
     ): Pair {
+        $rejectionReason = null;
         $requestedEntryPrice = $decision->limitPrice ?? $entryPrice;
         $this->assertValidEntryDecision(
             $decision,
@@ -488,9 +524,17 @@ class SpecificPairBacktestProcess
             throw new UnexpectedValueException('Cannot size an order when entry and stop-loss prices are equal.');
         }
 
-        $positionMultiplier = $quantityUnit === 'lot' ? $configuredQuantityMultiplier : '1';
-        $pnlMultiplier = $quantityUnit === 'contract' ? $configuredQuantityMultiplier : '1';
-        $requestedPositionSize = Number::of($decision->quantity)->mul($positionMultiplier);
+        $quantityStep = $contractSpecification->quantityStep;
+        $strategyQuantity = (float) $decision->quantity;
+        $strategyQuantity = round(floor(($strategyQuantity + $quantityStep * 1.0e-9) / $quantityStep) * $quantityStep, 12);
+        if ($strategyQuantity < $contractSpecification->minimumQuantity) {
+            $rejectionReason = 'below_minimum_quantity';
+
+            return Pair::of(Option::none(), $capital);
+        }
+        $positionMultiplier = $quantityUnit === 'units' ? 1.0 : (float) $configuredQuantityMultiplier;
+        $pnlMultiplier = $contractSpecification->pnlPerPriceUnit() / $positionMultiplier;
+        $requestedPositionSize = Number::of($strategyQuantity)->mul($positionMultiplier);
         $riskAmount = Number::of($requestedEntryPrice)
             ->sub($decision->stopLoss)
             ->abs()
@@ -504,16 +548,15 @@ class SpecificPairBacktestProcess
             entryPriceSource: $entryPriceSource,
             stopLoss: $decision->stopLoss,
             takeProfit: $decision->takeProfit,
-            strategyQuantity: $decision->quantity,
+            strategyQuantity: $strategyQuantity,
             quantityUnit: $quantityUnit,
-            quantityMultiplier: (float) ($quantityUnit === 'units' ? '1' : $configuredQuantityMultiplier),
-            pnlMultiplier: (float) $pnlMultiplier,
+            quantityMultiplier: $positionMultiplier,
+            pnlMultiplier: $pnlMultiplier,
             requestedRiskAmount: (float) $riskAmount->value(),
             positionSize: 0.0,
             requestedPositionSize: (float) $requestedPositionSize->value(),
             capitalAtOpen: $capital,
             requestedEntryPrice: $decision->limitPrice,
-            priority: $decision->priority,
             decisionDate: $decisionDate,
         );
         $fillQuantity = $this->fillQuantity(
@@ -537,17 +580,29 @@ class SpecificPairBacktestProcess
                     ? min($decision->limitPrice, $entryPrice)
                     : max($decision->limitPrice, $entryPrice);
             }
+        }
+        $requiredMargin = $contractSpecification->marginFor(
+            (float) $requestedPositionSize->value(),
+            $entryPrice,
+        );
+        $order->requestedInitialMargin = $requiredMargin;
+        if ($requiredMargin > $capital) {
+            $rejectionReason = 'insufficient_initial_margin';
+
+            return Pair::of(Option::none(), $capital);
+        }
+        if ($fillQuantity > 0) {
             $order->recordEntryFill($fillQuantity, $entryPrice, $openDate, $entryPriceSource);
-            $entryCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
-            $order->recordEntryTradeCosts($entryCosts);
-            $capital = (float) Number::of($capital)->sub($this->sumCosts($entryCosts))->value();
+            $fillCosts = $this->transactionCosts($order, $fillQuantity, $entryPrice, $config, 'entry');
+            $order->recordEntryTradeCosts($fillCosts);
+            $capital = (float) Number::of($capital)->sub($this->sumCosts($fillCosts))->value();
         }
         if ($config->partialFill->enabled && $config->partialFill->unfilledOrderPolicy === UnfilledOrderPolicy::Cancel) {
             $order->cancelledEntryQuantity += $order->remainingEntryQuantity;
             $order->remainingEntryQuantity = 0.0;
         }
 
-        return Pair::of($order, $capital);
+        return Pair::of(Option::some($order), $capital);
     }
 
     private function availableCandleCapacity(
@@ -676,12 +731,9 @@ class SpecificPairBacktestProcess
         }
 
         $costs = [];
-        $tradeQuantity = $order->quantityUnit === 'lot'
-            ? (float) Number::of($positionQuantity)->div($order->quantityMultiplier)->value()
-            : $positionQuantity;
+        $tradeQuantity = (float) Number::of($positionQuantity)->div($order->quantityMultiplier)->value();
         $transactionValue = (float) Number::of($positionQuantity)
             ->mul($price)
-            ->mul($order->pnlMultiplier)
             ->value();
         foreach (['commission', 'exchange_fee', 'clearing_fee', 'regulatory_fee', 'transaction_tax'] as $name) {
             $component = $config->tradeCosts->components()[$name];

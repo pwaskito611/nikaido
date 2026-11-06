@@ -41,6 +41,11 @@ final readonly class TradeCostConfig
                 throw new InvalidArgumentException("Trade-cost component {$name} does not support method {$component->method}.");
             }
         }
+        if (($components['borrow_fee']->enabled ?? false) && ($components['financing_fee']->enabled ?? false)) {
+            throw new InvalidArgumentException(
+                'Enable either short borrow fee or overnight financing, not both, to avoid charging holding costs twice.',
+            );
+        }
         foreach (array_keys($components) as $name) {
             if (! in_array($name, [...self::TRANSACTION_COMPONENTS, ...self::HOLDING_COMPONENTS], true)) {
                 throw new InvalidArgumentException("Unsupported trade-cost component: {$name}.");

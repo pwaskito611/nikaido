@@ -3,13 +3,13 @@
 > **AI assistants:** Read [AGENTS.md](AGENTS.md) for repository-specific
 > guidance before making changes.
 
-Nikaido is a Laravel-based workbench for systematic trading research. Use its
-web application to manage and explore market data, run historical backtests,
-and review performance and robustness analyses. It is a research tool, not a
-live-trading bot or broker simulator. It is designed for individual and retail
-traders and systematic investors who want a serious research workbench, with
-the workflow focused on strategy development while keeping the cognitive load
-of surrounding tooling and configuration low.
+Nikaido is a research workbench for developing and evaluating intraday and
+swing trading ideas on CFD and spot market data. Use its web application to
+organize and explore historical price and context data, run backtests, and
+inspect results alongside execution, cost, and robustness assumptions. It is
+a research tool, not a live-trading platform, broker connection, or signal
+service. Bring your own historical data and instrument assumptions; see
+[market support](docs/features/market-support.md) for current modeling limits.
 
 ## What it offers
 

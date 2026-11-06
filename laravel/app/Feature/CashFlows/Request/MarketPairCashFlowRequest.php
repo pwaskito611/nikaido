@@ -40,7 +40,7 @@ class MarketPairCashFlowRequest extends FormRequest
 
         return [
             'market_pair_id' => ['required', 'integer', 'exists:market_pair,id'],
-            'event_type' => ['required', Rule::in(['dividend', 'interest', 'staking_reward', 'distribution', 'other'])],
+            'event_type' => ['required', Rule::in(['dividend_adjustment'])],
             'amount_per_unit' => ['required', 'numeric', 'gt:0', 'decimal:0,12', 'max:999999999999999.999999999999'],
             'announced_at' => ['nullable', 'date_format:Y-m-d H:i:s'],
             'available_at' => ['required', 'date_format:Y-m-d H:i:s'],

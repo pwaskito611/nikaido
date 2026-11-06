@@ -25,9 +25,10 @@ final readonly class BacktestDecision
         public Option $takeProfit,
         public ?string $entryOrderStatus = null,
         public ?float $entryLimitPrice = null,
+        public ?string $entryRejectionReason = null,
     ) {}
 
-    public function withEntryOrderStatus(?string $status): self
+    public function withEntryOrderStatus(?string $status, ?string $rejectionReason = null): self
     {
         return new self(
             $this->candle,
@@ -39,6 +40,7 @@ final readonly class BacktestDecision
             $this->takeProfit,
             $status,
             $this->entryLimitPrice,
+            $rejectionReason ?? $this->entryRejectionReason,
         );
     }
 
@@ -55,6 +57,7 @@ final readonly class BacktestDecision
             'take_profit' => $this->takeProfit->getOrNull(),
             'entry_order_status' => $this->entryOrderStatus,
             'entry_limit_price' => $this->entryLimitPrice,
+            'entry_rejection_reason' => $this->entryRejectionReason,
         ];
     }
 }

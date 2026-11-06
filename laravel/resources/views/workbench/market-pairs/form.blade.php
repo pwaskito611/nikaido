@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="page-heading">
-        <div><span class="eyebrow">INSTRUMENTS / MARKET UNIVERSE</span><h1>{{ $marketPair->exists ? 'Edit market pair' : 'New market pair' }}</h1><p>Set the classification and symbols for this instrument.</p></div>
+    <div><span class="eyebrow">CFD INSTRUMENTS / MARKET UNIVERSE</span><h1>{{ $marketPair->exists ? 'Edit CFD instrument' : 'New CFD instrument' }}</h1><p>Set its CFD contract terms. Monetary values are denominated in USD.</p></div>
         <a class="button button-secondary" href="{{ route('workbench.market-pairs.index') }}">← Back to list</a>
     </div>
     @if ($marketTypes->isEmpty())
@@ -13,7 +13,7 @@
     <form class="form-panel" method="POST" action="{{ $marketPair->exists ? route('workbench.market-pairs.update', $marketPair) : route('workbench.market-pairs.store') }}">
         @csrf
         @if ($marketPair->exists) @method('PUT') @endif
-        <div class="panel-top"><div><span class="eyebrow">INSTRUMENT DETAILS</span><h2>Market pair</h2></div><span class="card-index">REQUIRED FIELDS *</span></div>
+        <div class="panel-top"><div><span class="eyebrow">CFD CONTRACT PROFILE</span><h2>Instrument details</h2></div><span class="card-index">REQUIRED FIELDS *</span></div>
         <label class="field-label" for="market_type_id">Market type <span>*</span></label>
         <select class="text-input" id="market_type_id" name="market_type_id" required>
             <option value="">Select a market type</option>
@@ -33,11 +33,22 @@
             <option value="lot" @selected(old('quantity_unit', $marketPair->quantity_unit ?? 'units') === 'lot')>Lots</option>
         </select>
         <div id="quantity-multiplier-field" @if (old('quantity_unit', $marketPair->quantity_unit ?? 'units') === 'units') hidden @endif>
-            <label class="field-label" for="contract_size"><span id="quantity-multiplier-label">Quantity multiplier</span> <span>*</span></label>
+            <label class="field-label" for="contract_size"><span id="quantity-multiplier-label">Contract size</span> <span>*</span></label>
             <input class="text-input" id="contract_size" name="contract_size" type="number" min="0.00000001" step="0.00000001" value="{{ old('contract_size', $marketPair->contract_size) }}">
-            <small class="field-hint" id="quantity-multiplier-hint">Configure the instrument's actual multiplier.</small>
+            <small class="field-hint" id="quantity-multiplier-hint">Underlying units represented by one contract/lot.</small>
         </div>
-        <small class="field-hint">The strategy supplies the quantity for each entry. Unit/share/quantity passes through directly; contracts retain contract quantity and apply the multiplier to P&amp;L and risk; lots convert to underlying units using units per lot.</small>
+        <small class="field-hint">Tick value is the USD P/L for one tick move and one strategy quantity unit. Price data and all P/L are assumed normalized to USD; Nikaido does not convert currencies.</small>
+        <div class="field-row">
+            <div><label class="field-label" for="tick_size">Tick size <span>*</span></label><input class="text-input" id="tick_size" name="tick_size" type="number" min="0.0000000001" step="0.0000000001" value="{{ old('tick_size', $marketPair->tick_size) }}" required></div>
+            <div><label class="field-label" for="tick_value">Tick value (USD) <span>*</span></label><input class="text-input" id="tick_value" name="tick_value" type="number" min="0.0000000001" step="0.0000000001" value="{{ old('tick_value', $marketPair->tick_value) }}" required></div>
+        </div>
+        <div class="field-row">
+            <div><label class="field-label" for="minimum_quantity">Minimum quantity <span>*</span></label><input class="text-input" id="minimum_quantity" name="minimum_quantity" type="number" min="0.00000001" step="0.00000001" value="{{ old('minimum_quantity', $marketPair->minimum_quantity) }}" required></div>
+            <div><label class="field-label" for="quantity_step">Quantity step <span>*</span></label><input class="text-input" id="quantity_step" name="quantity_step" type="number" min="0.00000001" step="0.00000001" value="{{ old('quantity_step', $marketPair->quantity_step) }}" required></div>
+        </div>
+        <label class="field-label" for="initial_margin_rate">Initial margin (%) <span>*</span></label>
+        <input class="text-input" id="initial_margin_rate" name="initial_margin_rate" type="number" min="0.0001" max="100" step="0.0001" value="{{ old('initial_margin_rate', $marketPair->initial_margin_rate) }}" required>
+        <small class="field-hint">Required margin is notional × this rate. Entries exceeding available USD capital are rejected. Maintenance margin and automatic liquidation are not modeled.</small>
         <div class="field-row" style="margin-top:20px">
             <div>
                 <span class="field-label">Related Market Pairs</span>
@@ -129,9 +140,9 @@
             const usesContracts = quantityUnit.value === 'contract';
             multiplierField.hidden = !usesMultiplier;
             multiplierInput.required = usesMultiplier;
-            multiplierLabel.textContent = usesContracts ? 'Currency value per price point per contract' : 'Units per lot';
+            multiplierLabel.textContent = usesContracts ? 'Underlying units per contract' : 'Underlying units per lot';
             multiplierHint.textContent = usesContracts
-                ? 'For futures, enter the contract point value in the pair quote currency (for example, 50 currency units per index point).'
+                ? 'Underlying units represented by one contract. Set tick value separately in USD.'
                 : 'For lots, enter the underlying units represented by one lot (for example, 100,000 base units for a standard FX lot).';
         };
         quantityUnit.addEventListener('change', updateQuantityUnitFields);

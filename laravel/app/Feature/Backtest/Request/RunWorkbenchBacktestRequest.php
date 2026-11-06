@@ -10,7 +10,6 @@ use App\Feature\Backtest\Config\SlippageMode;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
-use Nikaido\Strategy\Enums\DecisionMode;
 
 class RunWorkbenchBacktestRequest extends FormRequest
 {
@@ -26,9 +25,6 @@ class RunWorkbenchBacktestRequest extends FormRequest
 
         $this->merge([
             'test_type' => $this->input('test_type', 'specific_pair'),
-            'decision_mode' => $this->input('test_type', 'specific_pair') === 'market_type'
-                ? $this->input('decision_mode', DecisionMode::PerMarketPair->value)
-                : DecisionMode::PerMarketPair->value,
             'capital_mode' => $this->input('test_type', 'specific_pair') === 'market_type'
                 ? $this->input('capital_mode', 'shared')
                 : null,
@@ -54,14 +50,8 @@ class RunWorkbenchBacktestRequest extends FormRequest
 
         return [
             'test_type' => ['required', 'in:specific_pair,market_type'],
-            'decision_mode' => ['required', Rule::in(array_column(DecisionMode::cases(), 'value'))],
-            'max_gross_leverage' => [
-                Rule::requiredIf($this->input('decision_mode') === DecisionMode::PortfolioTarget->value),
-                'nullable',
-                'numeric',
-                'gt:0',
-                'lte:1000',
-            ],
+            'decision_mode' => ['prohibited'],
+            'max_gross_leverage' => ['prohibited'],
             'market_pair_id' => ['required_if:test_type,specific_pair', 'nullable', 'integer', 'exists:market_pair,id'],
             'market_type_id' => ['required_if:test_type,market_type', 'nullable', 'integer', 'exists:market_type,id'],
             'capital_mode' => ['required_if:test_type,market_type', 'nullable', 'in:shared,separate'],
@@ -139,11 +129,6 @@ class RunWorkbenchBacktestRequest extends FormRequest
                 );
             }
 
-            if ($this->input('decision_mode') === DecisionMode::PortfolioTarget->value
-                && $this->input('capital_mode') !== 'shared') {
-                $validator->errors()->add('capital_mode', 'Portfolio target mode requires shared portfolio capital.');
-            }
-
             $mode = $this->input('slippage_mode', SlippageMode::Fixed->value);
             if ($this->boolean('slippage_enabled') && $mode === SlippageMode::Fixed->value
                 && $this->input('fixed_slippage', $this->input('slippage_pips')) === null) {
@@ -170,6 +155,14 @@ class RunWorkbenchBacktestRequest extends FormRequest
                 $validator->errors()->add(
                     'trade_costs.transaction_tax.applies_to',
                     'Choose whether the transaction tax applies to entry, exit, or both.',
+                );
+            }
+            if ($this->boolean('trade_costs.enabled')
+                && $this->boolean('trade_costs.borrow_fee.enabled')
+                && $this->boolean('trade_costs.financing_fee.enabled')) {
+                $validator->errors()->add(
+                    'trade_costs.financing_fee.enabled',
+                    'Choose either short borrow fee or overnight financing; both would duplicate holding costs.',
                 );
             }
         });

@@ -1,7 +1,11 @@
 # Nikaido Documentation
 
-These guides explain how to obtain, configure, and use a local Nikaido checkout.
-Read them in order if you are new to the project.
+Nikaido is a research workbench for intraday and swing trading ideas on
+historical CFD and spot market data. These guides explain how to prepare data,
+configure research runs, and inspect their assumptions and results. Nikaido
+does not execute live trades or provide trading signals; its current
+instrument-modeling limits are described in
+[Market support](features/market-support.md).
 
 ## Architecture
 
@@ -101,7 +105,9 @@ performance.
    slippage, partial fills, and their limitations.
 9. [Running backtests](user-guide/running-backtests.md) — repeatable single-pair
    and market-type workflows and result retrieval.
-10. [Interpreting results](user-guide/interpreting-results.md) — metric
+10. [News](user-guide/news.md) — manage pair-specific news context and import
+   point-in-time articles for strategy research.
+11. [Interpreting results](user-guide/interpreting-results.md) — metric
    definitions, edge cases, and robustness analysis.
 
 ## Features

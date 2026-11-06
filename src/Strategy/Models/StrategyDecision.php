@@ -17,12 +17,7 @@ class StrategyDecision
         public readonly ?float $takeProfit,
         public readonly int|float|string|null $quantity = null,
         public readonly ?float $limitPrice = null,
-        public readonly int $priority = 0,
     ) {
-        if ($priority < 0) {
-            throw new InvalidArgumentException('Decision priority must be a non-negative integer.');
-        }
-
         if ($limitPrice !== null && (
             ! in_array($signal, [StrategySignal::Long, StrategySignal::Short], true)
             || ! is_finite($limitPrice)

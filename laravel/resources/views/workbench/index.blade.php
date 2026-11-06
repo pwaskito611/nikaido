@@ -5,9 +5,9 @@
 @section('content')
     <div class="page-heading">
         <div>
-            <span class="eyebrow">SYSTEMATIC TRADING / RESEARCH WORKBENCH</span>
+            <span class="eyebrow">INTRADAY & SWING · CFD & SPOT RESEARCH</span>
             <h1>Research workspace</h1>
-            <p>Manage historical market, fundamental, and asset cash-flow data; run configured backtests; and review strategy outcomes.</p>
+            <p>Research intraday and swing ideas on your historical CFD or spot price data. Configure backtests and review results alongside their assumptions; this is a research tool, not live execution.</p>
         </div>
         <a class="button button-primary" href="{{ route('workbench.tests.create') }}">Configure backtest <span>→</span></a>
     </div>
@@ -70,12 +70,12 @@
                 </a>
                 <a href="{{ route('workbench.cash-flows.index') }}">
                     <span class="overview-link-code">06</span>
-                    <span class="overview-link-copy"><strong>Asset cash flows</strong><small>Record per-unit distributions and other cash returns in the account currency.</small></span>
+                    <span class="overview-link-copy"><strong>CFD contract adjustments</strong><small>Record dividend adjustments in USD per underlying unit.</small></span>
                     <span class="overview-link-arrow">↗</span>
                 </a>
                 <a href="{{ route('workbench.data-import.index') }}">
                     <span class="overview-link-code">07</span>
-                    <span class="overview-link-copy"><strong>Data import</strong><small>Start scoped push receivers for candles, fundamentals, and cash-flow events; Nikaido does not fetch providers.</small></span>
+                    <span class="overview-link-copy"><strong>Data import</strong><small>Start scoped push receivers for candles, fundamentals, and CFD adjustments; Nikaido does not fetch providers.</small></span>
                     <span class="overview-link-arrow">↗</span>
                 </a>
                 <a href="{{ route('workbench.market-exploration.index') }}">
@@ -99,20 +99,15 @@
                 </a>
                 <div class="overview-capability">
                     <span class="overview-link-code">02</span>
-                    <span class="overview-link-copy"><strong>Portfolio target</strong><small>Apply a shared gross-leverage limit to chronological pair orders; numeric strategy priority decides which competing entries are considered first.</small></span>
+                    <span class="overview-link-copy"><strong>Capital management</strong><small>Choose shared risk capital allocated across pair entries, or separate capital for independent pair runs.</small></span>
                 </div>
                 <div class="overview-capability">
                     <span class="overview-link-code">03</span>
                     <span class="overview-link-copy"><strong>Results and robustness</strong><small>Review trade and capital metrics, cluster summaries, fluctuation stress scenarios, and Monte Carlo simulations.</small></span>
                 </div>
             </div>
-            <div class="overview-architecture">
-                <span class="eyebrow">HOW PORTFOLIO TARGET WORKS</span>
-                <p><strong>Strategy</strong> generates decisions per pair; the <strong>Engine</strong> simulates orders and applies portfolio constraints. Pair histories are produced independently before portfolio leverage filtering. Priority orders competing entries, but the strategy does not receive a live snapshot of all holdings or candidates; rejected entries do not trigger strategy replay. Cash-flow accounting is optional and defaults off. No FX conversion or forced liquidation is modeled.</p>
-                <a href="{{ route('workbench.tests.create') }}">Start a research run <span>→</span></a>
-            </div>
         </section>
     </div>
 
-    <footer class="page-foot"><span>NIKAIDO · SYSTEMATIC TRADING RESEARCH</span><span>Historical data · Explicit configuration · Inspectable results</span></footer>
+    <footer class="page-foot"><span>NIKAIDO · CFD & SPOT RESEARCH WORKBENCH</span><span>Intraday & swing · Historical data · Inspectable assumptions</span></footer>
 @endsection

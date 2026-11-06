@@ -22,24 +22,24 @@ class WorkbenchFeatureTest extends TestCase
 
         $this->get('/workbench')
             ->assertOk()
-            ->assertSee('SYSTEMATIC TRADING / RESEARCH WORKBENCH')
+            ->assertSee('INTRADAY', false)
+            ->assertSee('CFD & SPOT RESEARCH', false)
+            ->assertSee('Research intraday and swing ideas')
             ->assertSee('From market data to evaluation')
             ->assertSee('Data import')
             ->assertSee('Market types')
             ->assertSee('Market pairs')
             ->assertSee('Fundamentals')
-            ->assertSee('Asset cash flows')
+            ->assertSee('CFD contract adjustments')
             ->assertSee('Timeframes')
             ->assertSee('Market prices')
             ->assertSee('visible entry and exit markers')
             ->assertSee('Run a test')
-            ->assertSee('Portfolio target')
-            ->assertSee('numeric strategy priority')
-            ->assertSee('optional and defaults off')
+            ->assertSee('shared risk capital')
+            ->assertSee('separate capital for independent pair runs')
             ->assertSee('Nikaido does not fetch providers')
             ->assertSee('fluctuation stress scenarios, and Monte Carlo simulations')
-            ->assertSee('Strategy')
-            ->assertSee('Engine')
+            ->assertSee('Capital management')
             ->assertDontSee('LIVE DATASET')
             ->assertDontSee('+12.84%');
     }
@@ -51,6 +51,12 @@ class WorkbenchFeatureTest extends TestCase
             'market_type_id' => $pair->market_type_id,
             'base' => 'GBP',
             'quote' => 'USD',
+            'contract_size' => '1',
+            'tick_size' => '0.0001',
+            'tick_value' => '1',
+            'minimum_quantity' => '0.00000001',
+            'quantity_step' => '0.00000001',
+            'initial_margin_rate' => '0.01',
         ]);
         $timeframe = TimeframeType::create(['name' => '1h']);
         $otherTimeframe = TimeframeType::create(['name' => '4h']);
@@ -248,6 +254,7 @@ class WorkbenchFeatureTest extends TestCase
             'quote' => 'usd',
             'quantity_unit' => 'lot',
             'contract_size' => '100000.00000000',
+            ...$this->cfdProfile(),
         ]);
         $pair = MarketPair::query()->firstOrFail();
 
@@ -277,6 +284,7 @@ class WorkbenchFeatureTest extends TestCase
             'quote' => 'USD',
             'quantity_unit' => 'lot',
             'contract_size' => '1000.00000000',
+            ...$this->cfdProfile(),
         ])->assertRedirect("/workbench/market-pairs/{$pair->id}");
         $this->assertDatabaseHas('market_pair', ['id' => $pair->id, 'base' => 'GBP']);
 
@@ -297,9 +305,38 @@ class WorkbenchFeatureTest extends TestCase
                 'quote' => 'usd',
                 'quantity_unit' => 'units',
                 'contract_size' => '1.00000000',
+                ...$this->cfdProfile(),
             ])
             ->assertRedirect('/workbench/market-pairs/create')
             ->assertSessionHasErrors('base');
+    }
+
+    public function test_existing_duplicate_market_pair_can_be_updated_without_changing_its_symbols(): void
+    {
+        $marketType = $this->createMarketType();
+        $first = $this->createMarketPair($marketType);
+        $duplicate = MarketPair::create([
+            'market_type_id' => $marketType->id,
+            'base' => $first->base,
+            'quote' => $first->quote,
+            'quantity_unit' => 'lot',
+            'contract_size' => '100000.00000000',
+        ]);
+
+        $this->put("/workbench/market-pairs/{$duplicate->id}", [
+            'market_type_id' => $marketType->id,
+            'base' => $duplicate->base,
+            'quote' => $duplicate->quote,
+            'quantity_unit' => 'lot',
+            'contract_size' => '100000.00000000',
+            ...$this->cfdProfile(),
+        ])->assertRedirect("/workbench/market-pairs/{$duplicate->id}");
+
+        $this->assertDatabaseHas('market_pair', [
+            'id' => $duplicate->id,
+            'tick_size' => '0.0001000000',
+            'tick_value' => '1.0000000000',
+        ]);
     }
 
     public function test_market_pair_units_use_direct_strategy_quantity_without_a_lot_multiplier(): void
@@ -311,6 +348,7 @@ class WorkbenchFeatureTest extends TestCase
             'base' => 'BTC',
             'quote' => 'USD',
             'quantity_unit' => 'units',
+            ...$this->cfdProfile(),
         ])->assertRedirect();
 
         $pair = MarketPair::query()->where('base', 'BTC')->firstOrFail();
@@ -329,6 +367,7 @@ class WorkbenchFeatureTest extends TestCase
                 'base' => 'ES',
                 'quote' => 'USD',
                 'quantity_unit' => 'contract',
+                ...$this->cfdProfile(),
             ])
             ->assertRedirect('/workbench/market-pairs/create')
             ->assertSessionHasErrors('contract_size');
@@ -339,6 +378,7 @@ class WorkbenchFeatureTest extends TestCase
             'quote' => 'USD',
             'quantity_unit' => 'contract',
             'contract_size' => '50.00000000',
+            ...$this->cfdProfile(),
         ])->assertRedirect();
 
         $pair = MarketPair::query()->where('base', 'ES')->firstOrFail();
@@ -378,6 +418,12 @@ class WorkbenchFeatureTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'GBP',
             'quote' => 'USD',
+            'contract_size' => '1',
+            'tick_size' => '0.0001',
+            'tick_value' => '1',
+            'minimum_quantity' => '0.00000001',
+            'quantity_step' => '0.00000001',
+            'initial_margin_rate' => '0.01',
         ]);
         $timeframe = TimeframeType::create(['name' => '1h']);
         $otherTimeframe = TimeframeType::create(['name' => '4h']);
@@ -502,6 +548,36 @@ class WorkbenchFeatureTest extends TestCase
         $this->assertDatabaseMissing('market_price', ['id' => $price->id]);
     }
 
+    public function test_backtest_rejects_pairs_with_an_incomplete_cfd_profile_as_form_validation(): void
+    {
+        $marketType = $this->createMarketType();
+        $pair = MarketPair::create([
+            'market_type_id' => $marketType->id,
+            'base' => 'CAD',
+            'quote' => 'CHF',
+            'quantity_unit' => 'units',
+        ]);
+        $timeframe = TimeframeType::create(['name' => '1h']);
+
+        $this->from('/workbench/tests/create')
+            ->post('/workbench/tests', [
+                'test_type' => 'specific_pair',
+                'market_pair_id' => $pair->id,
+                'timeframe_type_id' => $timeframe->id,
+                'initial_capital' => '10000.00',
+                'from' => '2026-10-09T00:00',
+                'to' => '2026-10-09T23:59',
+                'full_day' => '1',
+            ])
+            ->assertRedirect('/workbench/tests/create')
+            ->assertSessionHasErrors('market_pair_id');
+
+        $this->get('/workbench/tests/create')
+            ->assertOk()
+            ->assertSee('The selected pair has an incomplete or invalid CFD contract profile')
+            ->assertSee('Pairs created before CFD contract profiles were added');
+    }
+
     public function test_test_setup_redirects_to_backtest_results_after_running_engine(): void
     {
         $pair = $this->createMarketPair($this->createMarketType());
@@ -574,7 +650,7 @@ class WorkbenchFeatureTest extends TestCase
             ->assertOk()
             ->assertSee('EUR/USD')
             ->assertSee('Initial capital')
-            ->assertSee('Strategy supplies the requested quantity using each pair')
+            ->assertSee('Strategy supplies quantity using each instrument')
             ->assertDontSee('name="trade_size"', false)
             ->assertSee('value="10000.00"', false);
 
@@ -736,12 +812,13 @@ class WorkbenchFeatureTest extends TestCase
             ->assertSee('Each candle in the selected timeframe')
             ->assertSee('slippage_enabled')
             ->assertSee('partial_fill_enabled')
-            ->assertSee('Trade cost settings')
+            ->assertSee('Commission and overnight financing')
             ->assertSee('trade_costs[commission][method]')
             ->assertSee('trade_costs[financing_fee][rate]')
-            ->assertSee('Per market pair')
-            ->assertSee('Portfolio target')
-            ->assertSee('max_gross_leverage');
+            ->assertSee('Shared portfolio capital')
+            ->assertSee('Separate capital per pair')
+            ->assertDontSee('Portfolio target')
+            ->assertDontSee('max_gross_leverage');
 
         $this->from('/workbench/tests/create')
             ->post('/workbench/tests', [
@@ -774,7 +851,7 @@ class WorkbenchFeatureTest extends TestCase
             ]);
     }
 
-    public function test_portfolio_target_backtest_requires_a_positive_gross_leverage_limit(): void
+    public function test_removed_portfolio_target_fields_are_rejected(): void
     {
         $marketType = $this->createMarketType();
         $this->createMarketPair($marketType);
@@ -793,24 +870,22 @@ class WorkbenchFeatureTest extends TestCase
                 'active_until' => '17:00',
             ])
             ->assertRedirect('/workbench/tests/create')
-            ->assertSessionHasErrors(['max_gross_leverage']);
+            ->assertSessionHasErrors(['decision_mode']);
 
         $this->from('/workbench/tests/create')
             ->post('/workbench/tests', [
                 'test_type' => 'market_type',
-                'decision_mode' => 'portfolio_target',
-                'capital_mode' => 'separate',
+                'max_gross_leverage' => '2',
                 'market_type_id' => (string) $marketType->id,
                 'timeframe_type_id' => '1',
                 'initial_capital' => '10000',
-                'max_gross_leverage' => '2',
                 'from' => '2026-10-09T00:00',
                 'to' => '2026-10-09T23:59',
                 'active_from' => '09:00',
                 'active_until' => '17:00',
             ])
             ->assertRedirect('/workbench/tests/create')
-            ->assertSessionHasErrors(['capital_mode']);
+            ->assertSessionHasErrors(['max_gross_leverage']);
     }
 
     private function createMarketType(): MarketType
@@ -826,7 +901,20 @@ class WorkbenchFeatureTest extends TestCase
             'quote' => 'USD',
             'quantity_unit' => 'lot',
             'contract_size' => '100000.00000000',
+            ...$this->cfdProfile(),
         ]);
+    }
+
+    /** @return array<string, string> */
+    private function cfdProfile(): array
+    {
+        return [
+            'tick_size' => '0.0001',
+            'tick_value' => '1',
+            'minimum_quantity' => '0.00000001',
+            'quantity_step' => '0.00000001',
+            'initial_margin_rate' => '0.01',
+        ];
     }
 
     /**

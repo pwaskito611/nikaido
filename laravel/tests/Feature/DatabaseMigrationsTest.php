@@ -31,6 +31,11 @@ class DatabaseMigrationsTest extends TestCase
                 'quote',
                 'contract_size',
                 'quantity_unit',
+                'tick_size',
+                'tick_value',
+                'minimum_quantity',
+                'quantity_step',
+                'initial_margin_rate',
             ],
             'market_price' => [
                 'id',

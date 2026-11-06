@@ -58,7 +58,7 @@ class MarketTypeBacktestTest extends TestCase
         $this->get('/workbench/tests/create')
             ->assertOk()
             ->assertSee('Exclude pairs')
-            ->assertSee('Include asset cash flows')
+            ->assertSee('Include CFD dividend adjustments')
             ->assertSee('Shared portfolio capital')
             ->assertSee('Separate capital per pair')
             ->assertSee('EUR/GBP');
@@ -108,7 +108,9 @@ class MarketTypeBacktestTest extends TestCase
             ->assertSee('Forex')
             ->assertSee('1h')
             ->assertSee('EUR/USD')
-            ->assertSee('PENDING');
+            ->assertSee('PENDING')
+            ->assertSee('A queue worker must be running to process this parallel backtest')
+            ->assertSee('php artisan queue:work --tries=1 --timeout=0');
     }
 
     public function test_invalid_market_type_is_rejected_and_empty_eligible_set_completes_immediately(): void
@@ -481,6 +483,12 @@ class MarketTypeBacktestTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => $base,
             'quote' => $quote,
+            'contract_size' => '1',
+            'tick_size' => '0.0001',
+            'tick_value' => '1',
+            'minimum_quantity' => '0.00000001',
+            'quantity_step' => '0.00000001',
+            'initial_margin_rate' => '0.01',
         ]);
         MarketPrice::create([
             'pair_id' => $pair->id,

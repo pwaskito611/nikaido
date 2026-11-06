@@ -59,9 +59,12 @@ requests are allocated. If total eligible demand is over available risk
 capital, the allocation factor is applied proportionally. Details and
 assumptions are in [shared capital](shared-capital.md).
 
-Shared mode does not convert quote currencies, apply margin/leverage, or
-introduce an exchange allocation model. Only combine instruments whose
-capital and P&L amounts are meaningfully comparable.
+Shared mode does not convert currencies or introduce an exchange allocation
+model. It reserves stop-risk and initial margin across open positions and
+reduces same-time entries when either budget is insufficient. Pair-level
+strategies are still evaluated independently before this synchronization and
+do not receive a live shared-capital balance. Only combine instruments whose
+prices, notional, capital, and P&L are normalized compatibly to USD.
 
 ## State, failures, and reproducibility
 

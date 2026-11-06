@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Nikaido\Strategy\Models;
 
 use InvalidArgumentException;
-use Nikaido\Strategy\Enums\DecisionMode;
 
 class StrategyExecutionContext
 {
+    public readonly float $pnlPerPriceUnit;
+
     /**
      * @param  array<int, RelatedMarketPairData>  $relatedMarketPairs  Keyed by related market pair ID.
      */
@@ -21,8 +22,9 @@ class StrategyExecutionContext
         public readonly array $relatedMarketPairs = [],
         public readonly ?int $primaryTimeframeTypeId = null,
         private readonly FundamentalDataCollection $fundamentalData = new FundamentalDataCollection,
-        public readonly DecisionMode $decisionMode = DecisionMode::PerMarketPair,
         private readonly CashFlowDataCollection $cashFlowData = new CashFlowDataCollection,
+        ?float $pnlPerPriceUnit = null,
+        private readonly NewsDataCollection $newsData = new NewsDataCollection,
     ) {
         if (! is_finite($currentCapital) || $currentCapital <= 0) {
             throw new InvalidArgumentException('Current capital must be a positive finite number.');
@@ -35,6 +37,11 @@ class StrategyExecutionContext
         if (! is_finite($quantityMultiplier) || $quantityMultiplier <= 0) {
             throw new InvalidArgumentException('The quantity multiplier must be a positive finite number.');
         }
+        $pnlPerPriceUnit ??= $quantityUnit === 'units' ? 1.0 : $quantityMultiplier;
+        if (! is_finite($pnlPerPriceUnit) || $pnlPerPriceUnit <= 0) {
+            throw new InvalidArgumentException('The P/L per price unit must be a positive finite number.');
+        }
+        $this->pnlPerPriceUnit = $pnlPerPriceUnit;
 
         if ($primaryMarketPairId !== null && $primaryMarketPairId <= 0) {
             throw new InvalidArgumentException('The primary market pair ID must be positive.');
@@ -60,5 +67,10 @@ class StrategyExecutionContext
     public function cashFlows(): CashFlowDataCollection
     {
         return $this->cashFlowData;
+    }
+
+    public function news(): NewsDataCollection
+    {
+        return $this->newsData;
     }
 }

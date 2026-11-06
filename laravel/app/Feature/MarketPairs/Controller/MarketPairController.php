@@ -65,7 +65,7 @@ class MarketPairController
     }
 
     /**
-     * @param  array{market_type_id: int|string, base: string, quote: string, quantity_unit: string, contract_size?: string|null, related_market_pair_ids?: list<int|string>, related_market_pairs_present?: string, related_timeframes?: array<string, int|string|null>}  $validated
+     * @param  array{market_type_id: int|string, base: string, quote: string, quantity_unit: string, contract_size?: string|null, tick_size: string, tick_value: string, minimum_quantity: string, quantity_step: string, initial_margin_rate: string, related_market_pair_ids?: list<int|string>, related_market_pairs_present?: string, related_timeframes?: array<string, int|string|null>}  $validated
      */
     private function definitionFrom(array $validated): MarketPairDefinition
     {
@@ -88,6 +88,11 @@ class MarketPairController
             $validated['quote'],
             MarketPairQuantityUnit::from($validated['quantity_unit']),
             Option::from(isset($validated['contract_size']) ? (string) $validated['contract_size'] : null),
+            $validated['tick_size'],
+            $validated['tick_value'],
+            $validated['minimum_quantity'],
+            $validated['quantity_step'],
+            $validated['initial_margin_rate'],
             $relatedMarketPairs,
         );
     }

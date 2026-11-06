@@ -111,23 +111,23 @@ for request limits, validation, authentication, and duplicate handling.
 There is no built-in provider integration or CSV/Excel upload. For manual
 correction or a small data set, use the Market Prices form.
 
-## Record asset cash flows
+## Record CFD contract adjustments
 
-The **Cash Flows** page (`/workbench/cash-flows`) stores event-based income
-directly against a market pair, including dividends, interest, staking rewards,
-and other distributions. Each event has a positive per-unit amount, event
-status, and optional announcement, ex-, record-, and payment dates. Amounts
-are assumed to already use Nikaido's account currency; the record deliberately
-has no payout-currency field. `available_at` is required and records when the
-event information became knowable, rather than assuming it was available from
-the ex-date.
+The **Contract Adjustments** page (`/workbench/cash-flows`) stores CFD dividend
+adjustments against a market pair. These are contract-level credits/debits, not
+ownership distributions from spot assets. Each event has a positive USD amount
+per underlying unit, status, and optional announcement, ex-, record-, and
+payment dates. Price data and money values must already be normalized to USD;
+Nikaido does not convert currencies. `available_at` records when the
+information became knowable, rather than assuming it was available from the
+ex-date.
 
 Events can be created, viewed, edited, deleted, and filtered by pair in the
 Workbench. Market pairs with cash flow history cannot be deleted.
 
-## Feed cash flow events through the API
+## Feed CFD contract adjustments through the API
 
-On **Data Import**, start a cash flow receiver for one market pair. It has a
+On **Data Import**, start an adjustment receiver for one market pair. It has a
 separate bearer token from the candle and fundamental receivers and accepts
 `events` at `POST /api/data-import/cash-flows/events`. Stop the session when
 finished; the token is then invalidated. The feed does not retrieve provider
@@ -139,7 +139,7 @@ Example:
 {
   "events": [
     {
-      "event_type": "dividend",
+      "event_type": "dividend_adjustment",
       "amount_per_unit": 0.50,
       "announced_at": "2026-03-01 09:00:00",
       "available_at": "2026-03-01 09:00:00",
@@ -154,23 +154,22 @@ Example:
 }
 ```
 
-Send 1–1,000 events per request. `event_type` is one of `dividend`,
-`interest`, `staking_reward`, `distribution`, or `other`. Amounts must be
-positive with up to 12 decimal places. Timestamps use `Y-m-d H:i:s`;
-`available_at` is required and the other dates are optional. Status is one of
-`announced`, `confirmed`, `paid`, or `cancelled`. A stable `external_id`,
-unique within its pair, lets repeated feed submissions update the same event;
-events without an ID are matched by their event details when re-sent. No
-payout-currency field is accepted because values are already in account
-currency. Cash flows can be enabled before running a backtest; the option
-defaults to off. When enabled, confirmed or paid events are visible in
+Send 1–1,000 events per request. `event_type` must be
+`dividend_adjustment`. Amounts must be positive USD per underlying unit with up
+to 12 decimal places. Timestamps use `Y-m-d H:i:s`; `available_at` is required
+and other dates are optional. Status is one of `announced`, `confirmed`,
+`paid`, or `cancelled`. A stable `external_id`, unique within its pair, lets
+repeated feed submissions update the same event; events without an ID are
+matched by their event details when re-sent. No payout-currency field is
+accepted. Contract adjustments can be enabled before running a backtest; the
+option defaults to off. When enabled, confirmed or paid events are visible in
 Strategy Context only from `available_at`, and are recognized on the ex-date
-for a position held before that candle is processed. Long positions receive
-the distribution and short positions pay it. The recognized amount is
-per-unit amount multiplied by the eligible position quantity and instrument
-multiplier. Events announced after the ex-date, cancelled events, and
-positions first opened on the ex-date are not applied. The result reports the
-net recognized cash flows separately and includes them in ending capital.
+for a position held before that candle is processed. Long and short positions
+receive opposite adjustments. The recognized amount is the per-underlying-unit
+USD amount multiplied by the eligible normalized position quantity. Events
+announced after the ex-date, cancelled events, and positions first opened on
+the ex-date are not applied. Results report the net recognized adjustments
+separately and include them in ending USD capital.
 
 ## Receive candle batches through the push API
 

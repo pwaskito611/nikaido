@@ -7,11 +7,7 @@
         <div>
             <span class="eyebrow">PARALLEL BACKTEST / RUN #{{ $run->id }}</span>
             <h1>{{ $run->market_type_name }}</h1>
-            <p>{{ $run->configuration['timeframe_name'] }} <span class="result-separator">/</span> {{ $run->configuration['from'] }} — {{ $run->configuration['to'] }}
-                @if (($run->configuration['decision_mode'] ?? 'per_market_pair') === 'portfolio_target')
-                    <span class="result-separator">/</span> Portfolio target · max gross leverage {{ number_format((float) $run->configuration['max_gross_leverage'], 2) }}×
-                @endif
-            </p>
+            <p>{{ $run->configuration['timeframe_name'] }} <span class="result-separator">/</span> {{ $run->configuration['from'] }} — {{ $run->configuration['to'] }}</p>
         </div>
         <div class="heading-actions">
             @if (in_array($run->status, ['completed', 'completed_with_failures'], true) && $counts['succeeded'] > 0)
@@ -31,6 +27,13 @@
                 <div class="detail-card"><span class="eyebrow">{{ $label }}</span><strong>{{ $counts[$key] }}</strong></div>
             @endforeach
         </div>
+        @if ($counts['pending'] > 0 && $counts['running'] === 0)
+            <div class="notice notice-error">
+                No pair is running while jobs are pending. A queue worker must be running to process this parallel backtest.
+                From the project root, run <code>php artisan queue:work --tries=1 --timeout=0</code> and keep it open,
+                or start the development server and worker together with <code>php artisan nikaido:start</code>.
+            </div>
+        @endif
         <div class="table-scroll">
             <table class="wide-table">
                 <thead><tr><th>PAIR</th><th>STATUS</th><th>STARTED</th><th>COMPLETED</th><th>DETAIL / FAILURE</th><th></th></tr></thead>

@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="page-heading">
-        <div><span class="eyebrow">INSTRUMENTS / MARKET UNIVERSE</span><h1>Market pairs</h1><p>Instruments and price pairs used by the engine.</p></div>
+        <div><span class="eyebrow">CFD INSTRUMENTS / MARKET UNIVERSE</span><h1>CFD instruments</h1><p>Instrument symbols and contract terms used by the engine.</p></div>
         <a class="button button-primary" href="{{ route('workbench.market-pairs.create') }}"><span>＋</span> Add market pair</a>
     </div>
     <div class="data-panel">

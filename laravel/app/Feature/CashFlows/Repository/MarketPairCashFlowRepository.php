@@ -16,6 +16,7 @@ class MarketPairCashFlowRepository
     public function paginate(?int $marketPairId = null, int $perPage = 25): LengthAwarePaginator
     {
         return MarketPairCashFlow::query()
+            ->where('event_type', 'dividend_adjustment')
             ->with('marketPair')
             ->when($marketPairId !== null, fn ($query) => $query->where('market_pair_id', $marketPairId))
             ->orderByDesc('available_at')
@@ -26,12 +27,16 @@ class MarketPairCashFlowRepository
 
     public function findOrFail(int $id): MarketPairCashFlow
     {
-        return MarketPairCashFlow::query()->with('marketPair')->findOrFail($id);
+        return MarketPairCashFlow::query()
+            ->where('event_type', 'dividend_adjustment')
+            ->with('marketPair')
+            ->findOrFail($id);
     }
 
     public function findForPairOrFail(int $pairId, int $id): MarketPairCashFlow
     {
         return MarketPairCashFlow::query()
+            ->where('event_type', 'dividend_adjustment')
             ->where('market_pair_id', $pairId)
             ->findOrFail($id);
     }
@@ -112,6 +117,7 @@ class MarketPairCashFlowRepository
     ): CashFlowDataCollection {
         $events = MarketPairCashFlow::query()
             ->where('market_pair_id', $marketPairId)
+            ->where('event_type', 'dividend_adjustment')
             ->whereNotNull('ex_date')
             ->whereBetween('ex_date', [$from, $to])
             ->where('available_at', '<=', $to)

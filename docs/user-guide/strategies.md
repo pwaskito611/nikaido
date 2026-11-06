@@ -55,13 +55,14 @@ passes that same object to the strategy for the run. Its fields are:
 | `currentCapital` | Starts at the run's initial capital. The engine updates it as each primary candle is simulated, so later decisions can size against the current simulated capital. |
 | `quantityUnit` | The primary pair's unit: `units`, `contract`, or `lot`. |
 | `quantityMultiplier` | `1` for `units`; otherwise the primary pair's configured contract size. |
+| `pnlPerPriceUnit` | USD P/L for a one-price-unit move and one strategy quantity, derived from `tick_value / tick_size`. |
 | `primaryMarketPairId` | ID of the pair whose candles drive decisions. |
 | `primaryMarketPairSymbol` | Primary pair symbol in `BASE/QUOTE` form. |
 | `primaryTimeframeTypeId` | Timeframe ID selected for the primary backtest candles. |
-| `decisionMode` | `per_market_pair` by default, or `portfolio_target` for market-type portfolio leverage processing. The latter does not add other pairs or current portfolio holdings to this context. |
 | `relatedMarketPairs` | Map of explicitly related pair series, keyed by related market-pair ID. |
 | `fundamentals()` | Collection of Fundamental entities linked directly to the primary pair, keyed by Fundamental ID. |
 | `cashFlows()` | When enabled for the run, per-pair cash-flow events, filtered by `available_at` through `availableAt($knownAt)`. |
+| `news()` | Pair-specific news and impact assessments, filtered by `available_at` through `availableAt($knownAt)` or by their configured impact window through `impactActiveAt($knownAt)`. |
 
 The context does not carry every backtest setting. Date range, active schedule,
 slippage, partial-fill rules, trade costs, and execution behavior remain owned
@@ -97,27 +98,11 @@ A null related timeframe uses the primary backtest timeframe.
 
 Related pairs are directional data dependencies only; their candles do not
 produce additional strategy decisions or orders. The primary pair's candle
-iterable still determines the number and order of decisions. In the default
-`per_market_pair` mode, the engine does not automatically cap the strategy's
-quantity to a notional, margin, or maximum-position limit. Market-type
-`portfolio_target` mode additionally applies the UI-configured gross-leverage
-limit across those pair decisions; it does not change the strategy's sizing.
-Each `StrategyDecision` can set an optional non-negative integer `priority`
-(default `0`); higher values are considered first for simultaneous portfolio
-entries.
-
-For example, strategy code can assign a higher priority to a stronger entry
-without changing its quantity calculation:
-
-```php
-new StrategyDecision(
-    signal: StrategySignal::Long,
-    stopLoss: $stopLoss,
-    takeProfit: $takeProfit,
-    quantity: $quantity,
-    priority: 5,
-);
-```
+iterable still determines the number and order of decisions. The engine applies the pair's quantity step and minimum, and rejects entries
+whose initial margin exceeds available USD capital. It does not impose a
+maintenance-margin, forced-liquidation, or independent maximum-position rule.
+Market-type runs process each pair independently, then optionally synchronize
+risk and initial-margin allocation across pair results.
 
 The context makes related data available; it does not automatically combine,
 align, or apply that data to strategy decisions. The example `main()` currently
@@ -179,6 +164,30 @@ avoid overwriting revised historical values if point-in-time vintages matter.
 See [Backtesting fundamentals](../concepts/backtesting-fundamentals.md) for
 the release-time policy and schema details.
 
+## News
+
+News is linked to a market pair through an impact assessment. The backtest
+preloads the primary pair's linked news; no database query is made from the
+strategy. Use the candle timestamp as the knowledge boundary:
+
+```php
+$availableNews = $context->news()->availableAt($primaryCandle->price_date);
+$activeImpacts = $context->news()->impactActiveAt($primaryCandle->price_date);
+
+foreach ($activeImpacts as $item) {
+    $directionalImpact = $item->impactScore; // -1 bearish, 0 neutral/unknown, +1 bullish
+}
+```
+
+`available_at` is the earliest time a strategy can see an article and cannot
+precede `published_at`. The impact window starts at
+`published_at + impactLagSeconds` and ends after `impactDurationSeconds`, but
+is not exposed as active before `available_at`. The loader includes articles
+published before the requested backtest range when their impact windows
+overlap the range. Impact scores and confidence are annotations only: the
+engine does not automatically alter orders or P/L based on them. See the
+[News user guide](news.md) for manual management and API import.
+
 ## Application data and tests
 
 For an application backtest, the loader reads the configured data before it
@@ -192,6 +201,7 @@ issue database queries per candle.
 | Selected primary pair, timeframe, and range | Chronological primary candles through `$candles`, including up to 200 earlier warm-up candles. |
 | Primary pair's **Related Market Pairs** selections | Each configured pair/timeframe candle series in `$context->relatedMarketPairs`, keyed by pair ID. Use `candleAt()` for exact timestamp lookups. |
 | Fundamental's **Related market pairs** selections | Released observations for Fundamental entities linked directly to the primary pair, accessed through `$context->fundamentals()`. |
+| News items linked to the primary pair | Articles known by each candle timestamp, accessed through `$context->news()`. |
 
 Related candle series and Fundamental observations do not produce additional
 decisions. `main()` still returns one decision per primary candle. The

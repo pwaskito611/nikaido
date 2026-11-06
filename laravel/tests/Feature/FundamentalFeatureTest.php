@@ -532,6 +532,11 @@ class FundamentalFeatureTest extends TestCase
             'quote' => $quote,
             'quantity_unit' => 'units',
             'contract_size' => '1.00000000',
+            'tick_size' => '0.0001',
+            'tick_value' => '1',
+            'minimum_quantity' => '0.00000001',
+            'quantity_step' => '0.00000001',
+            'initial_margin_rate' => '0.01',
         ]);
     }
 

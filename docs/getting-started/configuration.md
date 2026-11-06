@@ -120,10 +120,12 @@ Backtest settings are submitted per run through
   covered by that pair's historical candles. The application uses its local
   time for the window. You can run all day, set active hours, and exclude ISO
   weekdays (Monday `1` through Sunday `7`).
-- **Starting capital and quantity:** initial capital must be positive and have
-  no more than two decimal places. For one pair it is expressed in that pair's
-  quote currency. The pair's quantity unit (`units`, `contract`, or `lot`) and
-  contract size inform quantity sizing.
+- **Starting capital and instrument profile:** initial capital must be positive
+  and have no more than two decimal places; it is denominated in USD. Each pair
+  requires a manually supplied CFD profile with contract size, tick size/value,
+  minimum quantity, quantity step, and initial margin rate. Pair price data and
+  monetary values must already be normalized to USD; Nikaido does not convert
+  currencies.
 - **Strategy:** the Workbench currently uses the included moving-average
   crossover strategy; it does not offer a strategy selector or strategy
   parameter form. The example uses 20- and 50-period EMAs with a 200-period
@@ -136,11 +138,13 @@ Backtest settings are submitted per run through
   explicitly typed traded volume; missing volume provides no capacity and
   tick volume is not substituted. The unfilled remainder can be kept or
   cancelled. This does not model an order book or market impact.
-- **Additional costs:** commission, exchange, clearing, regulatory, and
+- **Costs:** commission and overnight financing are the primary configurable
+  costs; exchange, clearing, regulatory, and
   transaction-tax charges can be configured per order, as a percentage of
-  transaction value, or per quantity. Borrow and financing costs use a daily
-  notional percentage. No broker, tax, or market schedule is inferred;
-  disabled or unconfigured costs are omitted.
+  transaction value, or per quantity under advanced settings. Overnight
+  financing uses a daily notional percentage; it cannot be enabled together
+  with the legacy short-borrow fee. No broker, tax, or market schedule is
+  inferred; disabled or unconfigured costs are omitted.
 
 The current single-pair result is returned to the Workbench session. A
 market-type run is queued and stored for later review. Stress and Monte Carlo

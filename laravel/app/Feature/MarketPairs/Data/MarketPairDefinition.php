@@ -19,6 +19,11 @@ final readonly class MarketPairDefinition
         public string $quote,
         public MarketPairQuantityUnit $quantityUnit,
         public string $contractSize,
+        public string $tickSize,
+        public string $tickValue,
+        public string $minimumQuantity,
+        public string $quantityStep,
+        public string $initialMarginRate,
         public ?array $relatedMarketPairs,
     ) {}
 
@@ -31,6 +36,11 @@ final readonly class MarketPairDefinition
         string $quote,
         MarketPairQuantityUnit $quantityUnit,
         Option $contractSize,
+        string $tickSize,
+        string $tickValue,
+        string $minimumQuantity,
+        string $quantityStep,
+        string $initialMarginRate,
         ?array $relatedMarketPairs = null,
     ): self {
         $base = strtoupper(trim($base));
@@ -65,20 +75,42 @@ final readonly class MarketPairDefinition
 
             return $size;
         });
+        new CfdContractSpecification(
+            contractSize: self::positiveDecimal($validatedContractSize->getOrElse('1'), 'contract size'),
+            tickSize: self::positiveDecimal($tickSize, 'tick size'),
+            tickValue: self::positiveDecimal($tickValue, 'tick value'),
+            minimumQuantity: self::positiveDecimal($minimumQuantity, 'minimum quantity'),
+            quantityStep: self::positiveDecimal($quantityStep, 'quantity step'),
+            initialMarginRate: self::positiveDecimal($initialMarginRate, 'initial margin rate'),
+        );
 
         return new self(
-            $marketTypeId,
-            $base,
-            $quote,
-            $quantityUnit,
-            $quantityUnit === MarketPairQuantityUnit::Units
+            marketTypeId: $marketTypeId,
+            base: $base,
+            quote: $quote,
+            quantityUnit: $quantityUnit,
+            contractSize: $quantityUnit === MarketPairQuantityUnit::Units
                 ? '1'
                 : $validatedContractSize->getOrElseThrow(
                     static fn (): InvalidArgumentException => new InvalidArgumentException(
                         'Contract and lot quantities require a contract size.',
                     ),
                 ),
-            $relatedMarketPairs,
+            tickSize: $tickSize,
+            tickValue: $tickValue,
+            minimumQuantity: $minimumQuantity,
+            quantityStep: $quantityStep,
+            initialMarginRate: $initialMarginRate,
+            relatedMarketPairs: $relatedMarketPairs,
         );
+    }
+
+    private static function positiveDecimal(string $value, string $label): float
+    {
+        if (! is_numeric($value) || ! is_finite((float) $value) || (float) $value <= 0) {
+            throw new InvalidArgumentException("The CFD {$label} must be a positive finite number.");
+        }
+
+        return (float) $value;
     }
 }

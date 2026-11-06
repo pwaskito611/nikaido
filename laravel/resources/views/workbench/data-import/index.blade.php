@@ -7,7 +7,7 @@
         <div>
             <span class="eyebrow">MARKET DATA / IMPORT</span>
             <h1>Data import</h1>
-            <p>Choose the matching receiver for candles, Fundamental observations, or per-unit cash flow events. Their tokens and API endpoints are separate.</p>
+            <p>Choose the matching receiver for candles, Fundamental observations, news articles, or CFD dividend adjustments. Their tokens and API endpoints are separate.</p>
         </div>
     </div>
 
@@ -137,11 +137,69 @@
         </section>
         <section class="data-panel">
             <div class="panel-top">
-                <div><span class="eyebrow">ASSET CASH FLOW · DISTRIBUTIONS</span><h2>Import per-unit returns</h2></div>
+                <div><span class="eyebrow">MARKET CONTEXT · NEWS</span><h2>Import news articles</h2></div>
+                <span class="record-count">{{ count($activeNewsSessions) }} ACTIVE</span>
+            </div>
+            <div class="data-import-form">
+                <p class="data-import-copy">News receivers are scoped to one pair. Provide publication time and the first time the information was actually available; historical backtests hide news until <code>available_at</code>.</p>
+                <form method="POST" action="{{ route('workbench.data-import.news-sessions.start') }}" class="data-import-form-inner">
+                    @csrf
+                    <label class="data-import-field">
+                        <span>Market pair</span>
+                        <select class="text-input" name="market_pair_id" required>
+                            <option value="">Select pair</option>
+                            @foreach ($marketPairs as $marketPair)
+                                @php($hasActiveNewsSession = collect($activeNewsSessions)->contains('market_pair_id', $marketPair->id))
+                                <option value="{{ $marketPair->id }}" @selected((string) old('market_pair_id') === (string) $marketPair->id) @disabled($hasActiveNewsSession)>
+                                    {{ $marketPair->base }}/{{ $marketPair->quote }}{{ $hasActiveNewsSession ? ' · RECEIVER ACTIVE' : '' }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <button class="button button-primary data-import-full" type="submit" @disabled($marketPairs->isEmpty())>Start news receiver <span>→</span></button>
+                </form>
+
+                @if (session('news_import_token'))
+                    <div class="data-import-token">
+                        <strong>NEWS TOKEN · copy now</strong>
+                        <p>This pair-scoped bearer token is shown once and invalidated when its session stops.</p>
+                        <code>{{ session('news_import_token') }}</code>
+                        <p>POST <code>{{ url('/api/data-import/news/articles') }}</code> with a JSON <code>articles</code> array.</p>
+                    </div>
+                @endif
+                <p class="data-import-endpoint">NEWS ENDPOINT · <code>POST {{ url('/api/data-import/news/articles') }}</code></p>
+                <div class="data-import-api-example">
+                    <strong>Request body · news and pair-specific impact annotations</strong>
+                    <pre><code>{
+  "articles": [
+    {
+      "source": "provider-name",
+      "external_id": "NEWS-123",
+      "title": "Central bank rate decision",
+      "content": "Article text...",
+      "published_at": "2026-10-12 10:00:00",
+      "available_at": "2026-10-12 10:00:00",
+      "language": "en",
+      "relevance_score": 0.9,
+      "impact_score": -0.6,
+      "impact_lag_seconds": 0,
+      "impact_duration_seconds": 7200,
+      "confidence_score": 0.8,
+      "assessment_method": "provider"
+    }
+  ]
+}</code></pre>
+                    <small>Send 1–1,000 articles (maximum 5 MB). Score ranges: relevance/confidence 0–1, impact -1–1. Impact is directional for the session's pair. A stable source and external ID make repeated imports idempotent. Date-times use <code>Y-m-d H:i:s</code>.</small>
+                </div>
+            </div>
+        </section>
+        <section class="data-panel">
+            <div class="panel-top">
+                <div><span class="eyebrow">CFD CONTRACT ADJUSTMENT</span><h2>Import dividend adjustments</h2></div>
                 <span class="record-count">{{ count($activeCashFlowSessions) }} ACTIVE</span>
             </div>
             <div class="data-import-form">
-                <p class="data-import-copy">For dividends, interest, staking rewards, and other dated cash flow events. Amounts are assumed to use Nikaido's account currency and are bound to one market pair.</p>
+                <p class="data-import-copy">For dividend/contract adjustments on CFD positions. Amounts are USD per underlying unit and are bound to one market pair.</p>
                 <form method="POST" action="{{ route('workbench.data-import.cash-flow-sessions.start') }}" class="data-import-form-inner">
                     @csrf
                     <label class="data-import-field">
@@ -156,27 +214,27 @@
                             @endforeach
                         </select>
                         @if ($marketPairs->isEmpty())
-                            <small>Create a market pair before starting a cash flow receiver.</small>
+                            <small>Create a market pair before starting an adjustment receiver.</small>
                         @endif
                     </label>
-                    <button class="button button-primary data-import-full" type="submit" @disabled($marketPairs->isEmpty())>Start cash flow receiver <span>→</span></button>
+                    <button class="button button-primary data-import-full" type="submit" @disabled($marketPairs->isEmpty())>Start adjustment receiver <span>→</span></button>
                 </form>
 
                 @if (session('cash_flow_import_token'))
                     <div class="data-import-token">
-                        <strong>CASH FLOW TOKEN · copy now</strong>
-                        <p>Only for cash flow events. This token is shown once and invalidated when its pair session stops.</p>
+                        <strong>CONTRACT ADJUSTMENT TOKEN · copy now</strong>
+                        <p>Only for CFD dividend adjustments. This token is shown once and invalidated when its pair session stops.</p>
                         <code>{{ session('cash_flow_import_token') }}</code>
                         <p>POST <code>{{ url('/api/data-import/cash-flows/events') }}</code> with a JSON <code>events</code> array.</p>
                     </div>
                 @endif
                 <p class="data-import-endpoint">CASH FLOW ENDPOINT · <code>POST {{ url('/api/data-import/cash-flows/events') }}</code></p>
                 <div class="data-import-api-example">
-                    <strong>Request body · dated return events, not candles or fundamentals</strong>
+                    <strong>Request body · dated CFD contract adjustments</strong>
                     <pre><code>{
   "events": [
     {
-      "event_type": "dividend",
+      "event_type": "dividend_adjustment",
       "amount_per_unit": 0.50,
       "announced_at": "2026-03-01 09:00:00",
       "available_at": "2026-03-01 09:00:00",
@@ -189,7 +247,7 @@
     }
   ]
 }</code></pre>
-                    <small>Send 1–1,000 events. <code>available_at</code> and positive <code>amount_per_unit</code> are required. Dates use <code>Y-m-d H:i:s</code>; event dates may be omitted when unknown. Amounts use the account currency, so no payout currency is sent. A stable external ID makes repeated feed updates idempotent.</small>
+                    <small>Send 1–1,000 adjustments. Set <code>event_type</code> to <code>dividend_adjustment</code>; <code>available_at</code> and positive <code>amount_per_unit</code> in USD per underlying unit are required. Dates use <code>Y-m-d H:i:s</code>; optional dates may be omitted when unknown. A stable external ID makes repeated feed updates idempotent.</small>
                 </div>
             </div>
         </section>
@@ -254,6 +312,38 @@
                         </tr>
                     @empty
                         <tr><td colspan="5" class="empty-table">No Fundamental observation import sessions.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="data-panel data-import-sessions">
+        <div class="panel-top">
+            <div><span class="eyebrow">NEWS RECEIVER STATUS</span><h2>News import sessions</h2></div>
+            <span class="record-count">PAIR-SCOPED</span>
+        </div>
+        <div class="table-scroll">
+            <table>
+                <thead><tr><th>PAIR</th><th>STATUS</th><th>STARTED</th><th>STOPPED</th><th></th></tr></thead>
+                <tbody>
+                    @forelse ($recentNewsSessions as $importSession)
+                        <tr>
+                            <td>{{ $importSession->marketPair->base }}/{{ $importSession->marketPair->quote }}</td>
+                            <td><span class="data-import-status {{ $importSession->status === 'active' ? 'is-active' : '' }}">{{ strtoupper($importSession->status) }}</span></td>
+                            <td>{{ $importSession->started_at->format('Y-m-d H:i:s') }}</td>
+                            <td>{{ $importSession->stopped_at?->format('Y-m-d H:i:s') ?? '—' }}</td>
+                            <td>
+                                @if ($importSession->status === 'active')
+                                    <form method="POST" action="{{ route('workbench.data-import.news-sessions.stop', $importSession->id) }}">
+                                        @csrf
+                                        <button class="button button-secondary data-import-stop" type="submit">Stop news receiver</button>
+                                    </form>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5" class="empty-table">No news import sessions.</td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -70,9 +70,10 @@ additional tick rounding.
 
 ## Additional transaction and holding costs
 
-Additional costs are disabled by default and applied only when enabled and
-configured. Transaction cost components are commission, exchange fee,
-clearing fee, regulatory fee, and transaction tax. Each supports:
+Commission and overnight financing are the primary user-configurable CFD
+costs and are disabled by default. Advanced transaction components are
+exchange fee, clearing fee, regulatory fee, and transaction tax. Each
+transaction component supports:
 
 - `per_order`: a fixed amount charged once per order side (entry or exit);
 - `transaction_value_percent`: a percentage of executed transaction value;
@@ -84,11 +85,12 @@ transaction value of 10,000 incurs `10,000 × 0.1 / 100 = 10`. A `per_order`
 amount is charged once on each configured side, not once for every partial
 fill. There is no automatic minimum fee.
 
-Borrow fee and financing fee are holding-cost components and use
-`daily_notional_percent`. The notional-days calculation uses the filled
-quantity and the time it remains open; short positions can accrue borrow fees,
-and financing can apply to either direction. Rates are explicit configuration
-inputs; no market-specific convention is inferred.
+Overnight financing uses `daily_notional_percent`, based on normalized USD
+notional and elapsed 24-hour periods. It is charged on exit and can apply to
+long or short positions. A legacy short-borrow fee remains available through
+the API/configuration, but cannot be enabled together with financing, preventing
+duplicate holding charges. Rates are explicit inputs; no market-specific
+convention is inferred.
 
 Example transaction cost configuration, as accepted by
 `TradeCostConfig::fromArray`:
@@ -119,13 +121,15 @@ $costs = TradeCostConfig::fromArray([
 ]);
 ```
 
-The form accepts the same component choices and displays rate inputs. A
-transaction value percentage is applied to executed transaction value; for
-contracts this includes the configured P&L multiplier. For lots, per-quantity
-fees use lot quantity, while transaction value uses normalized position size.
+The form exposes commission and overnight financing first and groups other
+transaction fees under advanced settings. A transaction-value percentage is
+applied to normalized position quantity multiplied by USD-normalized execution
+price. Per-quantity fees use strategy quantity in its configured unit; this is
+independent of the tick-value P/L conversion.
 Partial fills incur proportional transaction-value and per-quantity costs on
 the executed quantity; per-order charges are not duplicated for each
-partial-fill attempt.
+partial-fill attempt. The entry quantity is rounded down to the configured
+quantity step and rejected if it is below the instrument's minimum quantity.
 
 ## Partial fills and cost timing
 
@@ -151,7 +155,7 @@ not traded quantity and is never substituted: a candle explicitly marked
 must use the engine's execution quantity units; lot quantities are normalized
 using the pair's configured contract size. Volume must be supplied as
 explicitly marked traded volume by the data sender. The model still does not
-simulate order-book depth, queue priority, market impact, or minimum lot steps.
+simulate order-book depth, queue priority, or market impact.
 
 Transaction costs are recorded against fills and deducted from the simulated
 capital/P&L. Entry costs are deducted when entry fills occur. Exit costs and
@@ -163,16 +167,16 @@ entry fees before an order closes.
 
 Stored price columns use six fractional decimal places. Internal calculations
 use numeric arithmetic where implemented, but the result is ultimately
-represented in the application’s numeric fields. The engine does not round
-fees to a broker's currency minor unit, apply tick-size/lot-step rules, or
-infer market-specific rounding. Do not equate extra internal precision with a
-real exchange's fee-rounding policy.
+represented in the application’s numeric fields. The engine applies the
+configured quantity step and minimum; it does not round fees to a broker's
+currency minor unit or infer market-specific price rounding. Do not equate
+extra internal precision with a real exchange's fee-rounding policy.
 
 Validate that:
 
 - percentage rates are entered as percentages, not fractions (`0.1` means
   `0.1%`, not `10%`);
-- `per_order` amounts are in the same account currency as the run;
+- `per_order` amounts are in USD;
 - `per_quantity` rates match the pair's configured unit;
 - slippage pip size is a price increment, not a pip count;
 - quote-side fields use consistent units and timestamps; and

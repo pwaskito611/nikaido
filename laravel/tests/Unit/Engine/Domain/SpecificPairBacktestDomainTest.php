@@ -19,6 +19,7 @@ use App\Feature\Backtest\Process\SpecificPairBacktestProcess;
 use App\Feature\Backtest\Process\TradeCostCalculator;
 use App\Feature\CashFlows\Action\LoadMarketPairCashFlowsForBacktestAction;
 use App\Feature\Fundamentals\Action\LoadFundamentalDataForBacktestAction;
+use App\Feature\MarketPairs\Data\CfdContractSpecification;
 use App\Feature\MarketPairs\Data\MarketPairMarketData;
 use App\Feature\MarketPairs\Data\MarketPairQuantityUnit;
 use App\Feature\MarketPairs\Model\MarketPair;
@@ -61,7 +62,7 @@ class SpecificPairBacktestDomainTest extends TestCase
         $cashFlows = new CashFlowDataCollection([
             new CashFlowEventData(
                 1,
-                'dividend',
+                'dividend_adjustment',
                 0.5,
                 new DateTimeImmutable('2026-03-02 00:00:00'),
                 new DateTimeImmutable('2026-03-01 00:00:00'),
@@ -118,7 +119,7 @@ class SpecificPairBacktestDomainTest extends TestCase
         $cashFlows = new CashFlowDataCollection([
             new CashFlowEventData(
                 1,
-                'dividend',
+                'dividend_adjustment',
                 0.5,
                 new DateTimeImmutable('2026-03-02 00:00:00'),
                 null,
@@ -196,7 +197,7 @@ class SpecificPairBacktestDomainTest extends TestCase
         $repository->shouldReceive('findWithPricesBetween')->twice()->andReturn($this->marketData($pair));
         $strategy = Mockery::mock(Strategy::class);
         $strategy->shouldReceive('execute')->twice()->andReturn(Vec::fromArray([
-            new StrategyDecision(StrategySignal::Long, 90, 120, 10, priority: 5),
+            new StrategyDecision(StrategySignal::Long, 90, 120, 10),
             new StrategyDecision(StrategySignal::Close, null, null),
         ]));
 
@@ -220,7 +221,6 @@ class SpecificPairBacktestDomainTest extends TestCase
         $results = (new RunSpecificPairBacktestAction($repository, new SpecificPairBacktestProcess($strategy), app(LoadFundamentalDataForBacktestAction::class), app(LoadMarketPairCashFlowsForBacktestAction::class)))->execute($config);
         $order = $results->orders->at(0);
 
-        $this->assertSame(5, $order->priority);
         $this->assertEqualsWithDelta(100.0, $order->grossRealizedProfitLoss, 0.000001);
         $this->assertEqualsWithDelta(65.0, $order->realizedProfitLoss, 0.000001);
         $this->assertEqualsWithDelta(10065.0, $results->endingCapital, 0.000001);
@@ -455,7 +455,7 @@ class SpecificPairBacktestDomainTest extends TestCase
 
         $this->assertSame(250000.0, $order->requestedPositionSize);
         $this->assertSame(250000.0, $order->positionSize);
-        $this->assertSame('2.5', $order->strategyQuantity);
+        $this->assertSame(2.5, $order->strategyQuantity);
         $this->assertSame('lot', $order->quantityUnit);
         $this->assertSame(2500.0, $order->riskAmount);
         $this->assertSame(500.0, $order->profitLoss);
@@ -573,7 +573,7 @@ class SpecificPairBacktestDomainTest extends TestCase
         $this->assertSame(1.0, $order->quantityMultiplier);
     }
 
-    public function test_futures_contract_multiplier_scales_risk_and_profit_without_changing_contract_quantity(): void
+    public function test_futures_contract_size_and_tick_value_scale_risk_and_profit(): void
     {
         $pair = new MarketPair(['quantity_unit' => 'contract', 'contract_size' => '50.00000000']);
         $pair->setRelation('prices', new EloquentCollection([
@@ -603,14 +603,109 @@ class SpecificPairBacktestDomainTest extends TestCase
         ));
         $order = $results->orders->at(0);
 
-        $this->assertSame(2.0, $order->requestedPositionSize);
-        $this->assertSame(2.0, $order->positionSize);
+        $this->assertSame(100.0, $order->requestedPositionSize);
+        $this->assertSame(100.0, $order->positionSize);
         $this->assertSame('contract', $order->quantityUnit);
         $this->assertSame(50.0, $order->quantityMultiplier);
-        $this->assertSame(50.0, $order->pnlMultiplier);
+        $this->assertSame(1.0, $order->pnlMultiplier);
         $this->assertSame(10000.0, $order->riskAmount);
         $this->assertSame(1000.0, $order->profitLoss);
         $this->assertSame(11000.0, $results->endingCapital);
+    }
+
+    public function test_cfd_tick_value_and_quantity_step_drive_usd_pnl(): void
+    {
+        $pair = new MarketPair(['quantity_unit' => 'contract', 'contract_size' => '1.00000000']);
+        $pair->setRelation('prices', new EloquentCollection([
+            $this->candle('2026-10-09 09:00:00', ['ask_open' => 100]),
+            $this->candle('2026-10-09 10:00:00', [
+                'open' => 101,
+                'high' => 101,
+                'low' => 101,
+                'close' => 101,
+                'bid_open' => 101,
+                'bid_close' => 101,
+            ]),
+        ]));
+        $strategy = Mockery::mock(Strategy::class);
+        $strategy->shouldReceive('execute')->once()->andReturn(Vec::fromArray([
+            new StrategyDecision(StrategySignal::Long, 99, 103, 0.74),
+            new StrategyDecision(StrategySignal::Close, null, null),
+        ]));
+        $specification = new CfdContractSpecification(
+            contractSize: 1,
+            tickSize: 0.25,
+            tickValue: 12.5,
+            minimumQuantity: 0.5,
+            quantityStep: 0.25,
+            initialMarginRate: 10,
+        );
+
+        $result = (new SpecificPairBacktestProcess($strategy))->execute(
+            new SpecificPairTestConfig(
+                'ES',
+                'USD',
+                new DateTimeImmutable('2026-10-09 00:00:00'),
+                new DateTimeImmutable('2026-10-09 23:59:59'),
+                false,
+                false,
+                initialCapital: 1000,
+            ),
+            $this->marketData($pair, $specification),
+            new FundamentalDataCollection,
+        );
+        $order = $result->orders->at(0);
+
+        $this->assertSame(0.5, $order->strategyQuantity);
+        $this->assertSame(0.5, $order->positionSize);
+        $this->assertSame(25.0, $order->profitLoss);
+        $this->assertSame(25.0, $order->riskAmount);
+        $this->assertSame(1025.0, $result->endingCapital);
+    }
+
+    public function test_entry_is_rejected_when_margin_exceeds_usd_capital_or_quantity_is_below_minimum(): void
+    {
+        foreach ([
+            [
+                'quantity' => 2,
+                'specification' => new CfdContractSpecification(1, 1, 1, 1, 1, 100),
+                'reason' => 'insufficient_initial_margin',
+            ],
+            [
+                'quantity' => 0.5,
+                'specification' => new CfdContractSpecification(1, 1, 1, 1, 1, 1),
+                'reason' => 'below_minimum_quantity',
+            ],
+        ] as $case) {
+            $pair = new MarketPair(['quantity_unit' => 'units']);
+            $pair->setRelation('prices', new EloquentCollection([
+                $this->candle('2026-10-09 09:00:00', ['ask_open' => 100]),
+            ]));
+            $strategy = Mockery::mock(Strategy::class);
+            $strategy->shouldReceive('execute')->once()->andReturn(Vec::of(
+                new StrategyDecision(StrategySignal::Long, 90, 120, $case['quantity']),
+            ));
+
+            $result = (new SpecificPairBacktestProcess($strategy))->execute(
+                new SpecificPairTestConfig(
+                    'EUR',
+                    'USD',
+                    new DateTimeImmutable('2026-10-09 00:00:00'),
+                    new DateTimeImmutable('2026-10-09 23:59:59'),
+                    false,
+                    false,
+                    initialCapital: 100,
+                ),
+                $this->marketData($pair, $case['specification']),
+                new FundamentalDataCollection,
+            );
+
+            $decision = $result->decisions->at(0);
+            $this->assertFalse($decision->entered);
+            $this->assertSame('rejected', $decision->entryOrderStatus);
+            $this->assertSame($case['reason'], $decision->entryRejectionReason);
+            $this->assertTrue($result->orders->isEmpty());
+        }
     }
 
     public function test_it_skips_inactive_candles_and_returns_only_active_decisions(): void
@@ -1657,8 +1752,10 @@ class SpecificPairBacktestDomainTest extends TestCase
             ->execute($config);
     }
 
-    private function marketData(MarketPair $pair): MarketPairMarketData
-    {
+    private function marketData(
+        MarketPair $pair,
+        ?CfdContractSpecification $contractSpecification = null,
+    ): MarketPairMarketData {
         $quantityUnit = MarketPairQuantityUnit::tryFrom($pair->quantity_unit ?? 'units');
         if ($quantityUnit === null) {
             throw new \UnexpectedValueException('Unsupported test market-pair quantity unit.');
@@ -1668,6 +1765,16 @@ class SpecificPairBacktestDomainTest extends TestCase
             candles: Vec::fromArray($pair->prices->all()),
             quantityUnit: $quantityUnit,
             contractSize: is_numeric($pair->contract_size) ? (string) $pair->contract_size : '1',
+            contractSpecification: $contractSpecification ?? new CfdContractSpecification(
+                contractSize: is_numeric($pair->contract_size) ? (float) $pair->contract_size : 1.0,
+                tickSize: 1.0,
+                tickValue: $quantityUnit === MarketPairQuantityUnit::Units
+                    ? 1.0
+                    : (is_numeric($pair->contract_size) ? (float) $pair->contract_size : 1.0),
+                minimumQuantity: 0.00000001,
+                quantityStep: 0.00000001,
+                initialMarginRate: 0.00000001,
+            ),
         );
     }
 }

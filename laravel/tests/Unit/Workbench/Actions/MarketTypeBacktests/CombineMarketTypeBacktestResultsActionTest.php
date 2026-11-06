@@ -8,10 +8,8 @@ use App\Feature\Backtest\Action\MarketTypeBacktests\CombineMarketTypeBacktestRes
 use App\Feature\Backtest\Model\MarketTypeBacktestPairRun;
 use App\Feature\Backtest\Model\MarketTypeBacktestRun;
 use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioCapitalSynchronizationProcess;
-use App\Feature\Backtest\Process\MarketTypeBacktests\PortfolioLeverageLimitProcess;
 use Exact\Collection\Vec;
 use InvalidArgumentException;
-use Nikaido\Strategy\Enums\DecisionMode;
 use Tests\TestCase;
 use UnexpectedValueException;
 
@@ -44,6 +42,21 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
         } catch (UnexpectedValueException $exception) {
             $this->assertSame('The market-type run has an unsupported capital mode.', $exception->getMessage());
         }
+    }
+
+    public function test_it_rejects_persisted_portfolio_target_runs(): void
+    {
+        $run = new MarketTypeBacktestRun([
+            'market_type_name' => 'Forex',
+            'configuration' => [
+                'decision_mode' => 'portfolio_target',
+            ],
+        ]);
+
+        $this->expectException(UnexpectedValueException::class);
+        $this->expectExceptionMessage('Portfolio target mode is no longer supported.');
+
+        $this->combiner()->execute($run, Vec::empty());
     }
 
     public function test_shared_capital_mode_clips_simultaneous_pair_risk_to_one_portfolio_budget(): void
@@ -250,15 +263,13 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
         $this->assertSame(91, $result['execution_config']['random_seed']);
     }
 
-    public function test_portfolio_target_keeps_strategy_sizing_when_the_position_fits_the_leverage_limit(): void
+    public function test_shared_capital_aggregation_keeps_strategy_sizing_when_risk_fits(): void
     {
         $run = new MarketTypeBacktestRun([
             'market_type_name' => 'Forex',
             'configuration' => [
                 'initial_capital' => 1000,
                 'capital_mode' => 'shared',
-                'decision_mode' => DecisionMode::PortfolioTarget->value,
-                'max_gross_leverage' => 1.0,
                 'timeframe_name' => '1h',
                 'from' => '2026-10-10 00:00:00',
                 'to' => '2026-10-10 23:59:59',
@@ -317,22 +328,20 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
 
         $result = $this->combiner()->execute($run, Vec::of($pairRun));
 
-        $this->assertSame(DecisionMode::PortfolioTarget->value, $result['decision_mode']);
-        $this->assertSame(1.0, $result['max_gross_leverage']);
+        $this->assertArrayNotHasKey('decision_mode', $result);
+        $this->assertArrayNotHasKey('max_gross_leverage', $result);
         $this->assertSame(8.0, $result['order_history'][0]['position_size']);
         $this->assertArrayNotHasKey('portfolio_entry_rejected', $result['order_history'][0]);
         $this->assertSame(1040.0, $result['ending_capital']);
     }
 
-    public function test_portfolio_target_marks_a_leverage_rejected_signal_as_not_executed(): void
+    public function test_shared_capital_aggregation_preserves_cash_flows_and_fills(): void
     {
         $run = new MarketTypeBacktestRun([
             'market_type_name' => 'Forex',
             'configuration' => [
                 'initial_capital' => 1000,
                 'capital_mode' => 'shared',
-                'decision_mode' => DecisionMode::PortfolioTarget->value,
-                'max_gross_leverage' => 1.0,
                 'include_cash_flows' => '1',
                 'timeframe_name' => '1h',
                 'from' => '2026-10-10 00:00:00',
@@ -397,13 +406,10 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
 
         $result = $this->combiner()->execute($run, Vec::of($pairRun));
 
-        $this->assertFalse($result['results'][0]['result']);
-        $this->assertSame('rejected', $result['results'][0]['entry_order_status']);
-        $this->assertSame('portfolio_leverage_limit', $result['results'][0]['entry_rejection_reason']);
-        $this->assertTrue($result['order_history'][0]['portfolio_entry_rejected']);
-        $this->assertSame(1000.0, $result['ending_capital']);
-        $this->assertSame([], $result['cash_flows']);
-        $this->assertSame(0, $result['cash_flow_total']);
+        $this->assertTrue($result['results'][0]['result']);
+        $this->assertArrayNotHasKey('portfolio_entry_rejected', $result['order_history'][0]);
+        $this->assertSame(1110.0, $result['ending_capital']);
+        $this->assertSame(10.0, $result['cash_flow_total']);
         $this->assertTrue($result['execution_config']['include_cash_flows']);
     }
 
@@ -411,7 +417,6 @@ class CombineMarketTypeBacktestResultsActionTest extends TestCase
     {
         return new CombineMarketTypeBacktestResultsAction(
             new PortfolioCapitalSynchronizationProcess,
-            new PortfolioLeverageLimitProcess,
         );
     }
 }

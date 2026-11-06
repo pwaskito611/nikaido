@@ -48,7 +48,6 @@ final readonly class PortfolioOrderDetails
         public float $quantityMultiplier,
         public float $pnlMultiplier,
         public float $capitalAtOpen,
-        public int $priority,
     ) {}
 
     /** @param array<string, mixed> $order */
@@ -72,10 +71,6 @@ final readonly class PortfolioOrderDetails
         $quantityMultiplier = self::requiredNumber($order, 'quantity_multiplier');
         $pnlMultiplier = self::requiredNumber($order, 'pnl_multiplier');
         $capitalAtOpen = self::requiredNumber($order, 'capital_at_open');
-        $priority = $order['priority'] ?? 0;
-        if (! is_int($priority) || $priority < 0) {
-            throw new UnexpectedValueException('Portfolio order priority must be a non-negative integer.');
-        }
         if ($quantityMultiplier <= 0 || $pnlMultiplier <= 0 || $capitalAtOpen <= 0) {
             throw new UnexpectedValueException('Portfolio quantity, P/L, and capital multipliers must be positive.');
         }
@@ -130,7 +125,6 @@ final readonly class PortfolioOrderDetails
             quantityMultiplier: $quantityMultiplier,
             pnlMultiplier: $pnlMultiplier,
             capitalAtOpen: $capitalAtOpen,
-            priority: $priority,
         );
     }
 
@@ -167,7 +161,6 @@ final readonly class PortfolioOrderDetails
             'quantity_multiplier' => $this->quantityMultiplier,
             'pnl_multiplier' => $this->pnlMultiplier,
             'capital_at_open' => $this->capitalAtOpen,
-            'priority' => $this->priority,
         ];
     }
 

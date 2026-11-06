@@ -8,7 +8,6 @@ use App\Feature\Backtest\Rules\ActiveTradingSchedule;
 use DateTimeImmutable;
 use Exact\Collection\Vec;
 use InvalidArgumentException;
-use Nikaido\Strategy\Enums\DecisionMode;
 
 final readonly class ConfiguredPairBacktestInput
 {
@@ -27,7 +26,6 @@ final readonly class ConfiguredPairBacktestInput
         public FixedSlippageConfig $slippage,
         public PartialFillConfig $partialFill,
         public TradeCostConfig $tradeCosts,
-        public DecisionMode $decisionMode = DecisionMode::PerMarketPair,
         public bool $includeCashFlows = false,
     ) {
         if ($marketPairId < 1 || $timeframeTypeId < 1) {
@@ -83,12 +81,18 @@ final readonly class ConfiguredPairBacktestInput
      *     execution_volume_period?: 'candle',
      *     unfilled_order_policy?: 'keep'|'cancel',
      *     trade_costs?: array<string, mixed>,
-     *     decision_mode?: 'per_market_pair'|'portfolio_target',
+     *     decision_mode?: string,
+     *     max_gross_leverage?: int|float|string|null,
      *     include_cash_flows?: bool|string,
      * } $input
      */
     public static function fromArray(array $input): self
     {
+        if (($input['decision_mode'] ?? null) === 'portfolio_target'
+            || array_key_exists('max_gross_leverage', $input)) {
+            throw new InvalidArgumentException('Portfolio target mode is no longer supported.');
+        }
+
         $days = $input['excluded_days'] ?? [];
         if (! is_array($days) || ! array_is_list($days)) {
             throw new InvalidArgumentException('Configured backtest excluded days must be a list.');
@@ -133,7 +137,6 @@ final readonly class ConfiguredPairBacktestInput
                 executionVolumePeriod: $input['execution_volume_period'] ?? 'candle',
             ),
             tradeCosts: TradeCostConfig::fromArray($input['trade_costs'] ?? []),
-            decisionMode: DecisionMode::from($input['decision_mode'] ?? DecisionMode::PerMarketPair->value),
             includeCashFlows: filter_var($input['include_cash_flows'] ?? false, FILTER_VALIDATE_BOOLEAN),
         );
     }

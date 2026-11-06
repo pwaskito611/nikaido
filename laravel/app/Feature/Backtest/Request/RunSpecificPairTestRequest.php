@@ -127,6 +127,14 @@ class RunSpecificPairTestRequest extends FormRequest
                     'Choose whether the transaction tax applies to entry, exit, or both.',
                 );
             }
+            if ($this->boolean('trade_costs.enabled')
+                && $this->boolean('trade_costs.borrow_fee.enabled')
+                && $this->boolean('trade_costs.financing_fee.enabled')) {
+                $validator->errors()->add(
+                    'trade_costs.financing_fee.enabled',
+                    'Choose either short borrow fee or overnight financing; both would duplicate holding costs.',
+                );
+            }
         });
     }
 

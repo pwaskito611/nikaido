@@ -20,6 +20,11 @@ class MarketPairDefinitionTest extends TestCase
             'usd',
             MarketPairQuantityUnit::Units,
             Option::some('500'),
+            '0.01',
+            '0.01',
+            '1',
+            '1',
+            '1',
         );
 
         $this->assertSame('EUR', $definition->base);
@@ -31,7 +36,7 @@ class MarketPairDefinitionTest extends TestCase
     {
         foreach ([MarketPairQuantityUnit::Contract, MarketPairQuantityUnit::Lot] as $unit) {
             try {
-                MarketPairDefinition::create(7, 'ES', 'USD', $unit, Option::none());
+                MarketPairDefinition::create(7, 'ES', 'USD', $unit, Option::none(), '0.01', '0.01', '1', '1', '1');
                 $this->fail('Expected missing contract size to be rejected.');
             } catch (InvalidArgumentException $exception) {
                 $this->assertSame('Contract and lot quantities require a contract size.', $exception->getMessage());
@@ -40,7 +45,7 @@ class MarketPairDefinitionTest extends TestCase
 
         foreach (['0', '-1', 'NAN', 'INF', '1.123456789', '1234567890123'] as $size) {
             try {
-                MarketPairDefinition::create(7, 'ES', 'USD', MarketPairQuantityUnit::Contract, Option::some($size));
+                MarketPairDefinition::create(7, 'ES', 'USD', MarketPairQuantityUnit::Contract, Option::some($size), '0.01', '0.01', '1', '1', '1');
                 $this->fail('Expected invalid contract size to be rejected.');
             } catch (InvalidArgumentException $exception) {
                 $this->assertSame('A market pair contract size must be a positive finite number.', $exception->getMessage());
@@ -64,6 +69,11 @@ class MarketPairDefinitionTest extends TestCase
                     $quote,
                     MarketPairQuantityUnit::Units,
                     Option::none(),
+                    '0.01',
+                    '0.01',
+                    '1',
+                    '1',
+                    '1',
                 );
                 $this->fail('Expected invalid market pair identity to be rejected.');
             } catch (InvalidArgumentException) {
@@ -88,6 +98,11 @@ class MarketPairDefinitionTest extends TestCase
                     'USD',
                     MarketPairQuantityUnit::Units,
                     Option::none(),
+                    '0.01',
+                    '0.01',
+                    '1',
+                    '1',
+                    '1',
                     $relatedPairs,
                 );
                 $this->fail('Expected invalid related market pair IDs to be rejected.');
@@ -105,6 +120,11 @@ class MarketPairDefinitionTest extends TestCase
             'GBP',
             MarketPairQuantityUnit::Units,
             Option::none(),
+            '0.01',
+            '0.01',
+            '1',
+            '1',
+            '1',
             [12 => 4, 13 => null],
         );
 

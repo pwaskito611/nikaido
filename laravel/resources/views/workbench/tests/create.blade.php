@@ -42,19 +42,9 @@
                                 <option value="{{ $marketPair->id }}" @selected(old('market_pair_id') == $marketPair->id)>{{ $marketPair->base }}/{{ $marketPair->quote }} · {{ $marketPair->marketType?->name }}</option>
                             @endforeach
                         </select>
+                        <small class="field-hint">Pairs created before CFD contract profiles were added must be updated in Market Pairs before they can be backtested.</small>
                     </div>
                     <div id="market-type-fields" hidden>
-                        <label class="field-label" for="decision_mode">Decision mode <span>*</span></label>
-                        <select class="text-input" id="decision_mode" name="decision_mode">
-                            <option value="per_market_pair" @selected(old('decision_mode', 'per_market_pair') === 'per_market_pair')>Per market pair</option>
-                            <option value="portfolio_target" @selected(old('decision_mode') === 'portfolio_target')>Portfolio target</option>
-                        </select>
-                        <small class="field-hint">Per market pair keeps the existing independent pair decisions. Portfolio target combines pair decisions chronologically and enforces a shared gross-leverage limit.</small>
-                        <div id="portfolio-target-fields" hidden>
-                            <label class="field-label" for="max_gross_leverage">Maximum gross leverage <span>*</span></label>
-                            <input class="text-input" id="max_gross_leverage" name="max_gross_leverage" type="number" min="0.01" max="1000" step="any" value="{{ old('max_gross_leverage', '1.0') }}">
-                            <small class="field-hint">For example, 2.0 allows total long plus short notional up to 2× portfolio equity. Existing positions are never reduced to make room. New orders that exceed the limit are rejected; higher numeric values mean higher priority.</small>
-                        </div>
                         <label class="field-label" for="market_type_id">Market type <span>*</span></label>
                         <select class="text-input" id="market_type_id" name="market_type_id">
                             <option value="">Select a market type</option>
@@ -99,15 +89,15 @@
             </div>
             <div class="form-section">
                 <span class="form-section-number">03</span><div class="form-section-body">
-                    <h3>Set starting capital</h3><p>Strategy supplies the requested quantity using each pair's configured unit. Shared portfolio mode may reduce that quantity to fit the available stop-loss risk budget.</p>
+                    <h3>Set starting capital</h3><p>Enter USD capital. Strategy supplies quantity using each instrument's tick-value profile; the engine enforces quantity steps and initial margin.</p>
                     <div>
                         <label class="field-label" for="initial_capital">Initial capital <span>*</span></label>
                         <input class="text-input" id="initial_capital" name="initial_capital" type="number" min="0.01" step="0.01" value="{{ old('initial_capital', '10000.00') }}" required>
-                        <small class="field-hint" id="initial-capital-hint">For a specific-pair test, enter the amount in the pair's quote currency, such as USD for EUR/USD.</small>
+                        <small class="field-hint" id="initial-capital-hint">All capital and P/L values are USD. Pair prices must already be normalized; Nikaido does not convert currencies.</small>
                     </div>
                     <label class="check-row">
                         <input type="checkbox" id="include_cash_flows" name="include_cash_flows" value="1" @checked(old('include_cash_flows'))>
-                        <span><strong>Include asset cash flows</strong><small>Include confirmed/paid cash-flow events from the selected pair(s). Income is credited on ex-date for positions held before that candle; short positions pay the equivalent amount. Cash flows default to off.</small></span>
+                        <span><strong>Include CFD dividend adjustments</strong><small>Apply confirmed/paid contract adjustments on ex-date for positions held before that candle; short positions receive the opposite adjustment. Disabled by default.</small></span>
                     </label>
                 </div>
             </div>
@@ -261,34 +251,38 @@
             </div>
             <div class="form-section">
                 <span class="form-section-number">07</span><div class="form-section-body">
-                    <h3>Trade cost settings</h3>
-                    <p>Optional user-supplied costs are deducted from net P/L. No broker schedule, jurisdictional tax, asset type, or missing rate is inferred. Spread and slippage remain handled by execution prices and slippage settings above.</p>
+                    <h3>Commission and overnight financing</h3>
+                    <p>Configure the main CFD costs in USD. Bid/ask prices model spread when available; the OHLC fallback adds no separate spread charge. Slippage remains controlled above.</p>
                     <label class="check-row">
                         <input type="checkbox" id="trade_costs_enabled" name="trade_costs[enabled]" value="1" @checked(old('trade_costs.enabled'))>
-                        <span><strong>Enable additional trade costs</strong><small>Only configured components below are modeled. Disabled or unconfigured costs are not included.</small></span>
+                        <span><strong>Enable commission and overnight financing</strong><small>Only configured costs are deducted from P/L. Both default to off.</small></span>
                     </label>
                     @php
                         $tradeCostComponents = [
                             'commission' => ['Commission', ['per_order' => 'Fixed amount per order side', 'transaction_value_percent' => 'Percentage of transaction value', 'per_quantity' => 'Amount per unit / lot / contract']],
+                            'financing_fee' => ['Overnight financing', ['daily_notional_percent' => 'Percentage of entry notional per 24 hours']],
                             'exchange_fee' => ['Exchange fee', ['per_order' => 'Fixed amount per order side', 'transaction_value_percent' => 'Percentage of transaction value', 'per_quantity' => 'Amount per unit / lot / contract']],
                             'clearing_fee' => ['Clearing fee', ['per_order' => 'Fixed amount per order side', 'transaction_value_percent' => 'Percentage of transaction value', 'per_quantity' => 'Amount per unit / lot / contract']],
                             'regulatory_fee' => ['Regulatory fee', ['per_order' => 'Fixed amount per order side', 'transaction_value_percent' => 'Percentage of transaction value', 'per_quantity' => 'Amount per unit / lot / contract']],
                             'transaction_tax' => ['Transaction tax', ['per_order' => 'Fixed amount per order side', 'transaction_value_percent' => 'Percentage of transaction value', 'per_quantity' => 'Amount per unit / lot / contract']],
-                            'borrow_fee' => ['Short borrow fee', ['daily_notional_percent' => 'Percentage of entry notional per 24 hours']],
-                            'financing_fee' => ['Financing / holding cost', ['daily_notional_percent' => 'Percentage of entry notional per 24 hours']],
                         ];
                     @endphp
                     @foreach ($tradeCostComponents as $component => [$label, $methods])
                         @php
-                            $holdingCost = in_array($component, ['borrow_fee', 'financing_fee'], true);
+                            $holdingCost = $component === 'financing_fee';
                             $methodField = "trade_costs.{$component}.method";
                             $rateField = "trade_costs.{$component}.rate";
                             $componentEnabled = "trade_costs.{$component}.enabled";
                         @endphp
+                        @if ($component === 'exchange_fee')
+                            <details class="trade-cost-advanced">
+                                <summary>Advanced transaction costs</summary>
+                                <p class="field-hint">Optional exchange, clearing, regulatory, and transaction charges.</p>
+                        @endif
                         <div class="trade-cost-component">
                             <label class="check-row">
                                 <input class="trade-cost-toggle" type="checkbox" id="trade_cost_{{ $component }}_enabled" name="trade_costs[{{ $component }}][enabled]" value="1" @checked(old($componentEnabled))>
-                                <span><strong>{{ $label }}</strong><small>{{ $holdingCost ? ($component === 'borrow_fee' ? 'Applied only to short positions.' : 'Applied to long and short positions when enabled.') : 'Applied independently on entry and exit fills.' }}</small></span>
+                                <span><strong>{{ $label }}</strong><small>{{ $holdingCost ? 'Applied to long and short positions when enabled.' : 'Applied independently on entry and exit fills.' }}</small></span>
                             </label>
                             <div class="field-row trade-cost-fields" id="trade_cost_{{ $component }}_fields" hidden>
                                 <div>
@@ -315,10 +309,13 @@
                                 <div>
                                     <label class="field-label" for="trade_cost_{{ $component }}_rate">{{ $holdingCost ? 'Rate (% per 24 hours)' : 'Rate' }}</label>
                                     <input class="text-input" id="trade_cost_{{ $component }}_rate" name="trade_costs[{{ $component }}][rate]" type="number" min="0" step="any" value="{{ old($rateField, '0') }}">
-                                    <small class="field-hint">{{ $holdingCost ? 'Uses entry-fill notional × elapsed 24-hour periods; charged on exit. No calendar-day or jurisdictional assumptions.' : 'Percentage rates use executed transaction value. Per-quantity rates use the selected pair’s stored unit (units, lots, or contracts); fixed amounts use the account currency.' }}</small>
+                                    <small class="field-hint">{{ $holdingCost ? 'Applied to entry-fill notional for each elapsed 24-hour period and charged on exit; use this single setting for overnight financing.' : 'Percentage rates use executed USD notional. Per-quantity rates use the selected strategy unit (units, lots, or contracts); fixed amounts are USD per order side.' }}</small>
                                 </div>
                             </div>
                         </div>
+                        @if ($component === 'transaction_tax')
+                            </details>
+                        @endif
                     @endforeach
                 </div>
             </div>
@@ -333,9 +330,6 @@
         const marketTypeSelect = document.getElementById('market_type_id');
         const capitalModeField = document.getElementById('capital-mode-field');
         const capitalModeSelect = document.getElementById('capital_mode');
-        const decisionModeSelect = document.getElementById('decision_mode');
-        const portfolioTargetFields = document.getElementById('portfolio-target-fields');
-        const maxGrossLeverageInput = document.getElementById('max_gross_leverage');
         const initialCapitalHint = document.getElementById('initial-capital-hint');
         const exclusionOptions = [...document.querySelectorAll('[data-excluded-pair-option]')];
         const exclusionEmpty = document.getElementById('pair-exclusion-empty');
@@ -357,10 +351,8 @@
                 : 'This market type has no pairs yet.';
         };
         if (testType) {
-            let previousCapitalMode = capitalModeSelect.value;
             const updateTestTypeFields = () => {
                 const parallel = testType.value === 'market_type';
-                const portfolioTarget = parallel && decisionModeSelect.value === 'portfolio_target';
                 pairFields.hidden = parallel;
                 marketTypeFields.hidden = !parallel;
                 pairSelect.required = !parallel;
@@ -368,32 +360,16 @@
                 marketTypeSelect.required = parallel;
                 marketTypeSelect.disabled = !parallel;
                 capitalModeField.hidden = !parallel;
-                portfolioTargetFields.hidden = !portfolioTarget;
-                decisionModeSelect.required = parallel;
-                decisionModeSelect.disabled = !parallel;
-                maxGrossLeverageInput.required = portfolioTarget;
-                maxGrossLeverageInput.disabled = !portfolioTarget;
-                if (portfolioTarget) {
-                    if (!capitalModeSelect.disabled) {
-                        previousCapitalMode = capitalModeSelect.value;
-                    }
-                    capitalModeSelect.value = 'shared';
-                } else if (capitalModeSelect.disabled) {
-                    capitalModeSelect.value = previousCapitalMode;
-                }
-                capitalModeSelect.required = parallel && !portfolioTarget;
-                capitalModeSelect.disabled = !parallel || portfolioTarget;
+                capitalModeSelect.required = parallel;
+                capitalModeSelect.disabled = !parallel;
                 initialCapitalHint.textContent = !parallel
-                    ? "For a specific-pair test, enter the amount in the pair's quote currency, such as USD for EUR/USD."
-                    : portfolioTarget
-                        ? 'This is one shared portfolio equity amount. The portfolio-target engine uses it as the initial equity for the gross-leverage limit.'
+                    ? 'All capital and P/L values are USD. Pair prices must already be normalized; Nikaido does not convert currencies.'
                     : capitalModeSelect.value === 'shared'
-                        ? 'This is one shared risk-capital budget. Pair risk and P/L values are combined as reported; no FX conversion is performed, so use a common account unit.'
-                        : 'Each successful pair starts with this amount. Overall capital is the sum across pairs; values are combined as reported with no FX conversion.';
+                        ? 'This is one shared USD risk and initial-margin budget. Pair prices and P/L values are combined without FX conversion.'
+                        : 'Each successful pair starts with this USD amount. Overall capital is the sum across pairs; no FX conversion is performed.';
                 updatePairExclusionOptions();
             };
             testType.addEventListener('change', updateTestTypeFields);
-            decisionModeSelect.addEventListener('change', updateTestTypeFields);
             updateTestTypeFields();
             marketTypeSelect.addEventListener('change', updatePairExclusionOptions);
             capitalModeSelect.addEventListener('change', updateTestTypeFields);

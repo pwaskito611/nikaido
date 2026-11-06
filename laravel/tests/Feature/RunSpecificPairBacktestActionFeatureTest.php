@@ -33,6 +33,7 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'EUR',
             'quote' => 'USD',
+            ...$this->cfdProfile(),
         ]);
 
         $passiveCandle = $this->createCandle($pair, '2026-10-09 08:59:00');
@@ -66,11 +67,13 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
             'market_type_id' => $forex->id,
             'base' => 'EUR',
             'quote' => 'USD',
+            ...$this->cfdProfile(),
         ]);
         $selectedPair = MarketPair::create([
             'market_type_id' => $crypto->id,
             'base' => 'EUR',
             'quote' => 'USD',
+            ...$this->cfdProfile(),
         ]);
         $this->createCandle($firstPair, '2026-10-09 09:00:00');
         $selectedCandle = $this->createCandle($selectedPair, '2026-10-09 10:00:00');
@@ -98,13 +101,14 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'AAPL',
             'quote' => 'USD',
+            ...$this->cfdProfile(),
         ]);
         foreach (['2026-03-01 00:00:00', '2026-03-02 00:00:00', '2026-03-03 00:00:00'] as $timestamp) {
             $this->createCandle($pair, $timestamp, $timeframe->id);
         }
         MarketPairCashFlow::query()->create([
             'market_pair_id' => $pair->id,
-            'event_type' => 'dividend',
+            'event_type' => 'dividend_adjustment',
             'amount_per_unit' => '0.500000000000',
             'announced_at' => '2026-03-01 00:00:00',
             'available_at' => '2026-03-01 00:00:00',
@@ -156,6 +160,7 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'EUR',
             'quote' => 'USD',
+            ...$this->cfdProfile(),
         ]);
         $this->createCandle($pair, '2026-10-09 10:00:00');
 
@@ -187,6 +192,7 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
             'market_type_id' => $marketType->id,
             'base' => 'EUR',
             'quote' => 'USD',
+            ...$this->cfdProfile(),
         ]);
         $this->createCandle($pair, '2026-10-09 08:00:00');
 
@@ -229,5 +235,19 @@ class RunSpecificPairBacktestActionFeatureTest extends TestCase
             'high' => '1.205000',
             'low' => '1.195000',
         ]);
+    }
+
+    /** @return array<string, string> */
+    private function cfdProfile(): array
+    {
+        return [
+            'quantity_unit' => 'units',
+            'contract_size' => '1',
+            'tick_size' => '0.0001',
+            'tick_value' => '1',
+            'minimum_quantity' => '0.00000001',
+            'quantity_step' => '0.00000001',
+            'initial_margin_rate' => '0.01',
+        ];
     }
 }

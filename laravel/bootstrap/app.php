@@ -17,6 +17,7 @@ $app = NikaidoLaravelApplication::configure(basePath: $projectRoot)
             $projectRoot.'/laravel/app/Feature/DataImport/api.php',
             $projectRoot.'/laravel/app/Feature/Fundamentals/api.php',
             $projectRoot.'/laravel/app/Feature/CashFlows/api.php',
+            $projectRoot.'/laravel/app/Feature/News/api.php',
             $projectRoot.'/laravel/app/Feature/MarketExploration/api.php',
         ],
         commands: __DIR__.'/../routes/console.php',
